@@ -266,7 +266,7 @@ error. A CI system or an LLM can read it with no tooling.
 | `borrowed` | `name`, `by` | "`{name}` borrowed by {by}" |
 | `dropped` | `name` | "`{name}` dropped" |
 | `cleaned_up` | `name` | "`{name}` cleaned up" |
-| `called`, `returned` | `function`, `value` | "{function} called" / "{function} returned {value}" |
+| `called`, `returned` | `function`, `value`; `called` adds `foreign: true` for a foreign call (0.2 `extern`) | "{function} called" / "{function} returned {value}"; a foreign call reads "{function} called (foreign code)" |
 | `propagated` | `value`, `function` | "`?` left {function} with {value}" |
 | `panicked` | `kind`, `text` | "{text}" |
 | `spawned`, `finished` | `task`, `function` | "task {task} started {function}" / "task {task} finished" |
@@ -281,7 +281,8 @@ error. A CI system or an LLM can read it with no tooling.
 `borrowed` (a parameter seen by a call), `exclusive` (a `mut` parameter during
 a call), `dropped`, `not_yet_bound`. A `mut` binding adds `mutable: true` and
 `reassigned_at`. An optional adds `presence: present or none`; a fallible
-value adds `result: ok or error`.
+value adds `result: ok or error`. A value that crossed a foreign call adds
+`note: from_foreign`, shown as "came from a foreign call" (0.2 `extern`, E10).
 
 ### Stop reasons
 
