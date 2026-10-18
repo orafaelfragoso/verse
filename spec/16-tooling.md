@@ -11,6 +11,10 @@ manager.
 | `verse fmt [path]` | format code in the one canonical style; `--check` for CI |
 | `verse check` | type-check without running; fast feedback for editors |
 | `verse build` | produce an optimized native executable |
+| `verse build --size-report` | build, and list every included item with its size and why it was included |
+| `verse why <item>` | show the chain of uses from the program's entry statements to one included item |
+| `verse run --deny <capability>` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
+| `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `std.fs` on a browser WebAssembly target, for example) |
 | `verse doc` | generate HTML documentation from doc comments |
 | `verse repl` | interactive prompt |
 | `verse new name` | create a project skeleton |
@@ -82,6 +86,26 @@ snapshot = "0.9"
   arbitrary code.
 - A published package includes its `verse.api`; dependents are checked against
   it, never against the package's source.
+
+A library package may add a `[library]` section that describes what it offers:
+
+```toml
+[library]
+modules      = ["colors", "colors.term"]   # the modules dependents may import
+capabilities = ["stdio"]                   # the system capabilities its code may reach
+size_budget  = "40K"                       # `verse publish` fails if its example build exceeds it
+
+[library.targets]                          # where the package is available
+default      = "all"
+unavailable  = []                          # targets it does not support
+
+[library.native]                           # reserved for 0.2, with `extern` (§18.15)
+links        = []                          # native libraries to link: data, never scripts
+```
+
+Domain libraries are first-party optional packages, not part of `std`:
+`finance`, `ml`, `web`, `gui` and `iot` are added with `verse add` like any
+other package. `std.net.serve` remains in `std`.
 
 ### 16.4 Interface files (`verse.api`)
 

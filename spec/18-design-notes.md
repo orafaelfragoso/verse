@@ -320,6 +320,8 @@ caller, so it must not be able to fail.
   collides with an existing type is an error, so `type Meters = Float` is
   rejected with a pointer to `alias`.
 - `set` is a reserved word, so `set{…}` has exactly one reading.
+- `Map` and `Set` both iterate in insertion order, so printing or looping over
+  them gives the same result on every run and every target.
 - `.copy()` is the one duplication method: with no arguments it makes a plain
   copy, with field arguments a copy with changes (`.copy(age: 31)`). There is
   no `clone` and no `.with` (`with` is a keyword). `.copy()` comes from the
@@ -340,6 +342,10 @@ caller, so it must not be able to fail.
 - Generic `impl` blocks declare their parameters: `impl<T> Box<T>`.
 - A trait type such as `List<Speaker>` uses run-time dispatch, and the trait
   type itself implements the trait, so it can be passed to generic functions.
+- **Reserved for 0.2: `extern`.** Calling foreign (C ABI) functions is a 0.2
+  item. An `extern` function will be callable only inside a `with` block that
+  holds the matching system capability, and will take and return plain-data
+  types only. Verse 0.1 adds no syntax for it, and no `extern` word.
 
 ### 18.16 Standard library and tooling
 

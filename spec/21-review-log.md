@@ -285,3 +285,18 @@ a row amends an RF row above, it supersedes it.
 | R5-3 | Import hiding a prelude name | Warns on the import line: "`error` hides the prelude `error`" (e.g. `import info, error from std.log`). §16 has no diagnostics list, so it is stated in §3.9 only. | §3.9 |
 | R5-4 | Pointers to the hiding rule | One line each in §12.2 and §15.1 pointing to §3.9. | §12.2, §15.1 |
 | R5-5 | §18.9 summary | Clauses added: only locals count; tuple of `mut` names is a parallel assignment (swap). | §18.9 |
+
+### Round 7 (accepted rulings)
+
+Rulings carried over from the architecture work (architecture/12 Q1, Q2, Q4
+and 06 P6-2…P6-5). No section is reopened.
+
+| # | Item | Resolved decision | Where |
+|---|------|-------------------|-------|
+| R7-1 | `Set` order | `Set` iterates in insertion order, exactly like `Map`; a present value keeps its place, a removed-and-re-added one moves to the end (stated for `Map` too); set operations keep the left set's order, `union` appends the right set's new values. Replaces "unordered". | §9.2, §9.4, §18.15 |
+| R7-2 | `Text` indexing cost and byte view | Indexing or slicing `Text` by position may take time linear in its length. `text.bytes()` is a read-only view of the UTF-8 bytes with constant-time indexing; each byte is an `Int` 0–255; view rules of §9.3; `.copy()` gives owned `Bytes`. | §4.1 |
+| R7-3 | Unused imports | An unused imported name warns on the import line and cannot be silenced (no `_` escape); delete the name or the line. An import never adds code by itself. | §12.2 |
+| R7-4 | Size and capability tools | Tool table rows: `verse build --size-report`, `verse why <item>`, `verse run --deny <capability>`, `verse check --target <T>`. | §16 |
+| R7-5 | `[library]` and first-party packages | Optional `[library]` section (modules, capabilities, size budget, per-target availability); `[library.native]` link data reserved for 0.2. `finance`, `ml`, `web`, `gui`, `iot` are first-party optional packages, not `std`; `std.net.serve` stays in `std`. | §16.3 |
+| R7-6 | Domain libraries | One sentence: they ship as optional packages, not in `std`. | §15.2 |
+| R7-7 | `extern` | Reserved for 0.2: callable only inside a `with` block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: `reviews/extern-semantics.md` (proposal). | §18.15 |

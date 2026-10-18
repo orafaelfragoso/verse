@@ -48,6 +48,9 @@ and it lives in `std.fs` — `open(path): File | Error` (read),
 | `std.cli` | argument parsing | declarative flags from a record type |
 | `std.log` | structured logging | `info`, `warn`, `error`, levels, sinks |
 
+Domain libraries (`finance`, `ml`, `web`, `gui`, `iot`) ship as optional
+packages, not in `std` (§16.3).
+
 A few examples:
 
 ```verse

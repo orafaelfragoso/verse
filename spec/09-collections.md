@@ -26,7 +26,8 @@ Negative indices are not allowed; use `nums.last()` (which returns `T?`).
 ### 9.2 Maps
 
 `Map<K, V>` associates keys with values. Insertion order is preserved when
-iterating.
+iterating: replacing the value of an existing key keeps its place, and a key
+that is removed and inserted again moves to the end.
 
 ```verse
 ages = {"ana": 30, "bruno": 17}
@@ -104,7 +105,9 @@ view of part of the list or text, with the same rules as `list[i]`. Write
 
 ### 9.4 Sets
 
-`Set<T>` is an unordered collection of unique values.
+`Set<T>` is a collection of unique values. It iterates in insertion order,
+exactly like `Map` (§9.2): adding a value that is already present keeps its
+place, and a value that is removed and added again moves to the end.
 
 ```verse
 vowels = set{'a', 'e', 'i', 'o', 'u'}
@@ -114,7 +117,8 @@ both = set{"a", "b"}.union(set{"b", "c"})       # set{"a", "b", "c"}
 ```
 
 Set operations: `union`, `intersection`, `difference`, `is_subset`, plus `+`
-(union) and `-` (difference) as conveniences.
+(union) and `-` (difference) as conveniences. Their results keep the order of
+the left set; `union` then adds the right set's new values in its order.
 
 ### 9.5 Transforming collections
 

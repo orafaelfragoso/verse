@@ -969,8 +969,14 @@ help: did you mean to reassign `total`?   total = total + n
 <p>Sized numeric types (<code>Int8</code> … <code>Int64</code>, <code>UInt8</code> … <code>UInt64</code>, <code>Float32</code>) and
 arbitrary-precision <code>BigInt</code> and <code>Decimal</code> are provided by <code>std.num</code> for code
 that needs them.</p>
-<p><code>Text</code> is indexed by <em>characters</em>, not bytes: <code>"héllo".len()</code> is <code>5</code>. Use
-<code>text.bytes()</code> for the raw bytes.</p>
+<p><code>Text</code> is indexed by <em>characters</em>, not bytes: <code>"héllo".len()</code> is <code>5</code>. Because
+positions count characters, indexing or slicing a <code>Text</code> by position
+(<code>text[i]</code>, <code>text[2..5]</code>) may take time proportional to the length of the
+text. For the raw bytes, <code>text.bytes()</code> gives a read-only view of the UTF-8
+bytes with constant-time indexing: <code>"héllo".bytes().len()</code> is <code>6</code>, and
+<code>text.bytes()[i]</code> is the <code>i</code>-th byte as an <code>Int</code> from 0 to 255. It follows the
+rules for views (§9.3): it can be read, passed and bound to a name, but not
+stored or returned; <code>.copy()</code> gives an owned <code>Bytes</code>.</p>
 <h3 id="42-type-annotations-and-inference">4.2 Type annotations and inference</h3>
 <p>Verse is statically typed, but types are <strong>visually optional</strong>: annotations may
 be left out almost everywhere — on local bindings, on function parameters, and
@@ -2612,7 +2618,8 @@ queue[0] = "changed"
 <p>Negative indices are not allowed; use <code>nums.last()</code> (which returns <code>T?</code>).</p>
 <h3 id="92-maps">9.2 Maps</h3>
 <p><code>Map&lt;K, V&gt;</code> associates keys with values. Insertion order is preserved when
-iterating.</p>
+iterating: replacing the value of an existing key keeps its place, and a key
+that is removed and inserted again moves to the end.</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>ages = {"ana": 30, "bruno": 17}
 print(ages["ana"])                    # 30 — Int? (present)
 print(ages["zoe"])                    # none
@@ -2717,7 +2724,9 @@ simply copied.</p>
 view of part of the list or text, with the same rules as <code>list[i]</code>. Write
 <code>nums[1..].copy()</code> or <code>name[0..=2].copy()</code> to get an owned list or text.</p>
 <h3 id="94-sets">9.4 Sets</h3>
-<p><code>Set&lt;T&gt;</code> is an unordered collection of unique values.</p>
+<p><code>Set&lt;T&gt;</code> is a collection of unique values. It iterates in insertion order,
+exactly like <code>Map</code> (§9.2): adding a value that is already present keeps its
+place, and a value that is removed and added again moves to the end.</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>vowels = set{'a', 'e', 'i', 'o', 'u'}
 seen: Set&lt;Text&gt; = set{}
 print('e' in vowels)                 # true
@@ -2725,7 +2734,8 @@ both = set{"a", "b"}.union(set{"b", "c"})       # set{"a", "b", "c"}
 </code></pre></div>
 
 <p>Set operations: <code>union</code>, <code>intersection</code>, <code>difference</code>, <code>is_subset</code>, plus <code>+</code>
-(union) and <code>-</code> (difference) as conveniences.</p>
+(union) and <code>-</code> (difference) as conveniences. Their results keep the order of
+the left set; <code>union</code> then adds the right set's new values in its order.</p>
 <h3 id="95-transforming-collections">9.5 Transforming collections</h3>
 <p>Collections share a rich family of methods (from the <code>Iterable</code> trait) that
 chain with dots and take lambdas. Chains read top to bottom like a recipe.
@@ -3532,6 +3542,11 @@ file, after the module doc comment. Circular imports between modules are
 allowed for declarations but not for module-level constant initialization.</p>
 <p>An imported name may be hidden by a local, and an import may hide a prelude
 name (with a warning); the rules are in §3.9.</p>
+<p><strong>Unused imports.</strong> An imported name that the file never uses is a warning on
+the import line. Unlike an unused binding (§3.9), it cannot be silenced, not
+even with a leading <code>_</code>: the fix is to delete the name, or the whole line. An
+import never adds code by itself; it only makes names visible (§12.4), and a
+build includes only what the program actually uses.</p>
 <h3 id="123-visibility-with-export">12.3 Visibility with <code>export</code></h3>
 <p>Everything is <strong>private to its module by default</strong>. Mark items public with
 <code>export</code>:</p>
@@ -3975,6 +3990,8 @@ and it lives in <code>std.fs</code> — <code>open(path): File | Error</code> (r
 </tr>
 </tbody>
 </table>
+<p>Domain libraries (<code>finance</code>, <code>ml</code>, <code>web</code>, <code>gui</code>, <code>iot</code>) ship as optional
+packages, not in <code>std</code> (§16.3).</p>
 <p>A few examples:</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>import std.fs
 import std.json
@@ -4039,6 +4056,22 @@ manager.</p>
 <tr>
 <td><code>verse build</code></td>
 <td>produce an optimized native executable</td>
+</tr>
+<tr>
+<td><code>verse build --size-report</code></td>
+<td>build, and list every included item with its size and why it was included</td>
+</tr>
+<tr>
+<td><code>verse why &lt;item&gt;</code></td>
+<td>show the chain of uses from the program's entry statements to one included item</td>
+</tr>
+<tr>
+<td><code>verse run --deny &lt;capability&gt;</code></td>
+<td>run, refusing a system capability named after its <code>std</code> module (<code>net</code>, <code>fs</code>, <code>process</code>, …); a program that can reach it fails before it starts</td>
+</tr>
+<tr>
+<td><code>verse check --target &lt;T&gt;</code></td>
+<td>check that everything the program can reach is available on target <code>T</code> (no <code>std.fs</code> on a browser WebAssembly target, for example)</td>
 </tr>
 <tr>
 <td><code>verse doc</code></td>
@@ -4133,6 +4166,23 @@ snapshot<span style="color: #BBB"> </span><span style="color: #666">=</span><spa
 <li>A published package includes its <code>verse.api</code>; dependents are checked against
   it, never against the package's source.</li>
 </ul>
+<p>A library package may add a <code>[library]</code> section that describes what it offers:</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #007020; font-weight: bold">[library]</span>
+modules<span style="color: #BBB">      </span><span style="color: #666">=</span><span style="color: #BBB"> </span>[<span style="color: #4070A0">"colors"</span>,<span style="color: #BBB"> </span><span style="color: #4070A0">"colors.term"</span>]<span style="color: #BBB">   </span><span style="color: #60A0B0; font-style: italic"># the modules dependents may import</span>
+capabilities<span style="color: #BBB"> </span><span style="color: #666">=</span><span style="color: #BBB"> </span>[<span style="color: #4070A0">"stdio"</span>]<span style="color: #BBB">                   </span><span style="color: #60A0B0; font-style: italic"># the system capabilities its code may reach</span>
+size_budget<span style="color: #BBB">  </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"40K"</span><span style="color: #BBB">                       </span><span style="color: #60A0B0; font-style: italic"># `verse publish` fails if its example build exceeds it</span>
+
+<span style="color: #007020; font-weight: bold">[library.targets]</span><span style="color: #BBB">                          </span><span style="color: #60A0B0; font-style: italic"># where the package is available</span>
+default<span style="color: #BBB">      </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"all"</span>
+unavailable<span style="color: #BBB">  </span><span style="color: #666">=</span><span style="color: #BBB"> </span>[]<span style="color: #BBB">                          </span><span style="color: #60A0B0; font-style: italic"># targets it does not support</span>
+
+<span style="color: #007020; font-weight: bold">[library.native]</span><span style="color: #BBB">                           </span><span style="color: #60A0B0; font-style: italic"># reserved for 0.2, with `extern` (§18.15)</span>
+links<span style="color: #BBB">        </span><span style="color: #666">=</span><span style="color: #BBB"> </span>[]<span style="color: #BBB">                          </span><span style="color: #60A0B0; font-style: italic"># native libraries to link: data, never scripts</span>
+</code></pre></div>
+
+<p>Domain libraries are first-party optional packages, not part of <code>std</code>:
+<code>finance</code>, <code>ml</code>, <code>web</code>, <code>gui</code> and <code>iot</code> are added with <code>verse add</code> like any
+other package. <code>std.net.serve</code> remains in <code>std</code>.</p>
 <h3 id="164-interface-files-verseapi">16.4 Interface files (<code>verse.api</code>)</h3>
 <p><code>verse.api</code> is what makes inferred exported signatures safe (§12.3):</p>
 <table>
@@ -4690,6 +4740,8 @@ caller, so it must not be able to fail.</p>
   collides with an existing type is an error, so <code>type Meters = Float</code> is
   rejected with a pointer to <code>alias</code>.</li>
 <li><code>set</code> is a reserved word, so <code>set{…}</code> has exactly one reading.</li>
+<li><code>Map</code> and <code>Set</code> both iterate in insertion order, so printing or looping over
+  them gives the same result on every run and every target.</li>
 <li><code>.copy()</code> is the one duplication method: with no arguments it makes a plain
   copy, with field arguments a copy with changes (<code>.copy(age: 31)</code>). There is
   no <code>clone</code> and no <code>.with</code> (<code>with</code> is a keyword). <code>.copy()</code> comes from the
@@ -4710,6 +4762,10 @@ caller, so it must not be able to fail.</p>
 <li>Generic <code>impl</code> blocks declare their parameters: <code>impl&lt;T&gt; Box&lt;T&gt;</code>.</li>
 <li>A trait type such as <code>List&lt;Speaker&gt;</code> uses run-time dispatch, and the trait
   type itself implements the trait, so it can be passed to generic functions.</li>
+<li><strong>Reserved for 0.2: <code>extern</code>.</strong> Calling foreign (C ABI) functions is a 0.2
+  item. An <code>extern</code> function will be callable only inside a <code>with</code> block that
+  holds the matching system capability, and will take and return plain-data
+  types only. Verse 0.1 adds no syntax for it, and no <code>extern</code> word.</li>
 </ul>
 <h3 id="1816-standard-library-and-tooling">18.16 Standard library and tooling</h3>
 <p><strong>Decision:</strong> A compact, consistently named standard library (<code>std.fs</code>,
@@ -6609,6 +6665,63 @@ a row amends an RF row above, it supersedes it.</p>
 <td>§18.9 summary</td>
 <td>Clauses added: only locals count; tuple of <code>mut</code> names is a parallel assignment (swap).</td>
 <td>§18.9</td>
+</tr>
+</tbody>
+</table>
+<h3 id="round-7-accepted-rulings">Round 7 (accepted rulings)</h3>
+<p>Rulings carried over from the architecture work (architecture/12 Q1, Q2, Q4
+and 06 P6-2…P6-5). No section is reopened.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>Resolved decision</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R7-1</td>
+<td><code>Set</code> order</td>
+<td><code>Set</code> iterates in insertion order, exactly like <code>Map</code>; a present value keeps its place, a removed-and-re-added one moves to the end (stated for <code>Map</code> too); set operations keep the left set's order, <code>union</code> appends the right set's new values. Replaces "unordered".</td>
+<td>§9.2, §9.4, §18.15</td>
+</tr>
+<tr>
+<td>R7-2</td>
+<td><code>Text</code> indexing cost and byte view</td>
+<td>Indexing or slicing <code>Text</code> by position may take time linear in its length. <code>text.bytes()</code> is a read-only view of the UTF-8 bytes with constant-time indexing; each byte is an <code>Int</code> 0–255; view rules of §9.3; <code>.copy()</code> gives owned <code>Bytes</code>.</td>
+<td>§4.1</td>
+</tr>
+<tr>
+<td>R7-3</td>
+<td>Unused imports</td>
+<td>An unused imported name warns on the import line and cannot be silenced (no <code>_</code> escape); delete the name or the line. An import never adds code by itself.</td>
+<td>§12.2</td>
+</tr>
+<tr>
+<td>R7-4</td>
+<td>Size and capability tools</td>
+<td>Tool table rows: <code>verse build --size-report</code>, <code>verse why &lt;item&gt;</code>, <code>verse run --deny &lt;capability&gt;</code>, <code>verse check --target &lt;T&gt;</code>.</td>
+<td>§16</td>
+</tr>
+<tr>
+<td>R7-5</td>
+<td><code>[library]</code> and first-party packages</td>
+<td>Optional <code>[library]</code> section (modules, capabilities, size budget, per-target availability); <code>[library.native]</code> link data reserved for 0.2. <code>finance</code>, <code>ml</code>, <code>web</code>, <code>gui</code>, <code>iot</code> are first-party optional packages, not <code>std</code>; <code>std.net.serve</code> stays in <code>std</code>.</td>
+<td>§16.3</td>
+</tr>
+<tr>
+<td>R7-6</td>
+<td>Domain libraries</td>
+<td>One sentence: they ship as optional packages, not in <code>std</code>.</td>
+<td>§15.2</td>
+</tr>
+<tr>
+<td>R7-7</td>
+<td><code>extern</code></td>
+<td>Reserved for 0.2: callable only inside a <code>with</code> block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: <code>reviews/extern-semantics.md</code> (proposal).</td>
+<td>§18.15</td>
 </tr>
 </tbody>
 </table></body></html>

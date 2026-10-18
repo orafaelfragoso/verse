@@ -835,8 +835,14 @@ Sized numeric types (`Int8` … `Int64`, `UInt8` … `UInt64`, `Float32`) and
 arbitrary-precision `BigInt` and `Decimal` are provided by `std.num` for code
 that needs them.
 
-`Text` is indexed by *characters*, not bytes: `"héllo".len()` is `5`. Use
-`text.bytes()` for the raw bytes.
+`Text` is indexed by *characters*, not bytes: `"héllo".len()` is `5`. Because
+positions count characters, indexing or slicing a `Text` by position
+(`text[i]`, `text[2..5]`) may take time proportional to the length of the
+text. For the raw bytes, `text.bytes()` gives a read-only view of the UTF-8
+bytes with constant-time indexing: `"héllo".bytes().len()` is `6`, and
+`text.bytes()[i]` is the `i`-th byte as an `Int` from 0 to 255. It follows the
+rules for views (§9.3): it can be read, passed and bound to a name, but not
+stored or returned; `.copy()` gives an owned `Bytes`.
 
 ### 4.2 Type annotations and inference
 
@@ -2507,7 +2513,8 @@ Negative indices are not allowed; use `nums.last()` (which returns `T?`).
 ### 9.2 Maps
 
 `Map<K, V>` associates keys with values. Insertion order is preserved when
-iterating.
+iterating: replacing the value of an existing key keeps its place, and a key
+that is removed and inserted again moves to the end.
 
 ```verse
 ages = {"ana": 30, "bruno": 17}
@@ -2585,7 +2592,9 @@ view of part of the list or text, with the same rules as `list[i]`. Write
 
 ### 9.4 Sets
 
-`Set<T>` is an unordered collection of unique values.
+`Set<T>` is a collection of unique values. It iterates in insertion order,
+exactly like `Map` (§9.2): adding a value that is already present keeps its
+place, and a value that is removed and added again moves to the end.
 
 ```verse
 vowels = set{'a', 'e', 'i', 'o', 'u'}
@@ -2595,7 +2604,8 @@ both = set{"a", "b"}.union(set{"b", "c"})       # set{"a", "b", "c"}
 ```
 
 Set operations: `union`, `intersection`, `difference`, `is_subset`, plus `+`
-(union) and `-` (difference) as conveniences.
+(union) and `-` (difference) as conveniences. Their results keep the order of
+the left set; `union` then adds the right set's new values in its order.
 
 ### 9.5 Transforming collections
 
@@ -3262,6 +3272,12 @@ allowed for declarations but not for module-level constant initialization.
 An imported name may be hidden by a local, and an import may hide a prelude
 name (with a warning); the rules are in §3.9.
 
+**Unused imports.** An imported name that the file never uses is a warning on
+the import line. Unlike an unused binding (§3.9), it cannot be silenced, not
+even with a leading `_`: the fix is to delete the name, or the whole line. An
+import never adds code by itself; it only makes names visible (§12.4), and a
+build includes only what the program actually uses.
+
 ### 12.3 Visibility with `export`
 
 Everything is **private to its module by default**. Mark items public with
@@ -3678,6 +3694,9 @@ and it lives in `std.fs` — `open(path): File | Error` (read),
 | `std.cli` | argument parsing | declarative flags from a record type |
 | `std.log` | structured logging | `info`, `warn`, `error`, levels, sinks |
 
+Domain libraries (`finance`, `ml`, `web`, `gui`, `iot`) ship as optional
+packages, not in `std` (§16.3).
+
 A few examples:
 
 ```verse
@@ -3729,6 +3748,10 @@ manager.
 | `verse fmt [path]` | format code in the one canonical style; `--check` for CI |
 | `verse check` | type-check without running; fast feedback for editors |
 | `verse build` | produce an optimized native executable |
+| `verse build --size-report` | build, and list every included item with its size and why it was included |
+| `verse why <item>` | show the chain of uses from the program's entry statements to one included item |
+| `verse run --deny <capability>` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
+| `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `std.fs` on a browser WebAssembly target, for example) |
 | `verse doc` | generate HTML documentation from doc comments |
 | `verse repl` | interactive prompt |
 | `verse new name` | create a project skeleton |
@@ -3800,6 +3823,26 @@ snapshot = "0.9"
   arbitrary code.
 - A published package includes its `verse.api`; dependents are checked against
   it, never against the package's source.
+
+A library package may add a `[library]` section that describes what it offers:
+
+```toml
+[library]
+modules      = ["colors", "colors.term"]   # the modules dependents may import
+capabilities = ["stdio"]                   # the system capabilities its code may reach
+size_budget  = "40K"                       # `verse publish` fails if its example build exceeds it
+
+[library.targets]                          # where the package is available
+default      = "all"
+unavailable  = []                          # targets it does not support
+
+[library.native]                           # reserved for 0.2, with `extern` (§18.15)
+links        = []                          # native libraries to link: data, never scripts
+```
+
+Domain libraries are first-party optional packages, not part of `std`:
+`finance`, `ml`, `web`, `gui` and `iot` are added with `verse add` like any
+other package. `std.net.serve` remains in `std`.
 
 ### 16.4 Interface files (`verse.api`)
 
@@ -4395,6 +4438,8 @@ caller, so it must not be able to fail.
   collides with an existing type is an error, so `type Meters = Float` is
   rejected with a pointer to `alias`.
 - `set` is a reserved word, so `set{…}` has exactly one reading.
+- `Map` and `Set` both iterate in insertion order, so printing or looping over
+  them gives the same result on every run and every target.
 - `.copy()` is the one duplication method: with no arguments it makes a plain
   copy, with field arguments a copy with changes (`.copy(age: 31)`). There is
   no `clone` and no `.with` (`with` is a keyword). `.copy()` comes from the
@@ -4415,6 +4460,10 @@ caller, so it must not be able to fail.
 - Generic `impl` blocks declare their parameters: `impl<T> Box<T>`.
 - A trait type such as `List<Speaker>` uses run-time dispatch, and the trait
   type itself implements the trait, so it can be passed to generic functions.
+- **Reserved for 0.2: `extern`.** Calling foreign (C ABI) functions is a 0.2
+  item. An `extern` function will be callable only inside a `with` block that
+  holds the matching system capability, and will take and return plain-data
+  types only. Verse 0.1 adds no syntax for it, and no `extern` word.
 
 ### 18.16 Standard library and tooling
 
@@ -5091,3 +5140,18 @@ a row amends an RF row above, it supersedes it.
 | R5-3 | Import hiding a prelude name | Warns on the import line: "`error` hides the prelude `error`" (e.g. `import info, error from std.log`). §16 has no diagnostics list, so it is stated in §3.9 only. | §3.9 |
 | R5-4 | Pointers to the hiding rule | One line each in §12.2 and §15.1 pointing to §3.9. | §12.2, §15.1 |
 | R5-5 | §18.9 summary | Clauses added: only locals count; tuple of `mut` names is a parallel assignment (swap). | §18.9 |
+
+### Round 7 (accepted rulings)
+
+Rulings carried over from the architecture work (architecture/12 Q1, Q2, Q4
+and 06 P6-2…P6-5). No section is reopened.
+
+| # | Item | Resolved decision | Where |
+|---|------|-------------------|-------|
+| R7-1 | `Set` order | `Set` iterates in insertion order, exactly like `Map`; a present value keeps its place, a removed-and-re-added one moves to the end (stated for `Map` too); set operations keep the left set's order, `union` appends the right set's new values. Replaces "unordered". | §9.2, §9.4, §18.15 |
+| R7-2 | `Text` indexing cost and byte view | Indexing or slicing `Text` by position may take time linear in its length. `text.bytes()` is a read-only view of the UTF-8 bytes with constant-time indexing; each byte is an `Int` 0–255; view rules of §9.3; `.copy()` gives owned `Bytes`. | §4.1 |
+| R7-3 | Unused imports | An unused imported name warns on the import line and cannot be silenced (no `_` escape); delete the name or the line. An import never adds code by itself. | §12.2 |
+| R7-4 | Size and capability tools | Tool table rows: `verse build --size-report`, `verse why <item>`, `verse run --deny <capability>`, `verse check --target <T>`. | §16 |
+| R7-5 | `[library]` and first-party packages | Optional `[library]` section (modules, capabilities, size budget, per-target availability); `[library.native]` link data reserved for 0.2. `finance`, `ml`, `web`, `gui`, `iot` are first-party optional packages, not `std`; `std.net.serve` stays in `std`. | §16.3 |
+| R7-6 | Domain libraries | One sentence: they ship as optional packages, not in `std`. | §15.2 |
+| R7-7 | `extern` | Reserved for 0.2: callable only inside a `with` block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: `reviews/extern-semantics.md` (proposal). | §18.15 |

@@ -54,6 +54,12 @@ allowed for declarations but not for module-level constant initialization.
 An imported name may be hidden by a local, and an import may hide a prelude
 name (with a warning); the rules are in §3.9.
 
+**Unused imports.** An imported name that the file never uses is a warning on
+the import line. Unlike an unused binding (§3.9), it cannot be silenced, not
+even with a leading `_`: the fix is to delete the name, or the whole line. An
+import never adds code by itself; it only makes names visible (§12.4), and a
+build includes only what the program actually uses.
+
 ### 12.3 Visibility with `export`
 
 Everything is **private to its module by default**. Mark items public with

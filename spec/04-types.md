@@ -16,8 +16,14 @@ Sized numeric types (`Int8` … `Int64`, `UInt8` … `UInt64`, `Float32`) and
 arbitrary-precision `BigInt` and `Decimal` are provided by `std.num` for code
 that needs them.
 
-`Text` is indexed by *characters*, not bytes: `"héllo".len()` is `5`. Use
-`text.bytes()` for the raw bytes.
+`Text` is indexed by *characters*, not bytes: `"héllo".len()` is `5`. Because
+positions count characters, indexing or slicing a `Text` by position
+(`text[i]`, `text[2..5]`) may take time proportional to the length of the
+text. For the raw bytes, `text.bytes()` gives a read-only view of the UTF-8
+bytes with constant-time indexing: `"héllo".bytes().len()` is `6`, and
+`text.bytes()[i]` is the `i`-th byte as an `Int` from 0 to 255. It follows the
+rules for views (§9.3): it can be read, passed and bound to a name, but not
+stored or returned; `.copy()` gives an owned `Bytes`.
 
 ### 4.2 Type annotations and inference
 

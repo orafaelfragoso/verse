@@ -65,3 +65,6 @@ Other files: [17-grammar.md](17-grammar.md) (stub pointing to the grammar),
 [reviews/](reviews/) (`review-N.md`), [changes/](changes/) (`changes-N.md`),
 and [build.sh](build.sh), which concatenates the parts into
 `/workspace/verse-spec.md` and renders HTML/PDF.
+
+Implementation architecture (not part of the spec build):
+[architecture/README.md](architecture/README.md).
