@@ -1,0 +1,204 @@
+## 12. Modules
+
+### 12.1 Files are modules
+
+Every `.vs` file is a module named after its path relative to the project's
+`src/` directory (or the directory of the entry file for single-file scripts):
+
+```
+my_app/
+├── verse.toml
+└── src/
+    ├── main.vs            # module main
+    ├── shapes.vs          # module shapes
+    └── geometry/
+        └── vectors.vs     # module geometry.vectors
+```
+
+### 12.2 Importing
+
+```verse
+import std.fs                       # use as fs.read_text(...)
+import std.json as js               # use as js.parse(...)
+import geometry.vectors             # use as vectors.add(...)
+import get, post from std.net       # use get(...) and post(...) directly
+import Shape, area from shapes
+import parse as parse_json, stringify from std.json   # rename one item
+```
+
+`import a.b.c` binds the last segment (`c`) as a name; `import a.b.c as d`
+binds it as `d`. `import x, y from M` binds individual items, and
+`import x as y from M` binds the item `x` under the name `y` (useful when two
+modules export the same name); `as` can follow any name in the list, as in
+`import parse as parse_json, stringify from std.json`. The line always starts
+with `import`, so every import reads the same way: what you get first, where
+it comes from last. Whether a line imports a module or items is decided by
+the trailing `from M` on the same logical line: `import a as b` imports the
+module `a` as `b`, while `import a as b from m` imports the item `a` of `m` as
+`b`; without `from`, the names are module paths. An import must therefore fit
+on one line, or put a long item list in parentheses, which may span lines:
+
+```verse
+import (
+    open, read_text, write_text,
+    create as create_file,
+) from std.fs
+```
+
+A renamed item keeps its kind: a type must be
+renamed to an uppercase-first name, a value to a lowercase one (§3.5). Wildcard imports do not exist; every name in a file can
+be traced to a declaration or an import. Imports must appear at the top of a
+file, after the module doc comment. Circular imports between modules are
+allowed for declarations but not for module-level constant initialization.
+
+An imported name may be hidden by a local, and an import may hide a prelude
+name (with a warning); the rules are in §3.9.
+
+### 12.3 Visibility with `export`
+
+Everything is **private to its module by default**. Mark items public with
+`export`:
+
+```verse
+## Geometry helpers.
+
+export type Vector
+    export x: Float
+    export y: Float
+
+export type Account
+    export owner: Text
+    cents: Int = 0                  # hidden: only this module can see it
+
+impl Account
+    export fn balance(self): Int
+        self.cents
+
+export fn add(a: Vector, b: Vector): Vector
+    Vector(x: a.x + b.x, y: a.y + b.y)
+
+export origin = Vector(x: 0.0, y: 0.0)
+
+fn helper(): Int          # not exported: visible only in this module
+    42
+```
+
+**One word, one default, everywhere.** `export` can precede `fn`, `type`,
+`alias`, `trait`, a module-level constant, record **fields**, and functions inside
+an `impl`. Anything not marked `export` — including a field of an exported
+record — is visible only inside its own module. Other modules can construct a
+record directly only if every field without a default is exported; otherwise
+they use an exported function such as `Account.open(owner:)`. Trait
+implementations are public whenever both the trait and the type are visible.
+
+Fields and methods share **one namespace per type**: a type cannot have a
+field and a method with the same name, whether or not either is exported
+(`balance` the field and `balance()` the method would be a compile error,
+which is why the field above is named `cents`).
+
+#### Exported signatures and `verse.api`
+
+Exported functions may leave their types to inference, just like private ones
+— there is no rule that exported functions must annotate their parameters.
+This is safe because of three guarantees:
+
+1. **(a) A generated interface file is committed.** `verse api update` writes
+   `verse.api` at the package root, recording every exported item with its
+   full inferred signature (including inferred constraints and parameter
+   modes). The file is committed with the code.
+2. **(b) The public API cannot drift silently.** Every build re-infers the
+   exported signatures and compares them with `verse.api`. If one differs, the
+   build fails and shows the old and new signature, until someone runs
+   `verse api update` on purpose (and the change shows up in review as a diff
+   of `verse.api`). Editing a function body can therefore never change the
+   public API by accident.
+3. **(c) Inference never crosses a module boundary.** Other modules — and other
+   packages — are type-checked against `verse.api` (and the interface records
+   of the package's own modules), never against another module's body.
+
+```verse
+## Geometry helpers.
+
+export fn scale(v, factor)        # recorded in verse.api as:
+    v.copy(x: v.x * factor, y: v.y * factor)
+```
+
+```
+# verse.api (generated by `verse api update`; do not edit)
+module geometry
+fn scale<V, F>(v: V, factor: F): V
+    where V has copy(x:, y:), V has field x: F, V has field y: F, F: Mul
+```
+
+The interface file uses a documented notation for inferred structural
+constraints (`has field`, `has method`) that cannot be written in source in
+0.1 (§4.2). Annotating an exported function narrows what `verse.api` records,
+which is often what a library author wants.
+
+### 12.4 Module contents
+
+Only the **entry file** — the file passed to `verse run` — runs top-level
+statements. Imported modules may contain only declarations (`fn`, `type`,
+`alias`, `trait`, `impl`, `test`, `import`) and module-level constants
+(`name = expr`).
+Importing a module therefore never has side effects.
+
+A top-level binding `name = expr` behaves in the only way that makes sense in
+each place:
+
+- **In an imported module**, a top-level binding is a *constant*. It is
+  initialized once, on first use, and its initializer **must be infallible**:
+  `?` is not allowed, and its type may not be fallible, because a lazy
+  initializer has no caller to return an error to. (`mut` is not allowed
+  at module level.)
+
+  ```verse
+  export max_retries = 3                            # fine
+  export default_port = 8080                        # fine
+  config = read_text("config.toml")?                # error: module constants cannot fail
+  ```
+
+- **In the entry file**, a top-level binding is an *ordinary statement*: it runs
+  in order, top to bottom, like every other statement there, and may use `?`
+  (see §8.3 for what a failed top-level `?` does). Such a binding is a **script
+  local**: it is visible to the top-level statements after it, but **not
+  inside `fn` bodies** (nor in `impl` methods or `test` blocks). A function
+  that needs the value takes it as an argument. This keeps every function
+  meaningful on its own — it never depends on whether a binding below it has run
+  yet — and matches §14.1, where tests never run top-level statements. Module
+  constants in imported modules are the only module-wide values.
+
+  ```verse
+  config = load_config("app.toml")?
+
+  fn port(config)                     # takes it as an argument
+      config.port
+
+  print(port(config))
+  ```
+
+  Entry-file locals are not visible in functions (M-2), so the parameter
+  `config` is not shadowing.
+
+### 12.5 Program entry
+
+A Verse program is a script: the entry file's top-level statements run from top
+to bottom.
+
+```verse
+print("Hello, {args.first() otherwise "world"}!")
+```
+
+- `args` is a built-in `List<Text>` of command-line arguments, *not* including
+  the program name (`verse run hello.vs Ana` gives `args == ["Ana"]`).
+- **Top-level statements are the only entry mechanism.** Verse 0.1 has no
+  `fn main`; a function named `main` is just an ordinary function that runs
+  only if the script calls it.
+- Exit status: `0` on normal completion; `1` if a top-level `?` fails (the
+  error message is printed to standard error) or if an unwaited task failed
+  (§11.3); `101` on a panic; or any value passed to `exit(code)`.
+  An explicit `exit(code)` always overrides the failed-unwaited-task status,
+  which applies only when the program ends naturally.
+
+---
+

@@ -1,0 +1,289 @@
+## 11. Concurrency
+
+### 11.1 Spawning tasks
+
+`spawn` starts a function call running **concurrently** in a lightweight task
+and immediately returns a `Task<T>`, where `T` is the call's return type.
+`.wait()` blocks the current task until the result is ready.
+
+**Errors in a task surface at `.wait()`.** Because anything can go wrong in
+another task — including a panic — `.wait()` always returns a fallible value,
+`T | Error`, which you handle like any other: with `?`, `otherwise`, or `match`.
+If the spawned function is itself fallible, its errors arrive on the same
+error side. For a function returning `Text | FetchError`, `.wait()` would
+return `Text | FetchError | Error`, which normalizes to `Text | Error`
+(§4.6); use `match` with `err: FetchError ->` to recover the specific type.
+`?` inside the spawned function returns from that function, and the error is
+what `.wait()` later reports.
+
+```verse
+import get from std.net
+
+fn fetch(url)
+    response = get("https://{url}")?
+    response.body          # a field moved out of `response` at its last use (§4.9)
+
+a = spawn fetch("a.com")
+b = spawn fetch("b.com")
+
+print(a.wait() otherwise "a failed")    # handle the failure here
+page_b = b.wait()?                      # or stop early and pass it up
+print(page_b)
+```
+
+There is **no `async`/`await` and no function coloring**. Any function can be
+spawned, and any function can call blocking operations like `get` or `read_text`:
+while one task waits for I/O, the runtime runs other tasks. Tasks are
+multiplexed over all CPU cores.
+
+The arguments of a spawned call are evaluated *before* the task starts, in the
+spawning task. `spawn` applies to exactly one call expression; to spawn a small
+block of work, give it a name with `fn` and spawn the call.
+
+#### Ownership across tasks
+
+- **`spawn f(x)` moves `x` into the task.** The task owns its arguments for the
+  whole call, so a spawned function's parameters are always owned values, even
+  when the function declares them as plain borrows.
+- **A borrowed value cannot cross into a task.** Inside a function, a borrowed
+  parameter (or a view from `list[i]`, a `for` loop over a still-used list, or
+  a key-path) cannot be passed to `spawn`; pass `.copy()` instead. Tasks cannot
+  borrow from the spawner in 0.1.
+- **No `mut` arguments.** `spawn f(mut x)` is a compile error: an exclusive
+  borrow must end when the call returns, and a task cannot hand a `mut` borrow
+  back to the spawner. Move the value in and get the changed value back from
+  `wait()`, or share it through a `Guarded<T>`.
+- **Using a value after spawning it is a use-after-move error.** In a loop, the
+  error is reported on the second iteration and suggests `.copy()`:
+
+  ```verse
+  config = load_config()
+  for url in urls
+      spawn crawl(url.copy(), config)   # error: `config` moved into the task in
+                                        #   one iteration, used again in the next
+                                        #   help: spawn crawl(url.copy(), config.copy())
+  ```
+
+- **Handles are copied explicitly, and cheaply.** `Sender<T>`, `Shared<T>`,
+  `Guarded<T>` and `Weak<Shared<T>>` / `Weak<Guarded<T>>` values are handles. Passing one to `spawn` follows the same
+  rule as every other value — it moves — so to keep using it, pass
+  `handle.copy()`: a new handle to the same channel or shared value, not a copy
+  of the value inside (§11.4). There is no implicit copy on `spawn`. A
+  `Receiver<T>` is not `Copyable`: it is moved into the one task that consumes
+  the channel.
+
+### 11.2 Working with many tasks
+
+```verse
+import wait_all, wait_any from std.task
+
+tasks = urls.map(url -> spawn fetch(url.copy()))       # `url` is a borrow: copy it
+pages = wait_all(tasks)                  # takes the tasks; List<Text | Error>, in order
+
+mirrors = mirror_urls.map(url -> spawn fetch(url.copy()))
+fastest = wait_any(mirrors)?             # the first to finish; the others are cancelled
+```
+
+| Operation | Signature | Meaning |
+|-----------|-----------|---------|
+| `task.wait()` | `wait(take self): T \| Error` | block until done; consumes the task |
+| `task.wait(timeout: d)` | `wait(take self, timeout: Duration): T \| Error` | the same, failing with a `Timeout` error if it takes too long |
+| `task.is_done()` | `is_done(self): Bool` | never blocks |
+| `task.cancel()` | `cancel(self)` | request cancellation (§11.5) |
+| `wait_all(tasks)` | `wait_all<T>(take tasks: List<Task<T>>): List<T \| Error>` | results in task order |
+| `wait_any(tasks)` | `wait_any<T>(take tasks: List<Task<T>>): T \| Error` | the first result to complete; the rest are cancelled |
+
+Remember that `List<T | Error>` contains fallible results, so the value of
+`wait_all` cannot be discarded (§8.4) — loop over it, or `_ =` it on
+purpose.
+
+**Panics in tasks.** If a task panics, the panic message and stack trace are
+**printed to standard error immediately, at the moment of the panic** —
+whether or not anyone handles it later. The waiter then receives a value of
+the named error type `TaskPanicked` (from `std.task`, implementing `Error`,
+with `message()` and `trace()`), which `match` can tell apart from ordinary
+errors:
+
+```verse
+import TaskPanicked from std.task
+
+match task.wait()
+    page: Text -> show(page)
+    crash: TaskPanicked -> alert_on_call(crash.message())
+    err: Error -> print("fetch failed: {err.message()}")
+```
+
+The task boundary is the one place where a panic becomes a value, so one
+failing request cannot bring down a whole server — but because the panic was
+already printed, `task.wait() otherwise "failed"` can never hide a bug.
+
+### 11.3 Structured lifetimes
+
+Tasks belong to the function (or script) that spawned them. When that function
+finishes, any of its tasks that were never waited on are **waited for
+automatically** before it returns. If such an unwaited task failed (with an
+error, a panic, or cancellation), its error is reported on standard error and
+the **process will exit with a non-zero status** (1, or 101 for a panic) when
+it finishes, even if everything else succeeded. This status applies only when
+the program ends naturally: an explicit `exit(code)` always wins, and its code
+is the one the process returns. Discarding a `Task` value (a bare
+`spawn worker(…)` statement) is therefore allowed — an accepted exception to
+the rule that fallible results cannot be dropped, because its outcome cannot be
+lost. A task therefore never outlives the code that
+started it, results are never silently lost, and a program ends only after all
+of its work is done. To deliberately run something in the background beyond the
+current function, return its `Task` or pass it to someone who will wait on it.
+
+### 11.4 Sharing data safely
+
+A task owns what it was given (§11.1), so two tasks can never touch the same
+value by accident, and data races are impossible. Sharing is **opt-in** and
+always goes through one of these handle types from `std.task`:
+
+| Handle | Meaning | Copying the handle |
+|--------|---------|--------------------|
+| `Sender<T>` | the sending end of a channel: send owned values to the task that holds the `Receiver` | a new sender to the same channel |
+| `Receiver<T>` | the receiving end of a channel; single consumer in 0.1 | not copyable; it moves (fan-out uses several channels) |
+| `Shared<T>` | **shared read-only ownership**: the value is freed when the last handle goes away (atomically reference-counted) | shares the value; nobody can change it |
+| `Guarded<T>` | **shared mutable state behind a lock**: read it inside `with g.lock() as value`, change it inside `with g.lock() as mut value` | shares the value |
+| `Weak<Shared<T>>`, `Weak<Guarded<T>>` | a **non-owning** handle, parameterised over the handle it was made from: `h.downgrade()` on a `Shared<T>` gives a `Weak<Shared<T>>`, and on a `Guarded<T>` a `Weak<Guarded<T>>`; `upgrade()` returns `Shared<T>?` or `Guarded<T>?` respectively (`none` if the value is gone) | a new weak handle to the same value; keeps nothing alive |
+| `Task<T>` | the result of `spawn` (§11.1) | not copyable; `wait` takes it |
+
+`Sender`, `Shared`, `Guarded` and `Weak` are `Copyable` (§10.4) whatever
+their inner type — even `Guarded<File>` — and their `.copy()` copies the
+**handle**: it returns a new reference to the same shared value and never
+duplicates the value inside. As everywhere else, the copy is written
+explicitly — including when a handle is passed to `spawn`. `Receiver<T>` is
+not `Copyable` in 0.1. `Weak` accepts only a `Shared` or `Guarded` handle;
+`Sender` and `Receiver` are not weakable, so `Weak<Sender<T>>` and
+`Weak<Receiver<T>>` are compile errors (a channel closes when its last
+`Sender` is dropped, never by weak reference).
+
+These are the only types whose copies refer to the same value; everything else
+in Verse has exactly one owner. They are also the only way to build a cycle
+(§4.10): a cycle of `Shared`/`Guarded` handles is never freed, so back-pointers
+should be `Weak`.
+
+**Channels** send values from one task to another. `Channel.new<T>()` returns
+a pair `(tx, rx)`: a `Sender<T>` and a `Receiver<T>`. `send` takes its value,
+so ownership moves to the task that receives it. Senders are copied (one per
+producing task); the receiver is moved to the single consuming task. The
+channel closes when its last `Sender` is dropped. The capacity defaults to 16;
+`capacity: 0` makes an unbuffered (rendezvous) channel, where each `send`
+waits for a matching `recv`. The type argument is usually inferred from an
+annotation instead of written: `(tx, rx): (Sender<Int>, Receiver<Int>) =
+Channel.new(capacity: 10)`.
+
+```verse
+import Channel, wait_all from std.task
+
+fn worker(id, out)
+    out.send(id * id)?                   # `Closed` if the receiver is gone
+
+fn start_workers(take tx, count)         # spawns and returns, without waiting
+    (1..=count).map(id -> spawn worker(id, tx.copy()))   # a Sender per task
+
+(tx, rx) = Channel.new<Int>(capacity: 4)
+tasks = start_workers(tx, 20)            # `tx` moves; 20 values, room for 4
+for square in rx                         # consume while the producers run;
+    print(square)                        #   ends when every Sender is gone
+for outcome in wait_all(tasks)
+    outcome?                             # stop if any worker failed
+```
+
+Waiting for the producers before consuming can deadlock once the channel is
+full, so always consume while the producers run, and wait for them afterwards.
+`send` is fallible: discarding its result is the usual compile-time error for
+an unhandled fallible value (§8.4). `Closed` is a named error type in
+`std.task`, like `Timeout`.
+
+A `Receiver` given to another task moves, like any non-copyable value:
+`spawn consume(rx)`.
+
+| Operation | Signature | Meaning |
+|-----------|-----------|---------|
+| `Channel.new<T>(…)` | `new<T>(capacity: Int = 16): (Sender<T>, Receiver<T>)` | a new channel and its two ends; `capacity: 0` is unbuffered (rendezvous) |
+| `tx.send(v)` | `send(self, take value: T): Nothing \| Closed` | blocks while the channel is full; returns the error `Closed` if the `Receiver` was dropped or the channel was closed — including for a sender already blocked on a full channel, which wakes with `Closed` |
+| `tx.close()` | `close(self)` | an early shortcut: closes the channel for everyone, even while other `Sender`s exist; the receiver drains what is left |
+| `rx.recv()` | `recv(self): T?` | blocks until a value arrives; `none` once the channel is closed and drained |
+
+`for value in rx` receives until the channel is closed and drained (that is,
+until `recv()` returns `none`).
+
+**Shared read-only data** — a large configuration, a dictionary, a parsed
+model — is wrapped once in `Shared<T>` and handed to as many tasks as needed
+without copying the data:
+
+```verse
+import Shared from std.task
+
+dictionary = Shared(load_words("words.txt"))
+
+fn check(text, words)
+    text.words().filter(w -> not words.get().contains(w)).len()
+
+a = spawn check(chapter_one, dictionary.copy())       # a new handle, same words
+b = spawn check(chapter_two, dictionary)              # last use: the handle moves
+```
+
+`shared.get()` gives a read-only view of the value inside.
+
+**Shared mutable state** is wrapped in `Guarded<T>` and can only be touched
+inside a `with` block that holds its lock:
+
+```verse
+import Guarded, wait_all from std.task
+
+hits = Guarded(0)
+
+fn record(counter)
+    with counter.lock() as mut value
+        value += 1
+
+tasks = (1..=100).map(_ -> spawn record(hits.copy()))       # one handle per task
+for outcome in wait_all(tasks)
+    outcome?                       # stop if any task failed
+with hits.lock() as value
+    print("hits: {value}")
+```
+
+Inside `with guarded.lock() as value`, `value` is an exclusive borrow of the
+protected value; it is **mutable only when written `as mut value`**, as with
+every other binding (§3.9), so `with g.lock() as value` followed by
+`value += 1` is the usual immutable-name error. The lock is released when the
+block ends, even if it ends early. Like every borrow, `value` cannot escape the
+block.
+
+This is the **one** place where `with … as` binds something other than the
+resource itself. `lock()` returns a lock guard, and the guard type implements
+`Cleanup` (its cleanup releases the lock), so `with` cleans it up like any
+resource. But `with` on a guard binds the *value inside* the guard, as an
+exclusive borrow (mutable with `as mut value`), rather than the guard. No
+other type has this behaviour (§13.1).
+
+### 11.5 Cancellation and time
+
+`task.cancel()` asks a task to stop. Cancellation is cooperative: the task is
+stopped at its next *blocking point* — I/O, `wait`, `sleep`, `send`, or
+`recv`.
+
+**Cancellation cannot be caught inside the cancelled task.** At the blocking
+point, the task *unwinds* exactly as it would for a panic: it stops running
+ordinary code, its `with` blocks close their resources in reverse order, and
+nothing — not `otherwise`, not `match`, not `?` — can intercept it. So
+`get(url) otherwise "x"` cannot swallow a cancellation and keep going. Unlike a
+panic, a cancellation prints nothing. The *waiter* sees the outcome as a
+`Cancelled` error (from `std.task`) returned by `.wait()`, which it may handle
+normally.
+
+Because cancellation never appears as a value inside the task, blocking
+operations keep simple signatures:
+
+| Operation | Signature |
+|-----------|-----------|
+| `std.time.sleep(d)` | `sleep(duration: Duration)` — returns `Nothing`; pauses only the current task |
+| `rx.recv()` | `recv(self): T?` |
+| `task.wait()` | `wait(take self): T \| Error` (a cancelled *child* shows up here as `Cancelled`) |
+
+---
+
