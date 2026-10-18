@@ -300,3 +300,4 @@ and 06 P6-2…P6-5). No section is reopened.
 | R7-5 | `[library]` and first-party packages | Optional `[library]` section (modules, capabilities, size budget, per-target availability); `[library.native]` link data reserved for 0.2. `finance`, `ml`, `web`, `gui`, `iot` are first-party optional packages, not `std`; `std.net.serve` stays in `std`. | §16.3 |
 | R7-6 | Domain libraries | One sentence: they ship as optional packages, not in `std`. | §15.2 |
 | R7-7 | `extern` | Reserved for 0.2: callable only inside a `with` block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: `reviews/extern-semantics.md` (proposal). | §18.15 |
+| R7-8 | Order rule stated | One sentence in §9.4 for `Map` and `Set` alike: replacing the value of an existing key keeps its position; removing a key and inserting it again puts it at the end. §9.2 uses the same words. Makes R7-1 explicit. | §9.2, §9.4 |

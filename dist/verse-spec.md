@@ -2513,8 +2513,9 @@ Negative indices are not allowed; use `nums.last()` (which returns `T?`).
 ### 9.2 Maps
 
 `Map<K, V>` associates keys with values. Insertion order is preserved when
-iterating: replacing the value of an existing key keeps its place, and a key
-that is removed and inserted again moves to the end.
+iterating: replacing the value of an existing key keeps its position, and
+removing a key and inserting it again puts it at the end (the order rule,
+§9.4).
 
 ```verse
 ages = {"ana": 30, "bruno": 17}
@@ -2593,8 +2594,10 @@ view of part of the list or text, with the same rules as `list[i]`. Write
 ### 9.4 Sets
 
 `Set<T>` is a collection of unique values. It iterates in insertion order,
-exactly like `Map` (§9.2): adding a value that is already present keeps its
-place, and a value that is removed and added again moves to the end.
+exactly like `Map` (§9.2). **The order rule, for `Map` and `Set` alike:**
+replacing the value of an existing key keeps its position (for a set, adding a
+value that is already present changes nothing), and removing a key and
+inserting it again puts it at the end.
 
 ```verse
 vowels = set{'a', 'e', 'i', 'o', 'u'}
@@ -5155,3 +5158,4 @@ and 06 P6-2…P6-5). No section is reopened.
 | R7-5 | `[library]` and first-party packages | Optional `[library]` section (modules, capabilities, size budget, per-target availability); `[library.native]` link data reserved for 0.2. `finance`, `ml`, `web`, `gui`, `iot` are first-party optional packages, not `std`; `std.net.serve` stays in `std`. | §16.3 |
 | R7-6 | Domain libraries | One sentence: they ship as optional packages, not in `std`. | §15.2 |
 | R7-7 | `extern` | Reserved for 0.2: callable only inside a `with` block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: `reviews/extern-semantics.md` (proposal). | §18.15 |
+| R7-8 | Order rule stated | One sentence in §9.4 for `Map` and `Set` alike: replacing the value of an existing key keeps its position; removing a key and inserting it again puts it at the end. §9.2 uses the same words. Makes R7-1 explicit. | §9.2, §9.4 |

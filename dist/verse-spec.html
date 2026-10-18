@@ -2618,8 +2618,9 @@ queue[0] = "changed"
 <p>Negative indices are not allowed; use <code>nums.last()</code> (which returns <code>T?</code>).</p>
 <h3 id="92-maps">9.2 Maps</h3>
 <p><code>Map&lt;K, V&gt;</code> associates keys with values. Insertion order is preserved when
-iterating: replacing the value of an existing key keeps its place, and a key
-that is removed and inserted again moves to the end.</p>
+iterating: replacing the value of an existing key keeps its position, and
+removing a key and inserting it again puts it at the end (the order rule,
+§9.4).</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>ages = {"ana": 30, "bruno": 17}
 print(ages["ana"])                    # 30 — Int? (present)
 print(ages["zoe"])                    # none
@@ -2725,8 +2726,10 @@ view of part of the list or text, with the same rules as <code>list[i]</code>. W
 <code>nums[1..].copy()</code> or <code>name[0..=2].copy()</code> to get an owned list or text.</p>
 <h3 id="94-sets">9.4 Sets</h3>
 <p><code>Set&lt;T&gt;</code> is a collection of unique values. It iterates in insertion order,
-exactly like <code>Map</code> (§9.2): adding a value that is already present keeps its
-place, and a value that is removed and added again moves to the end.</p>
+exactly like <code>Map</code> (§9.2). <strong>The order rule, for <code>Map</code> and <code>Set</code> alike:</strong>
+replacing the value of an existing key keeps its position (for a set, adding a
+value that is already present changes nothing), and removing a key and
+inserting it again puts it at the end.</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>vowels = set{'a', 'e', 'i', 'o', 'u'}
 seen: Set&lt;Text&gt; = set{}
 print('e' in vowels)                 # true
@@ -6722,6 +6725,12 @@ and 06 P6-2…P6-5). No section is reopened.</p>
 <td><code>extern</code></td>
 <td>Reserved for 0.2: callable only inside a <code>with</code> block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: <code>reviews/extern-semantics.md</code> (proposal).</td>
 <td>§18.15</td>
+</tr>
+<tr>
+<td>R7-8</td>
+<td>Order rule stated</td>
+<td>One sentence in §9.4 for <code>Map</code> and <code>Set</code> alike: replacing the value of an existing key keeps its position; removing a key and inserting it again puts it at the end. §9.2 uses the same words. Makes R7-1 explicit.</td>
+<td>§9.2, §9.4</td>
 </tr>
 </tbody>
 </table></body></html>
