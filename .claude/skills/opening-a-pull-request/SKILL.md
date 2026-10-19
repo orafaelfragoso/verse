@@ -1,6 +1,6 @@
 ---
 name: opening-a-pull-request
-description: Covers how a change reaches `main` in the Verse repository. Branch naming, one change per pull request, the `<type>(<scope>): <summary>` title format checked by the `pr-title` job, the Why / What changed / Verification body that becomes the squash commit body, linking issues with `Closes` and `Refs`, the labels and milestone every pull request gets, `gh pr create`, and squash merge. Use when opening, titling, describing or merging a pull request, writing a commit message, running `gh pr create` or `gh pr merge`, or when a push to `main` is rejected.
+description: Covers how a change reaches `main` in the Verse repository. Branch naming, one change per pull request, the `<type>(<scope>): <summary>` title format checked by the `pr-title` job, the type label checked by the `pr-labels` job, the Why / What changed / Verification body that becomes the squash commit body, linking issues with `Closes` and `Refs`, the labels and milestone every pull request gets, `gh pr create`, and squash merge. Use when opening, titling, describing or merging a pull request, writing a commit message, running `gh pr create` or `gh pr merge`, or when a push to `main` is rejected.
 ---
 
 # Opening a pull request
@@ -9,7 +9,7 @@ Every change reaches `main` through a pull request, and every pull request
 lands as one squashed commit. The title becomes the commit subject. The body
 becomes the commit body. Write both for someone reading `git log` a year from
 now. The source of these rules is
-[CONTRIBUTING.md](../../../CONTRIBUTING.md); the title check is
+[CONTRIBUTING.md](../../../CONTRIBUTING.md); the title and label checks are
 [.github/workflows/pr.yml](../../../.github/workflows/pr.yml).
 
 ## Rules
@@ -19,8 +19,8 @@ now. The source of these rules is
   only squash merges through a pull request.
 - One change per pull request. A reviewer must be able to state it in one
   sentence. If the sentence needs "and", split the pull request.
-- The `pr-title` check is required. A pull request whose title fails it
-  cannot merge.
+- The `pr-title` and `pr-labels` checks are required. A pull request that
+  fails either cannot merge.
 - Every review thread must be resolved before merge.
 - Squash merge is the only method. The repository writes the pull request
   title as the commit subject and the pull request body as the commit
@@ -59,15 +59,16 @@ now. The source of these rules is
 
    Use `--body-file`, not `--fill`. `--fill` copies branch commit messages,
    which are not the body you want on `main`.
-7. Wait for the `pr-title` check:
+7. Wait for the `pr-title` and `pr-labels` checks:
 
    ```sh
    gh pr checks --watch
    ```
 
-   If it fails, fix the title with `gh pr edit --title "..."`. The check
-   reruns on `edited`.
-8. Merge with squash once the check passes and every review thread is
+   If `pr-title` fails, fix the title with `gh pr edit --title "..."`. If
+   `pr-labels` fails, fix the labels (see Labels and milestone). Both checks
+   rerun on `edited`, `labeled` and `unlabeled`.
+8. Merge with squash once both checks pass and every review thread is
    resolved:
 
    ```sh
@@ -224,6 +225,10 @@ way as the list of issues:
 
 Do not put `status:` labels on a pull request. They describe issues.
 
+The `pr-labels` check enforces rule 1 and the `status:` ban: it fails unless
+the pull request has exactly one type label and it is the one the table gives
+for the title type. It reruns when a label is added or removed.
+
 Fix labels after opening with
 `gh pr edit --add-label docs --add-label area:spec`.
 
@@ -246,5 +251,6 @@ The remote branch is deleted on merge.
 |---------|-------|-----|
 | a push to `main` fails with "Repository rule violations found" | direct push to `main` | push a branch and open a pull request |
 | `pr-title` fails | title does not match the format or is over 72 characters | `gh pr edit --title "..."` |
+| `pr-labels` fails | no type label, a second type label, one that does not match the title type, or a `status:` label | `gh pr edit --add-label <label>` or `--remove-label <label>` |
 | merge blocked with the check green | an unresolved review thread | resolve or answer the thread |
 | `gh pr merge` refuses `--merge` or `--rebase` | squash is the only method | use `--squash` |

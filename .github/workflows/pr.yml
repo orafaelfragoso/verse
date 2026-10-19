@@ -2,7 +2,7 @@ name: pr
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, edited, reopened, synchronize, labeled, unlabeled]
 
 permissions: {}
 
@@ -25,5 +25,38 @@ jobs:
           fi
           if (( ${#TITLE} > 72 )); then
             echo "::error::The title is ${#TITLE} characters; the limit is 72."
+            exit 1
+          fi
+
+  # Pull requests are labeled like issues, so the type label must agree with
+  # the title type. The mapping is in the opening-a-pull-request skill.
+  pr-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the type label against the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          case ${TITLE%%[(!:]*} in
+            feat) want=feature ;;
+            fix) want=bug ;;
+            perf) want=perf ;;
+            docs) want=docs ;;
+            spec) want=design ;;
+            *) want=chore ;;
+          esac
+          found=()
+          for label in $LABELS; do
+            case $label in
+              bug|feature|design|docs|perf|chore) found+=("$label") ;;
+              status:*)
+                echo "::error::'$label' describes issues; remove it from the pull request."
+                exit 1
+                ;;
+            esac
+          done
+          if [[ ${#found[@]} -ne 1 || ${found[0]} != "$want" ]]; then
+            echo "::error::A '${TITLE%%[(!:]*}' title needs exactly one type label, '$want'; found: ${found[*]:-none}. See CONTRIBUTING.md."
             exit 1
           fi
