@@ -1,3 +1,4 @@
 dist/
 target/
-.claude/
+.claude/*
+!.claude/skills/
