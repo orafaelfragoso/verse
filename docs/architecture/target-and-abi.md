@@ -15,8 +15,7 @@ Status: **draft 1**. Labels follow the [README](README.md): *decision*,
 *target*, *assumption*, *proposal*, plus *fact* for what the spec or a ruled
 question already says. Nothing here is implemented and no number is measured.
 Where this document changes or extends 03, 04, 05, 13 or 14, the change is a
-**proposal** and is listed in [15.13](#1513-conflicts-with-other-documents) or
-[15.14](#1514-open-items).
+**proposal** and is listed in [15.13](#1513-open-items).
 
 ## 15.1 Purpose and scope
 
@@ -82,7 +81,7 @@ targets of the same width produce the same layout.
 | L1 | All targets in 0.1 are **little endian**. `endian = "big"` is reserved and rejected | decision |
 | L2 | `Int` and `Float` have size 8 and **alignment 8 on every target**, including 32-bit ones. No Verse type has alignment above 8, so the allocator only has to return 8-aligned blocks (16 on 64-bit targets, for convenience) | decision |
 | L3 | Every size is a multiple of its alignment. A type's alignment is the maximum of its fields' | decision |
-| L4 | **Record and tuple fields** are placed in order of descending alignment, ties in declaration order, with no padding between fields except what alignment needs. ZST fields take no space. A record's `size` is rounded up to its alignment. Field names and indexes in MIR never change (13.3) | decision (03 §3.5 says "the order that minimizes padding"; this fixes the algorithm) |
+| L4 | **Record and tuple fields** are placed in order of descending alignment, ties in declaration order, with no padding between fields except what alignment needs. ZST fields take no space. A record's `size` is rounded up to its alignment. Field names and indexes in MIR never change (13.3) | decision |
 | L5 | An **enum case** is laid out as a record whose first field is the tag, pinned at offset 0 ([15.3.4](#1534-enums-option-and-fallible-types)), so small payloads pack after the tag | decision |
 | L6 | Layout is **not observable** from Verse: there is no `repr`, no `size_of`, no way to read bytes of a value except through `math` conversions and `Bytes` | fact (03 §3.5) |
 | L7 | The maximum size of a value is `2^(8W-1) - 1` bytes. A larger type is a compile error that names the type | assumption |
@@ -156,7 +155,7 @@ so a negative `Int` index fails the check on every width. On a 32-bit target
 a list therefore holds at most `2^32 - 1` elements and a larger length is an
 `out_of_memory` panic.
 
-**`Text`** (assumption, from 03 §3.5; the 32-bit column is new). A `Text` is
+**`Text`** (assumption, as in 03 §3.5). A `Text` is
 UTF-8, in one of two forms told apart by the **last byte** of the header (byte
 `3W-1`, the *form byte*):
 
@@ -516,6 +515,13 @@ with, which both sides share (assumption, to verify in M7, P15-22).
   linker's. Calls between Verse functions are direct `bl`.
 - **No stackful tasks.** Cortex-M targets use the cooperative executor
   ([15.6.2](#1562-resumable-functions-state-machine-and-cooperative-targets)).
+- **Atomics by triple.** `thumbv7m-none-eabi` (Cortex-M3) and
+  `thumbv7em-none-eabi`, `thumbv7em-none-eabihf` (Cortex-M4, M7) are ARMv7-M
+  and ARMv7E-M. They have `LDREX`/`STREX`, so compare-and-swap is native and
+  their target files set `atomics = "native"`. `thumbv6m-none-eabi`
+  (Cortex-M0, M0+) is ARMv6-M. It has no `LDREX`/`STREX` and no
+  compare-and-swap, only single loads and stores, so its target file sets
+  `atomics = "none"`.
 - **`Int` cost.** Every `Int` operation is a register pair operation;
   range analysis lowers what it can prove to 32 bits (05 §5.7).
 - ARM32 Linux (`armv7-unknown-linux-gnueabihf`) is **not** in
@@ -924,9 +930,8 @@ status is delivered.
 A target is **data plus two small implementations**
 ([04 §4.3](backends-and-targets.md#43-what-a-target-is)): lowering (a
 backend) and a platform layer. The data is a TOML file, the **target file**.
-This section is its schema. It extends the example of 04 §4.3 with the fields
-that this document needs; every field of that example keeps its name and
-meaning. The extensions are **proposals** to fold into 04 §4.3 (P15-11).
+This section is its full schema. The example of 04 §4.3 shows the core keys;
+every one keeps its name and meaning here.
 
 ### 15.9.1 Files and lookup
 
@@ -975,7 +980,7 @@ with `K`, `M`, `G` suffixes (powers of 1024) or integers (bytes).
 | `unwind` | `status-code` \| `native` \| `wasm-eh` \| `abort` | yes | the mechanism of [15.7.2](#1572-the-three-mechanisms) |
 | `tasks` | `stackful` \| `state-machine` \| `cooperative` | yes | the strategy of ADR-0007; 05 §5.3 |
 | `threads` | bool | `false` | whether the program may run on more than one OS thread (04 §4.2 "Threads") |
-| `atomics` | `native` \| `none` | `native` | `none` means single core with interrupts masked around runtime critical sections |
+| `atomics` | `native` \| `none` | `native` | `native`: the architecture has compare-and-swap. `none`: it has only single loads and stores, so the target is single core with interrupts masked around runtime critical sections (15.5.4) |
 | `float` | `hard` \| `soft` | `hard` | the float ABI variant |
 | `fpu` | `double` \| `single` \| `none` | `double` | hardware binary64 (`single`: binary64 is a library call, `none`: all floats) |
 | `runtime_slice` | `std-os` \| `std-wasi` \| `std-web` \| `std-embedded` \| `core` | yes | the **platform layer** ([15.10](#1510-platform-layers-and-capability-mapping)); the key name is 04's, the value is 05's "platform layer" |
@@ -1172,7 +1177,7 @@ cpu             = "cortex-m4"
 unwind          = "status-code"
 tasks           = "cooperative"
 threads         = false
-atomics         = "none"
+atomics         = "native"
 float           = "hard"
 fpu             = "single"
 runtime_slice   = "std-embedded"
@@ -1235,7 +1240,7 @@ below are those of 16. Like any source error, each ends the run with status 2.
 | `backend` is in `backends`; `wasm` needs `object_format = "wasm"` and `[wasm]`; `cranelift` needs `pointer_width = 64` | V0911 | 04 §4.1 |
 | `tasks = "stackful"` needs an architecture with a context-switch row in 15.5.8 | V0912 | 05 §5.3 |
 | `tasks = "state-machine"` or `"cooperative"` forbids `threads = true` | V0911 | no workers are specified for them in 0.1 |
-| `atomics = "none"` forbids `threads = true` | V0911 | 15.5.5 |
+| `atomics = "none"` forbids `threads = true` | V0911 | 15.5.4, 15.5.5 |
 | `unwind = "wasm-eh"` needs `backend = "wasm"` (V0911) and `"exception-handling"` in `[wasm] features` (V0912) | V0911, V0912 | 15.7.2 |
 | `unwind = "native"` needs a backend that emits unwind tables for the architecture | V0911 | 15.7.2 |
 | every capability key has a provider in the platform layer's menu ([15.10.3](#15103-the-capability-table)); a detail value is one the provider knows | V0913 | no capability without code |
@@ -1427,22 +1432,7 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
    round-tripped by the schema of 15.9.2; every example in this document is a
    test fixture.
 
-## 15.13 Conflicts with other documents
-
-1. **[04 §4.5](backends-and-targets.md#45-calling-convention-and-abi)** says
-   "borrowed arguments by pointer". 15.4.1 passes a shared borrow of a small
-   `Copy` value by value, which 13.6 allows ("a later ABI step may pass small
-   `Copy` types by value"). 04 §4.5 should say "by pointer, except a shared
-   borrow of a small `Copy` value".
-2. **[04 §4.3](backends-and-targets.md#43-what-a-target-is)** shows a
-   schema without `name`, `abi`, `backends`, `cpu`, `features`, `fpu`,
-   `threads`, `[platform]`, `[memory]`, `[tasks]`, `[exit]` and `[wasm]`
-   (15.9.2), and puts files at `targets/<name>.toml` only (15.9.1).
-3. **[03 §3.5](ir-and-passes.md#35-layout-rules)** gives `Text` only for 64-bit
-   targets; 15.3.3 adds a 12-byte 32-bit header. It also leaves record order
-   to "minimize padding"; L4 fixes the algorithm.
-
-## 15.14 Open items
+## 15.13 Open items
 
 Open proposals and questions. The ids are
 this document's.

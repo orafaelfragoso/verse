@@ -175,15 +175,17 @@ Decisions that backends and the runtime share:
 
 - `Int` is 64-bit on every target, including 32-bit microcontrollers (spec
   §4.1). Cost on 32-bit cores is noted in [09](performance.md).
-- Records are laid out in the order that minimizes padding unless marked
-  otherwise; the layout is not observable from Verse.
+- Record and tuple fields are placed in order of descending alignment, ties
+  in declaration order ([15 §15.3.1](target-and-abi.md#1531-rules), L4); the
+  layout is not observable from Verse.
 - `T?` uses a niche when `T` has a spare bit pattern (pointers, `Bool`,
   `Char`, enums with spare discriminants); otherwise a tag byte.
 - Variant types use a tag plus the largest payload, with niche packing for
   single-payload variants.
-- `Text` is a UTF-8 buffer with a small-string form of up to 22 bytes held
-  inline in a 24-byte header, on 64-bit targets (assumption, benchmarked in
-  M1). The header also caches whether the text is pure ASCII, and its
+- `Text` is a UTF-8 buffer with a small-string form: up to 22 bytes held
+  inline in a 24-byte header on 64-bit targets, and up to 10 bytes in a
+  12-byte header on 32-bit targets ([15 §15.3.3](target-and-abi.md#1533-runtime-owned-types-text-bytes-list-map-set);
+  assumption, benchmarked in M1). The header also caches whether the text is pure ASCII, and its
   character count when known, to make `len()` and indexing cheap (see
   [09](performance.md), risk P1).
 - `List<T>` is `(ptr, len, cap)`, contiguous. `Map` preserves insertion

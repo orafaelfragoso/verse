@@ -109,20 +109,30 @@ endian          = "little"
 backend         = "llvm"
 unwind          = "status-code"      # status-code | native | wasm-eh | abort
 tasks           = "cooperative"      # stackful | state-machine | cooperative
-atomics         = "native"           # native | none (single-core, interrupts masked)
+atomics         = "native"           # native (has CAS) | none (no CAS: single-core, interrupts masked)
 float           = "hard"
 runtime_slice   = "std-embedded"
 object_format   = "elf"
 linker          = "rust-lld"
 
 [capabilities]                       # what this target can provide to `sys`
-clock = true
+clock = "monotonic"                  # a timer tick; no wall clock
 random = "hardware"
 fs = false
 net = false
 gpio = true
 uart = true
 ```
+
+The example shows the core keys. The full schema, including `[platform]`,
+`[memory]`, `[tasks]`, `[exit]` and `[wasm]`, and where target files are
+looked up (the toolchain's `targets/<name>.toml`, a project's
+`targets/<name>.target`, or `verse.target`), is
+[15 §15.9](target-and-abi.md#159-the-versetarget-description-file).
+`atomics` is set per triple: ARMv7-M and ARMv7E-M cores (`thumbv7m`,
+`thumbv7em`) have compare-and-swap and are `native`; ARMv6-M cores
+(`thumbv6m-none-eabi`, Cortex-M0 and M0+) have none and are `none`
+([15 §15.5.4](target-and-abi.md#1554-arm32-and-thumb)).
 
 1. **Lowering**: a function from mono MIR to the backend. For existing
    backends (Cranelift, LLVM, Wasm) a new target in the same family is only
@@ -152,7 +162,9 @@ after reachability ([02 §2.2](compiler-architecture.md#22-stage-contracts)), an
 
 - **Internal ABI**: free to change between compiler versions. Verse-to-Verse
   calls use a compiler-chosen convention: small values in registers, large
-  values by hidden pointer, `mut` and borrowed arguments by pointer.
+  values by hidden pointer, `mut` arguments by pointer, and borrowed
+  arguments by pointer except a shared borrow of a small `Copy` value, which
+  is passed by value ([15 §15.4.1](target-and-abi.md#1541-lowering-a-signature)).
 - **Stable ABI**: only the C ABI for `extern` calls and library exports, and
   the Wasm component ABI for component exports.
 - **Interop** with C, C++, Zig and Rust goes through plugins: `extern` blocks
