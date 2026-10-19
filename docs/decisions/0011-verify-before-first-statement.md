@@ -32,10 +32,14 @@ which leaves out V21 (generic only, checked after MIR build) and adds V22.
    script mode monomorphizes every reachable instance, with the five steps of
    13 §13.6, and verifies each one with the mono rules of 13 §13.6. It runs no
    optimizer pass and builds no bytecode. Each verified instance is cached
-   under a key that covers its generic body, type arguments and target
+   under a transitive verified-instance key. It hashes the instance's own generic MIR,
+   type arguments, compiler version, flags and target together with the keys
+   of the instances it calls, the impl each trait call resolves to and the
+   layout of every type it uses, so a change below an instance changes its key
    ([02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)).
 2. **Bytecode generation stays lazy.** The first call of an instance builds its
-   proto from the verified mono MIR
+   proto from the verified mono MIR, and the proto is cached under that
+   instance's verified-instance key plus the flags of the bytecode compiler
    ([14 §14.6](../architecture/bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
    Verification after monomorphization therefore never fails after the first
    statement.
@@ -48,7 +52,9 @@ which leaves out V21 (generic only, checked after MIR build) and adds V22.
    with the same sources, `verse.toml`, `verse.lock`, compiler and target
    never stops with V9902, and never exits 2 except for a capability refused
    by a `--deny` flag of that run, or a plugin library that is missing, fails
-   to build, lacks a symbol or is static only (V1007 to V1009, V1011)
+   to build, lacks a symbol or is static only (V1007 to V1009, V1011).
+   Verification after an optimizer pass, which runs only in debug builds of
+   `verse` and in CI, is outside this rule
    ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
 5. **The capability check before run is the only capability check.** In debug
    builds of `verse` itself, `CALLS` asserts the capability bit of the proto.
@@ -58,6 +64,10 @@ which leaves out V21 (generic only, checked after MIR build) and adds V22.
 
 Points the proposal left open, decided here:
 
+- **Instances that call each other.** A transitive verified-instance key needs the keys
+  of the callees first, so instances in a cycle of calls share one key, hashed over
+  every instance in the cycle. A change to one of them changes the key of
+  all of them, which is right, because V18 and V19 flow around the cycle.
 - **What the promise excludes.** Two inputs exist only when the program runs:
   the `--deny` flags of that run and the plugin libraries on the machine
   (V1007 to V1009, V1011,
@@ -82,7 +92,9 @@ Points the proposal left open, decided here:
   runs only in debug builds of `verse` and in CI, as a check of the optimizer.
   `verse check` runs no optimizer pass, and a run optimizes an instance at its
   first call, so in a debug build of `verse` a failure there is V9902 at a
-  first call. 16 §16.6.1 puts that failure outside the promise.
+  first call. Decision 4 and 16 §16.6.1 therefore say that verification
+  after an optimizer pass, which runs only in debug builds of `verse` and in
+  CI, is outside this rule.
 - **Performance target.** The cold pre-pass target for 10,000 reachable
   instances is under 150 ms on 8 cores
   ([14 §14.13](../architecture/bytecode-and-vm.md#1413-performance-targets)).
@@ -121,8 +133,8 @@ Points the proposal left open, decided here:
 ## Consequences
 
 - `verse check` and the first run of a file pay the verifier for reachable code
-  that never executes. The per-module cache keeps that cost to the first run
-  after a change.
+  that never executes. The per-instance cache of 02 §2.7 keeps that cost to
+  the first run after a change.
 - Script mode and a compiled build verify the same mono MIR with the same
   rules, so the verifier sees the same `caps` and `mayyield` in both modes.
 - The exit status table has no status that exists only because one check runs

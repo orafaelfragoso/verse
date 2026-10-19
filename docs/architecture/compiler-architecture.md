@@ -180,12 +180,20 @@ Spec §4.2 requires "specialized code for each concrete type used".
 - **Persistent cache.** `.verse/cache/` stores parsed modules, signatures and
   object code keyed by `blake3(source, compiler version, flags, verse.api of
   imports)`. It stores each verified instance of the script-mode pre-pass
-  (2.6) under its own key, `blake3(compiler version, flags, target, generic
-  MIR of its DefId, its type arguments with their layouts)`. An instance of an
-  imported generic takes its body from the dependency, whose `verse.api` stays
-  the same when only that body changes, so the module key would return a
-  stale instance. `verse x.vs` on an unchanged script skips straight to
-  execution.
+  (2.6) under its own **verified-instance key**, which is transitive. The key hashes
+  the compiler version, flags, target, the generic MIR of the instance's
+  DefId and its type arguments, together with the keys of the instances it
+  calls (drop glue included), the impl each of its `<T as Trait>::m` calls
+  resolves to, and the layout of every type it uses. A change below an
+  instance therefore changes its key: a callee that gains a capability or a
+  `yield`, an impl that changes, or a type whose layout changes. This matters
+  because V18 and V19 read the `mayyield` and `caps` of callees
+  ([13 §13.5](mir-specification.md#135-verifier-rules)). Instances that call
+  each other in a cycle share one key, hashed over the whole cycle. An
+  instance of an imported generic takes its body from the dependency, whose
+  `verse.api` stays the same when only that body changes, so the module key
+  would return a stale instance. `verse x.vs` on an unchanged script skips
+  straight to execution.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.

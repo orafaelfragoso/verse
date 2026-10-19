@@ -137,7 +137,7 @@ target in a known backend family is only data
 - **Instrumentation changes nothing observable**: values, `Cleanup` order and
   scheduler choices stay the same with hooks on or off
   ([14 §14.11](../../../../docs/architecture/bytecode-and-vm.md#1411-debug-hooks)).
-- **Every reachable instance is verified before the first instruction.** A
+- **Every reachable instance is verified before the first instruction.**
   Verification after monomorphization never fails mid-run
   ([14 §14.6](../../../../docs/architecture/bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
   What a passing `verse check` promises about a run is the rule of

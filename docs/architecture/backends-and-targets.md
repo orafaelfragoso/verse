@@ -33,7 +33,9 @@ compiler with a different last stage, so they cannot drift apart semantically.
   scheduler are in [14](bytecode-and-vm.md).
 - **Cache.** Bytecode is cached under `.verse/cache/` so a re-run of an
   unchanged script starts without parsing. The cache key is per **function
-  instance** (`DefId` plus type arguments, [02 §2.6](compiler-architecture.md#26-monomorphization)), because generic
+  instance**: a proto is keyed by the verified-instance key of the instance it
+  is built from ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation))
+  plus the flags of the bytecode compiler, because generic
   instances cross module boundaries; instances are grouped per module on disk
   for storage, and a module's file indexes its instances.
 - **Startup target**: hello world in under 20 ms wall time, including process

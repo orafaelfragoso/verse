@@ -28,9 +28,11 @@ The compiler is only useful if it is right. This document defines how we know.
   same commit. This keeps the spec and the compiler from drifting.
 - The check-then-run test runs `verse check` on each conformance program and
   then runs it with the same inputs. It fails when the check exits 0 and the
-  run breaks the rule of
-  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses): it
-  stops with V9902, or it exits 2 for a reason the rule does not except.
+  run then stops with V9902, or exits 2 for a reason the rule of
+  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses) does
+  not except. Verification after an optimizer pass, which runs only in
+  debug builds of `verse` and in CI, is outside this rule, but the test still
+  fails on a V9902 from it, as a deliberate extra check of the optimizer.
 - Ambiguities discovered while writing tests are raised against the spec,
   not settled in the code as silent choices.
 

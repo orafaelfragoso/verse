@@ -72,8 +72,11 @@ ties each test to a normative spec sentence.
   then runs it. It fails when the check exits 0 and the run stops with V9902
   or exits 2 for a reason the rule of
   [16 §16.6.1](../../../docs/reference/diagnostics-catalog.md#1661-exit-statuses)
-  does not except. A change to `verse check`, the pre-pass or the capability
-  check must keep it passing.
+  does not except. Verification after an optimizer pass, which runs only in
+  debug builds of `verse` and in CI, is outside this rule, but the test still
+  fails on a V9902 from it, as a deliberate extra check of the optimizer. A
+  change to `verse check`, the pre-pass or the capability check must keep it
+  passing.
 - Every ```verse block in the spec is extracted by `tools/extract-examples`
   and either runs as a passing test or is tagged with the reason it is a
   fragment. `...` in an example is not Verse syntax

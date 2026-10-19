@@ -177,14 +177,17 @@ Verification is eager and bytecode generation is lazy
   so compiling a proto resolves nothing. The callee itself is not compiled
   until it is called. Bytecode generation therefore scales with what runs. The
   pre-pass scales with what is reachable, and its cache keeps that cost to the
-  first run (02 §2.6).
+  first run (02 §2.7).
 - **`dyn` calls** go through vtables built when the trait object is first
   created; each slot is a function-table index, compiled on its first call.
 - **Recursion** and mutual recursion work because the entry is `Compiling`
   only while bytecode is generated, not while it runs.
 - **Calling convention** is [14.3](#143-value-representation-and-call-records): window, base, result at the window start. No tail calls (the spec promises none).
-- **Cache.** Protos are cached under `.verse/cache/` keyed by `blake3(source,
-  compiler version, flags, verse.api of imports)` ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)). The unit is the
+- **Cache.** Protos are cached under `.verse/cache/`. A proto is keyed by the
+  verified-instance key of the instance it is built from
+  ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation))
+  plus the flags of the bytecode compiler, so a changed body, callee, impl or
+  layout never loads a proto the pre-pass did not verify. The unit is the
   instance, not the module, because generic instances cross modules (04 §4.1 uses
   the same key; instances are grouped per module on disk for storage).
 
@@ -421,7 +424,7 @@ capability fakes:
 | Observable | Detail |
 |------------|--------|
 | standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too: they come from the user-level call list below |
-| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
+| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule and can report V9902 at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
 | panic record | `kind`, facts, span, task, and the **user-level** call list (inlined calls reconstructed from spans, 13.7); which panic comes first; the secondary panics of a failed `Cleanup` (R0009) |
 | order of `Cleanup` and drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |
@@ -448,7 +451,7 @@ document's.
 | Metric | Target | Source |
 |--------|--------|--------|
 | `verse hello.vs`, warm cache, pre-pass included | under 20 ms wall time | 09 |
-| reachability pre-pass with monomorphization and verification, 10,000 reachable instances, cold module cache | under 150 ms on 8 cores; warm: under 5 ms | 14 |
+| reachability pre-pass with monomorphization and verification, 10,000 reachable instances, cold cache | under 150 ms on 8 cores; warm: under 5 ms | 14 |
 | tier 0 on the benchmark suite | within 30x of optimized native, aiming at 10x to 20x | 09 |
 | instructions executed per MIR statement, after fusion | 1.2 or fewer on average | 14 |
 | bytecode size | 8 bytes or fewer per MIR statement on average | 14 |
