@@ -85,7 +85,9 @@ Two facts from the spec make "import costs nothing" safe:
   unused module cannot change behaviour.
 - **Module constants are initialized on first use** (spec §12.4), so a
   constant is included only if a reachable function reads it, and its
-  initializer is reachable only through that read.
+  initializer is reachable only through that read. The initializers of one
+  module never form a cycle (V0426), so an initializer never re-enters itself
+  and needs no reentry guard.
 
 An import whose names are never used is reported as a warning by the
 compiler; it never adds code.

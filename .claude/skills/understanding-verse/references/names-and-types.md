@@ -62,7 +62,9 @@ the file ([§12.2](../../../../docs/language/12-modules.md#122-importing)).
 
 **Module contents.** Only the entry file runs top-level statements. A
 top-level binding in an imported module is a constant, initialized once on
-first use, and must be infallible. In the entry file it is a script local,
+first use, and must be infallible. The constants of one module never read
+each other in a cycle, through functions or not (V0426). In the entry file
+it is a script local,
 not visible inside `fn` bodies
 ([§12.4](../../../../docs/language/12-modules.md#124-module-contents)).
 

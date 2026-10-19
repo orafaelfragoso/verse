@@ -224,6 +224,36 @@ each place:
   config = try read_text("config.toml")             # error: module constants cannot fail
   ```
 
+  **No initialization cycles.** A constant's initializer never reads the
+  constant it initializes, directly or through other constants and
+  functions of its module. A cycle is a compile error that names the
+  constants in it:
+
+  ```
+  error: the constants `low` and `high` are initialized from each other
+    --> limits.vs:2:14
+     |
+   2 | export low = high - 10
+     |              ^^^^ `high` reads `low` on line 3
+     |
+  help: give one of them a value that does not read the other
+  explain: V0426 (run `verse explain V0426`)
+  ```
+
+  A cycle of three or more constants reads "the constant `a` is initialized
+  from itself through `b`", where `b` is the constant `a` reads, and a
+  constant whose initializer reads itself reads "the constant `a` is
+  initialized from itself". When the read goes through a function, the label
+  names it: "`high` reads `low` through `scale` on line 3".
+
+  The check follows everything the initializer could run in its module: the
+  constants and functions it names, the functions those name, every lambda
+  written in them whether or not it is called, and every method the module
+  implements for a type of the module that a value in that code has. Code
+  in another module cannot reach back by any other path, because it cannot
+  import this one (§12.2). So a constant is never read while it is being
+  initialized, and the first use always sees a finished value.
+
 - **In the entry file**, a top-level binding is an *ordinary statement*: it runs
   in order, top to bottom, like every other statement there, and may use `try`
   (see §8.3 for what a failed top-level `try` does). Such a binding is a **script

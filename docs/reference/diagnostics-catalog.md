@@ -176,6 +176,7 @@ Code V0205 is intentionally unassigned: propagation is the prefix word `try`, so
 | V0423 | error | `Error` already includes `{E}` | a raise set that names `Error` names nothing else | write `raises Error`, or list only specific errors | §4.6 |
 | V0424 | error | `{E}` is an error type, so it goes after `raises` | an error type is not a member of a union | write `{T} raises {E}` | §4.6 |
 | V0425 | error | `{p}` of `{f}` gets `{T}` here and `{U}` at {position} | `{f}` reads `{p}.{field}`, so `{p}` has one concrete type | annotate `{p}`, or make `{f}` generic with a trait bound | §4.2 rule 1 |
+| V0426 | error | the constants `{a}` and `{b}` are initialized from each other (other forms: "the constant `{a}` is initialized from itself through `{b}`" for a cycle of three or more constants, "the constant `{a}` is initialized from itself" for one constant) | `{b}` reads `{a}` on line {n} (or "`{b}` reads `{a}` through `{f}` on line {n}") | give one of them a value that does not read the other | §12.4 |
 
 Code V0419 is intentionally unassigned: a recursive function is annotated (§4.2 rule 3), and a parameter that would be wrapped deeper on each call has one written type, so no call needs a new instance per depth.
 
