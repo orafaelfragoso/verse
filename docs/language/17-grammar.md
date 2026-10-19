@@ -62,9 +62,10 @@ optional_type = base_type { "?" } ;                       (* T?? is not T? *)
 base_type     = { IDENT "." } TYPE_IDENT [ type_args ]      (* `time.Duration` *)
               | "(" type "," type { "," type } ")"               (* tuple   *)
               | "(" labeled { "," labeled } ")"                   (* labeled *)
-              | "fn" "(" [ type { "," type } ] ")" ":" type
+              | "fn" "(" [ fn_param { "," fn_param } ] ")" ":" type
               | "(" type ")" ;
 labeled       = IDENT ":" type ;
+fn_param      = [ "mut" | "take" ] [ IDENT ":" ] type ;   (* §4.7 *)
 type_args     = "<" type { "," type } ">" ;
 
 (* ---------- Foreign functions (§12.6) ---------- *)

@@ -226,8 +226,9 @@ served, `clock` only if a time-based middleware is reached. **Targets:** OS
 targets and WASI with sockets; not the browser target (it serves nothing),
 not microcontrollers without a network stack (06 §6.8).
 
-Open: the spec gives `http.serve` and `Response.body` no signatures (§15.2),
-so every `web` example assumes `serve(port:, handler:)`.
+`http.serve(port: Int, handler: fn(Request): Response | Error)` runs each
+request in its own task, turns an `Error` from the handler into a 500 response
+and logs it with `log` (spec §15.3). A router's `handler()` is that `handler`.
 
 ### Types (sketch)
 
@@ -240,7 +241,7 @@ alias Middleware = fn(Request, Handler): Response | Error
 ```
 
 `Request` and `Response(status, headers, body)` are `http`'s types (spec
-§15.2); `web` adds no second request type.
+§15.3); `body` is `Bytes`. `web` adds no second request type.
 
 ### Functions (sketch)
 
@@ -277,7 +278,7 @@ fn health(_request: Request, _params: Params): Response | Error
 router = Router.new()
     .get("/users/:id", show_user)
     .get("/health", health)
-serve(port: 8080, handler: router.handler())?    # assumed serve signature
+serve(port: 8080, handler: router.handler())?
 ```
 
 The unused parameters start with `_`, which keeps them without the
@@ -298,7 +299,7 @@ The project lists it under `[generate]`
 - A program reaches only the routing table, the routes it registers, and the
   `http` and `net` code `serve` reaches. Unused helpers and the template generator's
   runtime support are absent.
-- Each request is handled in its own task (Assumption about `serve`). The
+- Each request is handled in its own task (spec §15.3). The
   handler's captured router is shared read-only across tasks, so
   `handler()` wraps it in a `Shared<Router>` (spec §11.4). Mutable
   application state goes in a `Guarded<T>` that each route receives through
@@ -325,20 +326,22 @@ and events are **messages** (a variant type), as in the Elm architecture:
 1. `view(model)` borrows the model and returns a widget tree, an owned value
    with no references into the model.
 2. A click produces the `Msg` value stored in the widget.
-3. `update(model, msg)` returns the next model.
+3. `update(model, msg)` changes the model in place through `mut` and returns
+   a list of commands: long work for the runtime to run as tasks.
 
 ```verse
-import run_app, column, row, button, label, Widget from gui
+import run_app, column, row, button, label, Command, Widget from gui
 
 type Msg = Increment | Decrement
 
 type Model
     count: Int = 0
 
-fn update(model: Model, msg: Msg): Model
+fn update(mut model: Model, msg: Msg): List<Command<Msg>>
     match msg
-        Increment -> model.copy(count: model.count + 1)
-        Decrement -> model.copy(count: model.count - 1)
+        Increment -> model.count += 1
+        Decrement -> model.count -= 1
+    []
 
 fn view(model: Model): Widget<Msg>
     column([
@@ -353,7 +356,8 @@ run_app(title: "Counter", init: Model(), update:, view:)?
 
 | Signature | Notes |
 |-----------|-------|
-| `fn run_app<M, E>(title: Text, init: M, update: fn(M, E): M, view: fn(M): Widget<E>): Nothing \| Error` | owns the model; returns when the window closes; `E` is the program's message type |
+| `fn run_app<M, E>(title: Text, take init: M, update: fn(mut model: M, msg: E): List<Command<E>>, view: fn(M): Widget<E>): Nothing \| Error` | owns the model; returns when the window closes; `E` is the program's message type |
+| `fn command<E>(take work: fn(): E): Command<E>` | long work: the runtime spawns `work` as a task, and its result comes back to `update` as a message |
 | `fn label<E>(text: Text): Widget<E>` | `E` is inferred from where the widget is used (no explicit type arguments, spec §10.5) |
 | `fn button<E>(text: Text, on_click: E): Widget<E>` | |
 | `fn text_input<E>(value: Text, on_change: fn(Text): E): Widget<E>` | the message carries the new text |
@@ -361,9 +365,10 @@ run_app(title: "Counter", init: Model(), update:, view:)?
 | `fn padded<E>(child: Widget<E>, all: Int): Widget<E>` | layout is composition, not properties on every widget |
 | `fn every<E>(interval: Duration, msg: E): Subscription<E>` | timed messages (`clock`) |
 
-Long work (a download) is a task: `update` may return a command that the
-runtime spawns, and the task's result comes back as a message
-(`Update(model:, commands:)`). Open: the exact shape of `Update`. Tasks never touch the model.
+Long work (a download) is a task: `update` returns it as a `Command<E>`, the
+runtime spawns it, and the task's result comes back to `update` as a message
+of type `E`. Most messages return no command (`[]`). Tasks never touch the
+model.
 
 ### Per-target availability
 
@@ -377,8 +382,8 @@ runtime spawns, and the task's result comes back as a message
 ### Ownership notes
 
 - The model is moved into `run_app` and owned by it; `view` gets a borrow and
-  `update` returns a new owned model, so no widget, task or handler ever holds
-  a reference into the model.
+  `update` gets an exclusive borrow (`mut`) for one message, so no widget, task
+  or handler ever holds a reference into the model.
 - Widget trees are rebuilt by `view` and compared with the previous tree by
   the runtime (Assumption: a diffing renderer, as in Elm and React), so the
   program never mutates widgets in place.
@@ -428,7 +433,7 @@ disabled).
 | `fn output_pin(mut self, number: Int): Pin \| Error` | `Board` method; a pin already taken is an error naming its first owner |
 | `fn input_pin(mut self, number: Int): Pin \| Error` | |
 | `fn set(mut self, level: Level)`, `fn toggle(mut self)`, `fn read(self): Level` | `Pin` methods; no heap |
-| `fn edges(mut self, capacity: Int): Receiver<Edge> \| Error` | interrupts arrive as channel messages |
+| `fn send_edges(mut self, take tx: Sender<Edge>): Nothing \| Error` | interrupts arrive as channel messages on the program's own channel |
 | `fn i2c(mut self, bus: Int, speed_hz: Int): I2c \| Error` | |
 | `fn read_register(mut self, address: Int, register: Int): Int \| Error` | `I2c`; one byte, no buffer |
 | `fn write_bytes(mut self, address: Int, data: Bytes): Nothing \| Error` | data from a `b"…"` literal or a byte view (spec §4.1) |
@@ -438,7 +443,7 @@ disabled).
 
 ```verse
 import Board, Edge from iot
-import Receiver from task
+import Channel, Receiver from task
 import sleep from time
 
 fn watch(take edges: Receiver<Edge>)
@@ -448,7 +453,9 @@ fn watch(take edges: Receiver<Edge>)
 
 mut board = Board.take()?
 with board.output_pin(13)? as mut led, board.input_pin(2)? as mut button
-    spawn watch(button.edges(capacity: 4)?)
+    (tx, rx) = Channel.new<Edge>(capacity: 4)
+    button.send_edges(tx)?
+    spawn watch(rx)
     while true
         led.toggle()
         sleep(500.millis())
@@ -465,9 +472,11 @@ interrupt context, so it can use the whole language (05 §5.7).
 ### No-heap notes
 
 - `Pin`, `I2c`, `Uart`, `Level`, `Edge` and the register functions allocate
-  nothing, so blinky passes `--no-heap` (05 §5.7) if the channel behind
-  `edges` is placed in a static region sized by `capacity`. Open: build-time
-  sizing of channels on `--no-heap` targets.
+  nothing. The channel is the program's own, so its capacity is a constant at
+  the creation site and its buffer is placed in static memory
+  ([15 §15.3.7](target-and-abi.md#1537-handles-tasks-channels-shared-guarded)).
+  Blinky therefore passes `--no-heap` (05 §5.7). A capacity computed at run
+  time fails that build with V0916.
 - The spec has **no fixed-capacity mutable byte buffer**: `Bytes` is
   immutable and `List<Int>` allocates. Bulk SPI and UART reads therefore need
   a new type: a fixed-capacity mutable byte buffer in the standard library,

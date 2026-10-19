@@ -55,8 +55,10 @@ live range (V9).
 
 **Task stacks** are chains of **segments** that are never reallocated or moved.
 A call checks that the callee's `frame_slots` fit in the current segment and
-else allocates the next one. Initial segment: 1 KiB (assumption). A task that
-cannot grow (limit `--max-stack`, default to be tuned) panics with
+else allocates the next one. Initial segment: 1 KiB (assumption). Segments are
+allocated only when needed, so the cap costs nothing until a task uses it. A
+task that cannot grow (limit `--max-stack`, by default the target's `[tasks]
+max_stack`, 8 MiB per task on hosted targets) panics with
 `stack_overflow` (R0004, "recursion is too deep in task N", [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics);
 [05 §5.3](runtime.md#53-tasks-and-scheduling)); the VM supplies the fact `n`.
 
@@ -216,7 +218,9 @@ native-code strategies. Observable behaviour is the same as the others.)
 - **Structured end of life.** When a function exits, its unwaited tasks are
   waited (spec §11.3) by the compiler-emitted `JOIN`s of
   [13.4](mir-specification.md#134-statements-and-terminators); unwaited
-  failures set the exit status (1, or 101 for a panic).
+  failures set the exit status (1, or 101 for a panic). A task held inside a
+  list or a record is cancelled and then joined when that value is dropped
+  (V17), through the `DROPC` of its glue.
 - **Deadlock**. No runnable task, no pending I/O completion, no
   timer (a virtual clock jumps to the next timer instead), and blocked tasks
   exist (a task blocked inside a `Cleanup` counts as blocked): raise R0008 ([16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)), stop with reason `deadlocked` (08 §8.7), list what each

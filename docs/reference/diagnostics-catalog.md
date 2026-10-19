@@ -60,6 +60,33 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 `V0412` (the optional-used-as-plain example in spec §16.2 and 02 §2.8) keeps
 its number.
 
+### 16.2.1 Families by pass
+
+Each stage of [02 §2.2](../architecture/compiler-architecture.md#22-stage-contracts)
+and each optimizer pass of [03 §3.4](../architecture/ir-and-passes.md#34-pass-list)
+reports the codes of its row. V99xx belongs to every pass: V9901 when the pass
+fails, V9902 when the verifier rejects its output. A pass whose only row entry
+is V99xx reports nothing else. The last three rows are not compiler passes;
+they name the crate that reports the codes (02 §2.9). A new code goes in the
+family of the pass that finds the problem; a pass with no row, or a family
+with no pass, is an error in this table.
+
+| Pass | Codes |
+|------|-------|
+| Lexer | V01xx |
+| Parser | V02xx |
+| AST lowering, HIR lowering, MIR build, Monomorphization | V99xx |
+| Name resolution | V03xx; V1006 (an `extern` block names no plugin) |
+| Type inference | V04xx, V06xx; V1002, V1003, V1010 (foreign signatures) |
+| Ownership | V05xx, V07xx |
+| Optimizer, `verify`, `simplify-cfg`, `inline`, `sroa`, `const-prop`, `fold`, `move-elim`, `copy-elide`, `range-analysis`, `devirtualize`, `drop-opt`, `dce`, `layout`, `refcount-opt` | V99xx |
+| `task-lower` | V0909 |
+| Reachability and capability check | V0901 to V0905, V0908, V0910, V0916 |
+| Backends | V1005, V1007 to V1009, V1011, V1012 (linking foreign code, 07) |
+| `verse-pkg` | V08xx; V0906, V0907 (target variants in the manifest) |
+| `verse-cli` | V11xx; V0911 to V0915 (target files) |
+| `verse-rt` | R0xxx (run time, 16.6) |
+
 ## 16.3 Catalog
 
 Each entry: code, severity, message, label under the primary position, help
@@ -70,10 +97,6 @@ A rule given as a section only (for example `§7`) names the section, not a
 numbered rule. It is refined when the conformance suite
 ([10 §10.2](../architecture/testing-and-verification.md#102-specification-conformance))
 gives every rule an identifier.
-
-Open: a list of the compiler's diagnostic families, so this catalog can be
-checked against the passes. A pass with no entry here needs a code; an entry
-with no pass is a candidate to remove.
 
 ### V01xx Source text
 
@@ -163,6 +186,7 @@ fact has a position.
 | V0510 | error | `{name}` is moved in one branch and used after it | moved at {position} only when `{cond}` | move it in both branches, or copy it | §4.9 |
 | V0511 | error | a chain bound to a name is collected here | `{name}` holds the whole result | no change needed; this note explains why `{name}` is owned | §9.5 |
 | V0512 | warning | `{name}` is only a view because `{other}` uses it later | | move the later use first, or copy | §4.9 |
+| V0513 | error | `{name}` is a borrowed function and cannot outlive this call | `{name}` is a parameter without `take`; it is {use: stored, returned, sent to a task, or captured by an escaping lambda} here | declare the parameter as `take {name}` | §5.4 |
 
 V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
@@ -239,6 +263,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0913 | error | target `{t}` has no provider for the `{cap}` capability | its platform layer offers {list} | remove `{cap}` from `{file}`, or pick another platform layer | 15 §15.9.4 |
 | V0914 | error | the `[memory]` section of target `{t}` is not valid | {reason: `heap` is not allowed on this layer, or the sizes do not fit in `ram`} | change `{key}` in `{file}` | 15 §15.9.4 |
 | V0915 | error | no target is named `{t}` | looked in {list of places} | check the name, or add `targets/{t}.target` | 15 §15.9.1 |
+| V0916 | error | this channel's capacity is not a constant, and `--no-heap` is on | `{expr}` is computed when the program runs | write the capacity as a number, or turn `--no-heap` off | 15 §15.3.7 |
 
 ### V10xx Foreign calls
 

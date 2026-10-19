@@ -124,7 +124,7 @@ fn fetch(take url): Report | Error
     Report(
         url:,
         status: response.status,
-        bytes: response.body.bytes().len(),
+        bytes: response.body.len(),
         elapsed: time.now() - started,
     )
 

@@ -50,7 +50,7 @@ Notes:
   states the range of toolchain versions it supports (§6.9).
 - **One obvious name per idea.** The first-party packages must not offer a
   second spelling of something the standard library already has. For example, HTTP serving
-  is `http.serve` (spec §15.2); a web package builds routing and templates
+  is `http.serve` (spec §15.3); a web package builds routing and templates
   *on top of* it and does not ship its own server loop. The names `finance`,
   `ml`, `web`, `gui` and `iot` are reserved for these packages; each covers
   one idea.
@@ -284,17 +284,17 @@ syntax: explicit type arguments on free functions are a compile error
 
 ### Worked example 2: a small web server
 
-The `http` names come from spec §15.2. The exact signatures of `serve`
-and `Request` are not in the spec yet, so the field `path` and the arguments
-of `serve` below are **assumed** for illustration.
+`serve` and `Response` are those of spec §15.3. The spec does not list the
+fields of `Request` yet, so the field `path` below is **assumed** for
+illustration.
 
 ```verse
 import serve, Request, Response from http
 
-fn handle(request: Request): Response
+fn handle(request: Request): Response | Error
     match request.path
-        "/" -> Response(status: 200, headers: {:}, body: "hello")
-        _ -> Response(status: 404, headers: {:}, body: "not found")
+        "/" -> Response(status: 200, headers: {:}, body: b"hello")
+        _ -> Response(status: 404, headers: {:}, body: b"not found")
 
 serve(port: 8080, handler: handle)?
 ```
@@ -311,12 +311,13 @@ handle                                 function    <n>  fn-value  server.vs:8 (p
 net.TcpListener.accept                 function    <n>  call      http.serve
 http.parse_request                     function    <n>  call      http.serve
 http.write_response                    function    <n>  call      http.serve
+log.error                              function    <n>  call      http.serve (a handler error)
 Map<Text, Text> (headers)              layout        -  layout    http.parse_request
 drop Request                           drop        <n>  drop      http.serve
 Cleanup for TcpStream                  impl        <n>  cleanup   drop TcpStream
 …                                      …             …  …
 sys.net.accept                         intrinsic     -  intrinsic net.TcpListener.accept
-spawn per connection                   function    <n>  spawn     http.serve
+spawn per request                      function    <n>  spawn     http.serve
 
 RUNTIME
 core                                   slice       <n>  always
@@ -333,7 +334,7 @@ sys-fs                           no fs intrinsic reachable
 ```
 
 The internal names (`TcpListener.accept` in `net`, `parse_request` in `http`,
-`spawn per connection`) are placeholders for whatever the library's
+`spawn per request`) are placeholders for whatever the library's
 implementation uses; the shape of the report is the point.
 
 ### The why chain

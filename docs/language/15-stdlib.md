@@ -49,10 +49,10 @@ cannot use one (§12.2).
 | `fs` | files and directories | `read_text`, `write_text`, `append_text`, `read_bytes`, `exists`, `list_dir`, `walk`, `make_dir`, `remove`, `remove_all`, `open`, `create`, `File` |
 | `io` | standard streams and byte I/O | `stdin`, `stdout`, `stderr`, `Reader`, `Writer`, `BufReader`, `BufWriter`, `read_line`, `read_all`, `copy` |
 | `net` | networking | `TcpStream`, `TcpListener`, `UdpSocket`, `resolve` (DNS), `Url` |
-| `http` | HTTP client and server | `get`, `post`, `put`, `delete`, `Request`, `Response(status, headers, body)`, `serve` |
+| `http` | HTTP client and server | `get`, `post`, `put`, `delete`, `Request`, `Response(status, headers, body)` with a `Bytes` body, `serve(port, handler)` (§15.3) |
 | `text` | text processing | `words`, `lines`, `pad`, `wrap`, `similarity`, `Regex`, `Builder`, Unicode normalization |
 | `time` | dates, times and durations | `now()`, `today()`, `sleep(d)`, `Duration` (`5.seconds()`, `200.millis()`, `2.hours()`), `Instant`, `Date`, `DateTime`, time zones, `format` |
-| `json` | JSON | `parse(text): Json \| Error`, `stringify(value, pretty: false)`, the `Json` variant type, `ToJson` / `FromJson` traits with automatic implementations for records and variants |
+| `json` | JSON | `parse(source: Text \| Bytes): Json \| Error` (bytes are read as UTF-8), `stringify(value, pretty: false)`, the `Json` variant type, `ToJson` / `FromJson` traits with automatic implementations for records and variants |
 | `task` | concurrency | `Channel` (`Channel.new<T>()` returns a `Sender<T>` and a `Receiver<T>`), `Shared`, `Guarded`, `Weak`, `wait_all`, `wait_any`, and the named error types `Timeout`, `Cancelled`, `TaskPanicked` and `Closed` (returned by `Sender.send` once the channel is closed); `.copy()` on `Sender`, `Shared`, `Guarded` and `Weak` copies the handle, explicitly, also when passing it to `spawn`; `Receiver` is not copyable and moves (§11.4) |
 | `math` | mathematics and numeric types | `pi`, `e`, `sqrt`, `sin`, `cos`, `log`, `clamp`, sized integers, `BigInt`, `Decimal`, `OrderedFloat`, parsing |
 | `random` | randomness | `int(range)`, `float()`, `choice(list)`, `shuffle(list)`, seeded generators |
@@ -103,6 +103,44 @@ raw = r"""
     """                                   # raw: `{` is not interpolation
 item = Item.from_json(json.parse(raw)?)?
 print(json.stringify(item))
+```
+
+### 15.3 HTTP
+
+`http` is the one HTTP client and server. A server is a function from a
+request to a response:
+
+```verse
+import serve, Request, Response from http
+
+fn hello(_request: Request): Response | Error
+    Response(status: 200, headers: {:}, body: b"hello")
+
+serve(port: 8080, handler: hello)?
+```
+
+| Name | Signature | Meaning |
+|------|-----------|---------|
+| `serve` | `serve(port: Int, handler: fn(Request): Response \| Error): Nothing \| Error` | listen on `port` and answer every request with `handler`; returns only when the server cannot go on, with the error (for example, the port is taken) |
+| `Response` | `Response(status: Int, headers: Map<Text, Text>, body: Bytes)` | the record a handler returns and `get` gives back |
+| `body.text()` | `text(self): Text \| Error` | a `Bytes` method: the body read as UTF-8; an error if it is not valid UTF-8 |
+
+Each request runs in a task of its own (§11.1), so a slow request does not hold
+up the others. An `Error` returned by the handler becomes a response with status
+500, and the error is written to the log with `log.error`; the client does not
+see its message. A panic in the handler reaches `serve` as a `TaskPanicked`
+error (§11.2), so it is printed when it happens and also becomes a 500.
+
+A body is `Bytes`, because a response does not have to be text. Read it with
+`.text()`, or give it to `json.parse`, which accepts bytes:
+
+```verse
+import get from http
+import json
+
+response = get("https://api.example.com/items")?
+print(response.body.text()?)
+items = json.parse(response.body)?
 ```
 
 ---

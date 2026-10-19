@@ -109,11 +109,12 @@ Here `--deny net` is for `verse`, and `args` is `["--top", "3", "poem.txt"]`.
 | Flag | Effect |
 |------|--------|
 | `--deny <capability>` | refuse a capability; a program that can reach it fails before it starts (spec §16) |
-| `--fast` | compile with Cranelift and run natively instead of in the VM ([04](../architecture/backends-and-targets.md)) |
+| `--fast` | compile with Cranelift and run natively on this run. Without it, an unchanged script runs natively from its third run, built in the background during the second ([04 §4.1](../architecture/backends-and-targets.md#41-tiers)) |
+| `--no-cache` | neither read nor write `.verse/cache/`: compile from source, and make no native build in the background |
 | `--debug` | compile for a debugger and accept `attach` from `verse debug` ([14](../architecture/bytecode-and-vm.md), [08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) |
 | `--leak-check` | report leaked `Shared` cycles at exit ([05](../architecture/runtime.md)) |
 | `--max-memory <size>` | cap the heap; running out is a panic ([05 §5.2](../architecture/runtime.md#52-memory)) |
-| `--max-stack <size>` | cap a task's stack in the VM; a task that cannot grow panics with `stack_overflow` (R0004). Open: the default ([14 §14.3](../architecture/bytecode-and-vm.md#143-value-representation-and-call-records)) |
+| `--max-stack <size>` | cap each task's stack; a task that cannot grow panics with `stack_overflow` (R0004). The default is the target file's `[tasks] max_stack`, 8 MiB per task on hosted targets. Stacks grow as they are used, so the cap costs nothing until a task needs it ([14 §14.3](../architecture/bytecode-and-vm.md#143-value-representation-and-call-records), [15 §15.9.2](../architecture/target-and-abi.md#1592-schema)) |
 | `--seed <n>` | seeded scheduler mode: scheduling is deterministic without a recording, so a failing concurrent run can be repeated ([08 §8.5](../architecture/debugging.md#85-deterministic-record-and-replay), policy in [14 §14.7](../architecture/bytecode-and-vm.md#147-tasks-scheduler-and-seed)) |
 
 `[run]` in `verse.toml` sets defaults for these flags (§19.3).
@@ -385,6 +386,7 @@ Command-line flags win. `[run]` applies when a file or the package runs
 |---------|-----|------|---------|
 | `[run]` | `deny` | list of capabilities | `[]` |
 | `[run]` | `max_memory` | size | none ([05 §5.2](../architecture/runtime.md#52-memory)) |
+| `[run]` | `native_after` | integer | `2`: the run of an unchanged script that also builds it natively in the background; later runs use that build ([04 §4.1](../architecture/backends-and-targets.md#41-tiers)) |
 | `[build]` | `out` | path | `.verse/out/<target>/<profile>/` |
 | `[build]` | `artifact` | `executable` \| `library` \| `wasm-component` \| `bytecode` | `executable` ([04 §4.4](../architecture/backends-and-targets.md#44-linking-and-artifacts)) |
 | `[test]` | `filter` | text | none |

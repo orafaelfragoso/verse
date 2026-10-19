@@ -55,9 +55,10 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
 
 **Native targets (`stackful`)**
 
-- Each task has its own stack: a small, lazily committed region with a guard
-  page (initial reservation around 256 KiB of address space; physical memory
-  is committed only as touched; the numbers are assumptions to be tuned).
+- Each task has its own stack: a lazily committed region with a guard page.
+  The reservation is the target's `[tasks] max_stack`, 8 MiB of address space
+  per task by default; physical memory is committed only as touched, so the
+  cap costs nothing until a task uses it.
 - Context switch is a few register saves in assembly (the approach of Go,
   Boost.Context and Zig's old async design).
 - **Work-stealing scheduler**, one worker thread per core, local run queues

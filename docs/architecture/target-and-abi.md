@@ -225,9 +225,16 @@ ptr)` with a non-null niche, so that `Nothing | Error` is 16 bytes with no tag
   captures** (L4), moved or copied in; a closure with no captures is a ZST. The
   body takes the record as its first parameter: `&Env` for a body that may be
   called repeatedly, `Env` owned for a body that moves a capture out (spec
-  §5, captures). Borrowed captures cannot be stored (V7). Open: how a lambda that only
-  *borrows* its captures is lowered, by lambda lifting into extra borrowed
-  parameters or by an explicit non-escaping closure form in 13.
+  §5, captures). Borrowed captures cannot be stored (V7).
+- **Non-escaping closure** (`aggregate closure_ref path(operands)`, 13.2). A
+  lambda that only *borrows* its captures (spec §5.4) is a record of borrows,
+  built in the caller's frame, and the value is a borrow of that record. Like
+  any borrow (V7) it may be passed as an argument but is never stored,
+  returned, sent to a task or captured by an escaping closure, so the borrows
+  inside it cannot outlive the call. A callee sees it as a function value of
+  unknown callee (below). Lambda lifting into extra borrowed parameters is not
+  used, because it fails when the callee is not known, as in a generic
+  `map(f)`.
 - **Function value of unknown callee** (a parameter of function type that is
   not a known closure): the same representation as a trait object of a
   built-in call trait, `dyn Fn`, namely `(data ptr, vtable ptr)` with a vtable
@@ -286,7 +293,7 @@ operations.
 
 | Type | Word points to | Drop | Notes |
 |------|----------------|------|-------|
-| `Task<T>` | task cell: state, result slot for `T \| TaskPanicked \| Cancelled`, join list, panic record pointer | never dropped directly: consumed by `yield wait` or `task.abandon` (V17) | not `Copy`. In tier 0 the slot holds an opaque 64-bit value, not necessarily a pointer, and the debugger shows `t<N>` |
+| `Task<T>` | task cell: state, result slot for `T \| TaskPanicked \| Cancelled`, join list, panic record pointer | never dropped directly: consumed by `yield wait` or `task.abandon` (V17). Inside another value, that value's glue cancels it and then joins it, so the glue may yield | not `Copy`. In tier 0 the slot holds an opaque 64-bit value, not necessarily a pointer, and the debugger shows `t<N>` |
 | `Sender<T>` | channel core: sender count, receiver flag, bounded buffer, wait queues | decrements the sender count; closes the channel at zero | `Channel.new<T>()` returns a pair `(Sender<T>, Receiver<T>)` of size 2W |
 | `Receiver<T>` | the same channel core | closes the receiving side | not `Copy` |
 | `Shared<T>` | allocation `{ strong: usize, weak: usize, value: T }` | strong count down; at zero run `T`'s glue, then weak count down and free | counts are **atomic** when the program can spawn tasks and plain otherwise (`refcount-opt`, 05 §5.2): two code shapes, **one layout** |
@@ -295,9 +302,13 @@ operations.
 
 Reference counts are `usize`; an overflow aborts the program (a reference
 cycle of 2^32 handles on a 32-bit target is a bug, not a panic). The cell of a
-task, channel or `Shared` is allocated through the target's allocator: on a
-`--no-heap` build none of these types can be reached (05 §5.7). Open: the
-sizing of channels for such builds ([20 §20.6](first-party-packages.md#206-iot)).
+task, channel or `Shared` is allocated through the target's allocator. On a
+`--no-heap` build a task or a `Shared` cannot be reached (05 §5.7), and a channel is
+sized at build time: the `capacity` of every `Channel.new` must be an `Int`
+literal (or the default 16), and the compiler places the channel core and its
+buffer in static memory, one region per creation site. A capacity computed at
+run time is a compile error (V0916). A creation site that runs again while the
+channel it made is still alive panics with `out_of_memory` (R0007).
 
 ### 15.3.8 Worked layout examples (64-bit)
 
@@ -623,8 +634,8 @@ the strategies need from the ABI. The scheduler policy is 14 §14.7.
 ### 15.6.1 Stackful targets
 
 - A task has its own stack (a lazily committed reservation with a guard page;
-  05 §5.3 assumes about 256 KiB of address space, `[tasks] stack_reserve` in the
-  target file). A task is created with an initial frame for the **task entry
+  the reservation is `[tasks] max_stack` of the target file, 8 MiB by default,
+  committed as touched). A task is created with an initial frame for the **task entry
   trampoline**, a runtime function that calls the task's root function with the
   arguments moved in at `spawn` (13.4) and that is the **catch point** of the
   task ([15.7.5](#1575-catch-points)).
@@ -782,7 +793,10 @@ Details that each backend must follow:
 - **Wasm EH** is a per-target-file opt-in in 0.1: shipped Wasm target files
   default to `status-code`, because it works on every engine and the visible
   order of `Cleanup` is the same (05 §5.4). The `-eh` variants set `wasm-eh`.
-  Open: whether the default changes after the M3 measurements.
+  The default switches to `wasm-eh` at M3 only if both hold: every engine on
+  the supported list (the browsers and WASI runtimes of the Wasm differential
+  tests) runs Wasm exception handling, and `wasm-eh` binaries are smaller or
+  faster than `status-code` ones ([11](../roadmap.md), M3).
 - **Cleanup blocks are ordinary code** on every mechanism: only `drop`,
   `set_flag`, `storage_dead`, intrinsics, `task.abandon` and calls to
   `nounwind` functions (V15), so the same block serves the normal and the
@@ -889,9 +903,8 @@ standard error, writes the `debug` end event, and delivers `code`. A code
 outside 0 to 255 is not an exit: it is a panic, **R0013**, on every platform
 (status 101, with `Cleanup` as for any panic), so the same call means the same
 on every target. A program that needs its cleanups returns from `main` or ends
-with a failed `?`. Open: a cleanup-aware exit for 0.2 that cancels the other
-tasks, runs `Cleanup` and then exits, with a bound on how long a cleanup may
-block (a blocking `Cleanup` also hangs a `main` that returns).
+with a failed `?`. There is no second, cleanup-aware exit: those two paths
+already run every `Cleanup` and wait for the other tasks (spec §11.3).
 
 **Deadlock detection** is the same predicate on every tier and is computed by
 the scheduler of the platform layer: *no runnable task, no pending I/O
@@ -1014,7 +1027,7 @@ with `K`, `M`, `G` suffixes (powers of 1024) or integers (bytes).
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `stack_reserve` | size | `"256K"` | stackful: address space reserved per task (05 §5.3, an assumption) |
+| `max_stack` | size | `"8M"` | the most stack one task may use; `--max-stack` overrides it (19). Stacks grow as they are used (VM segments, 14.3; pages committed on first touch on a stackful target, where this is the address space reserved per task), so the cap costs nothing until used. On a `cooperative` or `state-machine` target the tasks run on one shared stack, and the target file sets its own value, at most `[memory] stack` |
 | `workers` | `"cores"` \| integer | `"cores"` | stackful with `threads = true`; ignored otherwise |
 
 **`[exit]`**
@@ -1062,7 +1075,7 @@ libc    = "gnu"
 startup = "libc-main"
 
 [tasks]
-stack_reserve = "256K"
+max_stack = "8M"
 
 [exit]
 on_exit = "process"
@@ -1198,6 +1211,9 @@ startup = "reset-vector"
 [memory]
 stack = "4K"
 heap  = "16K"              # a default; a project overrides it with [targets.<name>] heap
+
+[tasks]
+max_stack = "4K"           # not the hosted 8M: tasks share the one stack of [memory]
 
 [exit]
 on_exit = "halt"
@@ -1404,7 +1420,7 @@ This section fixes what they mean at the ABI level.
 - **Tasks.** A foreign call runs on the calling task's stack and thread and is
   not a yield point. On a state-machine target it blocks the single thread
   until it returns. The stack of a stackful task must hold the foreign
-  function's frames within the target file's `[tasks] stack_reserve`
+  function's frames within the target file's `[tasks] max_stack`
   ([15.6.1](#1561-stackful-targets)); the guard page turns an overflow there into R0004.
 - **Script mode.** The VM calls through a stub generated per signature by
   `verse-ffi`, which moves VM registers into C-ABI arguments and back. The stub

@@ -21,7 +21,7 @@ import get from http
 
 fn fetch(url)
     response = get("https://{url}")?
-    response.body          # a field moved out of `response` at its last use (§4.9)
+    response.body.text()   # the body is `Bytes`; this reads it as UTF-8 (§15.3)
 
 a = spawn fetch("a.com")
 b = spawn fetch("b.com")
@@ -134,6 +134,13 @@ started it, results are never silently lost, and a program ends only after all
 of its work is done. To deliberately run something in the background beyond the
 current function, return its `Task` or pass it to someone who will wait on it.
 
+A task held inside another value (a list, a record, a tuple) follows that
+value. When the value is dropped and the task was never waited on, the task is
+first **cancelled** and then waited for. A child that ends only because of that
+cancellation prints nothing; a child that fails with its own panic or error is
+reported as above. To keep the results, give the tasks to `wait_all` or wait on
+each one before the value is dropped.
+
 When the function does not finish normally — it panics, or it is cancelled and
 unwinds (§11.5) — it first **cancels** its unwaited tasks and then waits for
 them, so a panicking parent never blocks behind a long child. A child that ends
@@ -179,7 +186,10 @@ channel closes when its last `Sender` is dropped. The capacity defaults to 16;
 `capacity: 0` makes an unbuffered (rendezvous) channel, where each `send`
 waits for a matching `recv`. The type argument is usually inferred from an
 annotation instead of written: `(tx, rx): (Sender<Int>, Receiver<Int>) =
-Channel.new(capacity: 10)`.
+Channel.new(capacity: 10)`. A program built without a heap (`--no-heap`, for
+microcontrollers) writes the capacity as a number, as in
+`Channel.new<Event>(capacity: 8)`, so the buffer can be placed in static
+memory; a capacity computed at run time is then a compile error.
 
 ```verse
 import Channel, wait_all from task

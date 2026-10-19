@@ -254,7 +254,10 @@ what happens to the lambda:
   (`map`, `filter`, `sort_by`, `any`, `each`, …) *borrows* its captures
   read-only. So `items.map(x -> x + offset)` does not consume `offset`, and
   `people.filter(p -> p.city == city)` leaves `city` usable. A function-typed
-  parameter is non-escaping in this sense unless it is declared `take`.
+  parameter is non-escaping in this sense unless it is declared `take`. Like
+  any borrow (§5.3), a non-escaping function value can be passed on to another
+  call, but it cannot be stored, returned, sent to a task or captured by an
+  escaping lambda. To keep it, declare the parameter `take`.
 - An **escaping** lambda — returned, stored in a field or collection, passed to
   a `take` parameter, or used in `spawn` — *moves* its captures (copy types
   are copied). Using a captured value after the lambda escaped is the usual

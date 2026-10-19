@@ -5,7 +5,7 @@
 | Tier | Name | Used by | Compile cost | Run speed | Introspection |
 |------|------|---------|--------------|-----------|---------------|
 | 0 | **Bytecode VM** | running a file (`verse app.vs`), `verse test`, `verse repl`, debugging | lowest: lazy, per function | baseline | full: every local, every step |
-| 1 | **Cranelift** | `verse --fast app.vs`, hot-function JIT (later), `verse build --profile dev` | low | typically within 2x of optimized native (assumption) | DWARF plus Verse debug map |
+| 1 | **Cranelift** | `verse --fast app.vs`, the third and later runs of an unchanged script, hot-function JIT (later), `verse build --profile dev` | low | typically within 2x of optimized native (assumption) | DWARF plus Verse debug map |
 | 2 | **LLVM** | `verse build --release`, embedded and exotic targets | high | best | DWARF plus Verse debug map |
 | W | **Wasm emitter** | browser, WASI, edge, GUI on web | low | engine dependent | DWARF in `.debug_*`, source maps |
 
@@ -55,10 +55,15 @@ compiler with a different last stage, so they cannot drift apart semantically.
   can quietly choose a different policy.
 - **Hot-function JIT** (Tier 0 to Tier 1 while a file runs) is deferred past
   the first stable release. It needs the call-count and type feedback that
-  Verse mostly does not need, because the program is statically typed; the
-  simpler path is to compile the whole script natively behind the cache when it
-  is run twice. Open: whether `--fast` becomes the default after the second
-  run.
+  Verse mostly does not need, because the program is statically typed.
+- **Native runs from the cache** (on by default). The second time an unchanged
+  script runs, the toolchain also compiles it natively with Cranelift in the
+  background; from the third run on, the cached native build runs instead of
+  the VM. The run count is tunable (`[run] native_after`, 19 §19.3), `--fast`
+  compiles natively on the first run, and `--no-cache` turns the cache off,
+  so no native build is made in the background or reused. This is safe because the tiers do not
+  differ in semantics (above), and the cache key includes the source, the
+  toolchain and the target. `--debug` always runs in the VM.
 
 ### Tier W: WebAssembly
 
@@ -70,9 +75,11 @@ compiler with a different last stage, so they cannot drift apart semantically.
   `wasm32-unknown-unknown` (browser with a JavaScript glue file). Memory is linear
   memory managed by the Verse allocator. There is **no use of Wasm GC**: Verse
   has no collector, and ownership gives deterministic frees.
-- **Exceptions for unwinding**: use Wasm exception handling where the engine
-  supports it, otherwise propagate a status code after each call that can
-  unwind (the MIR already has the unwind edges).
+- **Unwinding**: in 0.1 the shipped Wasm targets propagate a status code
+  after each call that can unwind (the MIR already has the unwind edges); the
+  `-eh` target variants use Wasm exception handling. The M3 criterion for
+  making exception handling the default is in
+  [15 §15.7.2](target-and-abi.md#1572-the-three-mechanisms).
 - **Tasks**: see [05](runtime.md), section 5.3. Wasm has no stack
   switching in all engines, so the default is a state-machine transform.
 

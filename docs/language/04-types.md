@@ -292,6 +292,12 @@ fn apply_twice(f: fn(Int): Int, x: Int): Int
     f(f(x))
 ```
 
+A parameter in a function type may carry the mode word of its declaration,
+`mut` or `take` (§5.3), and a name. The mode word is part of the type; the name
+only documents it. `fn update(mut model: Model, msg: Msg): Nothing` has the
+type `fn(mut model: Model, msg: Msg): Nothing`, which is the same type as
+`fn(mut Model, Msg): Nothing`.
+
 ### 4.8 Type aliases
 
 An alias gives an existing type a second, shorter name. It does not create a
