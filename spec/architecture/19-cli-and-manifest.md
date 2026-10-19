@@ -68,6 +68,29 @@ with [08](08-debugging-and-mcp.md)). The shapes follow the rules and shared
 types of [17-mcp-tool-schemas.md](17-mcp-tool-schemas.md) (17.1, 17.2), and
 17 applies them to the package manager in [§17.8](17-mcp-tool-schemas.md#178-package-manager-tools) (P19-12, agreed).
 
+### 19.2.1 Exit statuses
+
+`verse run` ends with the status of the program it ran; every command that
+reports a problem uses the statuses below, so a script can tell the causes
+apart. The table is the one of
+[16 §16.6.1](16-diagnostics-catalog.md#1661-exit-statuses) (Fact: spec §12.5);
+16 owns it.
+
+| Status | Meaning |
+|--------|---------|
+| 0 | normal completion |
+| 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
+| 2 | `verse check`, `build` or `run` found errors in the source, or a capability check failed (V0901, V0902), so the program did not start |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, in `run` as in `build`, or a trap inside the runtime that Verse itself caused |
+| 70 | a deadlock (R0008) |
+| 101 | a panic |
+| *code* | the program called `exit(code)`; `code` is 0 to 255, it runs no `Cleanup`, and it is never changed (spec §12.5) |
+
+A build verifier failure is status 3, not 1. A package-manager error (a stale
+lock under `--locked`, a failed resolution) is not covered by the spec or by
+16 §16.6.1; this document assumes a non-zero status and fixes no number
+(Assumption).
+
 ## 19.3 `verse.toml`
 
 TOML 1.0. Unknown sections and keys are errors, not warnings, because a
@@ -217,14 +240,14 @@ of passing silently.
 ### `[targets]`
 
 The targets the project is built and checked for, by name of a target file
-([04 §4.3](04-backends-and-targets.md#43-what-a-target-is)). `verse build`
+([04 §4.3](04-backends-and-targets.md#43-what-a-target-is), and see *Target files* below). `verse build`
 with no `--target` uses `default`. Per-target data only, never per-target
 source conditions (Fact: P6-7 ruling).
 
 ```toml
 [targets]
 default = "host"
-check   = ["host", "wasm32-wasi", "thumbv7em-none-eabihf"]   # `verse check` runs on each
+check   = ["host", "wasm32-wasip1", "thumbv7em-none-eabihf"]   # `verse check` runs on each
 
 [targets.thumbv7em-none-eabihf]
 heap   = "32K"            # the embedded heap of 05 §5.7, here per target
@@ -240,6 +263,31 @@ entry  = "src/board.vs"   # a different entry file for this target
 | `<target>.no_heap` | bool | `false` | |
 | `<target>.entry` | path | `src/main.vs` | the per-target choice is a file, not a condition in source (P6-7) |
 | `<target>.files` | map of module path to file | `{}` | module variants for that target (P6-7); each variant must produce the same `verse.api` |
+
+### Target files
+
+A target name in `[targets]` (and in `[library.targets]`) refers to a **target
+file**, TOML with the schema of
+[15 §15.9.2](15-target-and-abi.md#1592-schema). Where the files live and the
+order in which a name is resolved are defined by
+[15 §15.9.1](15-target-and-abi.md#1591-files-and-lookup); this section only
+restates them (P15-10).
+
+| File | Where | Defines |
+|------|-------|---------|
+| `targets/<name>.toml` | the toolchain | a shipped target, such as `wasm32-wasip1`, `wasm32-wasip2` or `wasm32-unknown-unknown` |
+| `targets/<name>.target` | the project | a project-local target `<name>` |
+| `verse.target` | the package root | exactly one project-local target; its `[target] name` is required |
+
+A project selects a target by writing its name in `[targets] default` or
+`check`, or with `--target <name>`; there is no other switch. The name `host`
+is not a file: it is the shipped target of the machine running the compiler.
+A project-local target may not reuse the name of a shipped one. A target file
+is data and runs no code. `[targets.<t>]` (above) holds what the project asks
+of the platform, and the target file holds what the platform is; which of the
+two owns a key is the table in
+[15 §15.9.5](15-target-and-abi.md#1595-how-the-target-file-relates-to-the-manifest).
+The hash of the resolved target file is part of every cache key (§19.9).
 
 ### `[profile.dev]`, `[profile.release]`, `[profile.test]`
 
@@ -638,7 +686,7 @@ identical bytes. The inputs are exactly:
 | `verse.api` of every package | blake3 (the lock's `api`) |
 | `verse.lock` | the resolved graph, not the file's formatting |
 | toolchain | compiler version and the hash of the prebuilt runtime slices for the target |
-| target file | blake3 of the target TOML (04 §4.3) |
+| target file | blake3 of the resolved target file: the toolchain's `targets/<name>.toml`, the project's `targets/<name>.target`, or `verse.target` ([15 §15.9.1](15-target-and-abi.md#1591-files-and-lookup)) |
 | profile | the resolved profile table |
 | flags that change output | `--no-heap`, `--size-report` (report only), `--deny` (check only) |
 | plugin outputs | generated files are sources, so they are hashed as files (07 §7.3) |

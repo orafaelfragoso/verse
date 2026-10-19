@@ -221,11 +221,27 @@ print("Hello, {args.first() otherwise "world"}!")
 - **Top-level statements are the only entry mechanism.** Verse 0.1 has no
   `fn main`; a function named `main` is just an ordinary function that runs
   only if the script calls it.
-- Exit status: `0` on normal completion; `1` if a top-level `?` fails (the
-  error message is printed to standard error) or if an unwaited task failed
-  (§11.3); `101` on a panic; or any value passed to `exit(code)`.
-  An explicit `exit(code)` always overrides the failed-unwaited-task status,
-  which applies only when the program ends naturally.
+- Exit status, so a script can tell the causes apart:
+
+  | Status | Meaning |
+  |--------|---------|
+  | `0` | normal completion |
+  | `1` | a top-level `?` failed (the error message is printed to standard error), or an unwaited task failed (§11.3) |
+  | `2` | the compiler found errors in the source, or a capability check failed, so the program did not start (in `verse run` as in `verse build`) |
+  | `3` | a bug in Verse, not in the program: a compiler bug found before the program started (in `verse run` as in `verse build`), or a trap inside the runtime that Verse itself caused |
+  | `70` | a deadlock: every task is waiting and none can continue |
+  | `101` | a panic (§8.5) |
+
+  `exit(code)` ends the program immediately with the status `code`, which must
+  be 0 to 255; any other value panics with "the exit code {n} is outside 0 to
+  255" on every platform, so `exit(256)` never reports success. `exit` may be
+  called from any task. It flushes standard output and standard error, but
+  **`exit` runs no `Cleanup`** and does not wait for or cancel the other tasks:
+  the process just ends, so a file's unwritten buffer is lost and a temporary
+  directory stays. A program whose cleanups must run ends by finishing the
+  entry file or with a failed `?` instead. An explicit `exit(code)` always
+  overrides the failed-unwaited-task status, which applies only when the
+  program ends naturally.
 
 ---
 

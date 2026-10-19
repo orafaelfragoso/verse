@@ -66,8 +66,8 @@ compiler with a different last stage, so they cannot drift apart semantically.
   is no Cranelift Wasm backend, and a direct emitter keeps output small
   (assumption: MIR to Wasm is a near one-to-one structured-control-flow
   conversion using the relooper algorithm, as Binaryen and Emscripten do).
-- **Targets**: `wasm32-wasip1`/`wasip2` (command and component),
-  `wasm32-unknown` (browser with a JavaScript glue file). Memory is linear
+- **Targets**: `wasm32-wasip1` and `wasm32-wasip2` (command and component),
+  `wasm32-unknown-unknown` (browser with a JavaScript glue file). Memory is linear
   memory managed by the Verse allocator. There is **no use of Wasm GC**: Verse
   has no collector, and ownership gives deterministic frees.
 - **Exceptions for unwinding**: use Wasm exception handling where the engine
@@ -87,7 +87,7 @@ The columns say how each target is reached and what the runtime provides.
 | Linux ARM64 | `aarch64-unknown-linux-gnu` | Cranelift, LLVM | `std-os` | yes | stackful, work-stealing | M2 |
 | macOS x86-64 and ARM64 | `*-apple-darwin` | Cranelift, LLVM | `std-os` | yes | stackful | M2 |
 | Windows x86-64 and ARM64 | `*-pc-windows-msvc` | Cranelift, LLVM | `std-os` | yes | stackful (fibers) | M5 |
-| WASI | `wasm32-wasip1`, `wasip2` | Wasm emitter | `std-wasi` | no (single thread first) | state machines | M3 |
+| WASI | `wasm32-wasip1`, `wasm32-wasip2` | Wasm emitter | `std-wasi` | no (single thread first) | state machines | M3 |
 | Browser | `wasm32-unknown-unknown` | Wasm emitter | `std-web` | no (workers later) | state machines | M3 |
 | RISC-V 64 Linux | `riscv64gc-unknown-linux-gnu` | Cranelift, LLVM | `std-os` | yes | stackful | M7 |
 | Cortex-M | `thumbv7em-none-eabihf` | LLVM | `std-embedded` | no | cooperative executor | M7 |

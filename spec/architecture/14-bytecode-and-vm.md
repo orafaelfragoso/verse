@@ -104,11 +104,11 @@ check-and-branch that costs one dispatch.
 | Move | `MOV`, `MOVN`, `LDI`, `LDK`, `ZERO` | `a b`, `a b n`, `a imm16`, `a k`, `a n` | copy 1 or n slots; load small or pooled constant. MIR `move` and `copy` both compile here; they differ only in the event table | none |
 | Address | `REF`, `LEA`, `LDF8/16/32/64`, `STF8/16/32/64`, `LD*`, `ST*`, `LDN`, `STN` | `a b`, `a b off`, `a b off` | address of a slot, pointer plus offset, frame-relative and pointer-relative loads and stores of 1, 2, 4, 8 or n bytes | none (index checks are separate, V12) |
 | Integer | `WADD`, `WSUB`, `WMUL`, `AND`, `OR`, `XOR`, `SHL`, `SHR`, `NEG`, `NOT` | `a b c` | 64-bit wrapping and bit ops; `SHL`, `SHR` mask the count to 0..63 | none |
-| Checked | `ADD_CHK`, `SUB_CHK`, `MUL_CHK`, `DIV_CHK`, `REM_CHK`, `NEG_CHK`, `POW_CHK`, `CAST_CHK` (**+J**) | `a b c`; `CAST_CHK a b kind` | write the value to `a`, the overflow flag to `a+1` (the fixed `(T, Bool)` layout of [13.3](13-mir-specification.md#133-types-and-layout-facts)); when the flag is set jump by the `J` word, else skip it. `CAST_CHK` is MIR `checked_cast` (`narrow`, `f2i`, `int_char`) | none: the jump goes to a MIR `panic` block |
+| Checked | `ADD_CHK`, `SUB_CHK`, `MUL_CHK`, `DIV_CHK`, `REM_CHK`, `NEG_CHK`, `POW_CHK`, `CAST_CHK` (**+J**) | `a b c`; `CAST_CHK a b kind` | write the value to `a`, the overflow flag to `a+1` (the fixed `(T, Bool)` layout of [13.3](13-mir-specification.md#133-types-and-layout-facts)); when the flag is set jump by the `J` word, else skip it. `CAST_CHK` is MIR `checked_cast` (`narrow`, `f2i`, `int_char`); its jump goes to a `panic convert` block (R0012) | none: the jump goes to a MIR `panic` block |
 | Compare | `EQ`, `NE`, `LT`, `LE`, `ULT`, `ULE`, `FEQ`, `FLT`, `FLE` | `a b c` | write a `Bool`; `ULT`, `ULE` read both as unsigned (MIR `ult`, `ule`; `ugt`, `uge` swap the operands); `ULT` is the bounds test of V12 | none |
 | Fused branch | `JEQ`, `JLT`, `JLE`, `JZ`, `JNZ` | `b c` + `J` | compare and branch in one dispatch | none |
 | Float | `FADD`, `FSUB`, `FMUL`, `FDIV`, `FREM`, `FNEG`, `I2F` | `a b c` | IEEE 754 binary64, no fused multiply-add, round to nearest even; MIR `f2i` is `CAST_CHK` | none |
-| Control | `JMP`, `JT`, `JF`, `SWITCH`, `SWITCHS`, `TRAP` | `off24`; `a off`; `a k` | jump; dense jump table in the pool; sparse table with binary search; `TRAP` = `unreachable` or internal error | `TRAP` stops the VM with a bug report |
+| Control | `JMP`, `JT`, `JF`, `SWITCH`, `SWITCHS`, `TRAP` | `off24`; `a off`; `a k` | jump; dense jump table in the pool; sparse table with binary search; `TRAP` = `unreachable` or internal error | `TRAP` stops the VM with a bug report (exit status 3) |
 | Enum | `GETDISC`, `GETDISCN`, `SETDISC` | `a b k` | read the case from a tag byte or a niche (decode data in the pool), or write it | none |
 | Call | `CALL`, `CALLD`, `CALLI`, `CALLS`, `RET` | `a f16`; `a b k`; `a id16`; `a op16` | call instance `f` with window at `a`; through a vtable slot; runtime intrinsic; `sys` capability op ([14.9](#149-sys-capability-calls-and-the-capability-check)); return to caller | callee's |
 | Drop | `DROP`, `DROPC` | `a glue16` | `DROP`: MIR statement `drop`, or terminator `drop` of a type without `cleanup`: run the glue of the type at slot `a`, which cannot unwind or park. `DROPC`: terminator `drop` of a type with `cleanup`: push a call record for `cleanup` (the loop does not recurse), raise the cancel mask, then drop the parts in the order of [13.4](13-mir-specification.md#134-statements-and-terminators) and continue at `next`. A drop with a flag compiles to `JF flag; DROP` | `DROPC`: panics inside `cleanup` follow [14.8](#148-unwinding-and-cleanup) (Q13); it may park (Q14) |
@@ -146,7 +146,7 @@ All three are explicit MIR control flow; the VM executes it.
   MIR `switch` to `panic neg_exponent` (V11).
 - **Panic record.** `PANIC kind k` builds `{kind, facts, span, task, call
   list}`; the span comes from the span table of the faulting pc. The kinds,
-  their codes (R0001 to R0011) and facts are those of
+  their codes (R0001 to R0012) and facts are those of
   [16 §16.6](16-diagnostics-catalog.md#166-run-time-panics) and the table in
   13.4: an index panic carries `i`, `n`, `what` and `unit` (08 §8.6). Wording is
   not in the VM.
@@ -276,10 +276,10 @@ native-code strategies. Observable behaviour is the same as the others.)
   [14.6](#146-calls-and-lazy-instantiation) found reachable) and `granted` (what the host target provides
   minus `--deny` flags). If `required` is not a subset, nothing runs; the
   message names the first call chain, in the shape of 04 §4.3: "this program
-  calls `std.net.get`, which this run does not allow". Exit status 1
-  (assumption).
+  calls `std.net.get`, which this run does not allow" (V09xx). Exit status 2:
+  an error before the program starts ([16 §16.6.1](16-diagnostics-catalog.md#1661-exit-statuses)).
 - **Run-time re-check.** `CALLS` tests the capability bit of the proto in
-  debug builds only; a failure is a VM bug report, never a user panic.
+  debug builds only; a failure is a VM bug report (exit status 3), never a user panic.
 - **Debugger.** `evaluate` runs only expressions the compiler proves pure: no
   `CALLS`, no `SPAWN` ([08 §8.9](08-debugging-and-mcp.md#89-safety)).
 
@@ -313,7 +313,7 @@ event  = kind:u8 | task:varint | seq_delta:varint | payload     (seq: global eve
 | `Sync` | op, object id, outcome | per-object operation order |
 | `Cap` | capability, op, args digest `u64`, result (inline up to 64 bytes, else a blob block) | the value `CALLS` returns |
 | `Out` | stream, byte count, digest | validates output; fixes cross-task print order |
-| `Sig`, `End` | signal; exit status (0, 1, 70, 101 or the `exit` code) | delivery point; end of run |
+| `Sig`, `End` | signal; exit status (0, 1, 2, 3, 70, 101 or the `exit` code) | delivery point; end of run |
 
 The target of [08 §8.5](08-debugging-and-mcp.md#85-deterministic-record-and-replay) is under 100 bytes per event record,
 **before** compression (zstd then shrinks it). It counts the record and its
@@ -393,7 +393,7 @@ capability fakes:
 | Observable | Detail |
 |------------|--------|
 | standard output and error bytes | including the full panic text of [16 §16.6](16-diagnostics-catalog.md#166-run-time-panics), stack lines too: they come from the user-level call list below |
-| exit status | 0, 1, 70 (deadlock, Q17), 101, or the `exit` code |
+| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug, V9901 or V9902, also before it starts); 70 (deadlock, Q17); 101 (panic); or the program's own `exit` code ([16 §16.6.1](16-diagnostics-catalog.md#1661-exit-statuses)) |
 | panic record | `kind`, facts, span, task, and the **user-level** call list (inlined calls reconstructed from spans, 13.7); which panic comes first; the secondary panics of a failed `Cleanup` (R0009, Q13) |
 | order of `Cleanup` and drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |

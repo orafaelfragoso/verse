@@ -197,7 +197,7 @@ explicit `.copy()` of spec §4.3 is an ordinary `call`.
 | `p = aggregate K(ops)` | operands | build tuple, record, enum case, empty list, closure; operands are moved or copied in | V1 V4 V7 |
 | `p = len(q)`, `discriminant(q)` | place | read-only queries, `Int` result | V4 V13 |
 | `p = cast k op as T` | operand | casts that cannot fail: `widen` (to a wider sized integer), `i2f` (nearest, ties to even), `char_int`, `niche` (inserted by `layout`). Never changes ownership | V1 |
-| `p = checked_cast k op as T` | operand | casts that can fail: `narrow` (to a narrower integer), `f2i` (truncates toward zero; NaN or out of range fails), `int_char` (not a Unicode scalar value fails). Result `(T, Bool)` as `checked_*`; the failure is `panic overflow cast T` (assumption: spec §3.8 does not say what `to_int` of a huge `Float` does) | V10 |
+| `p = checked_cast k op as T` | operand | casts that can fail: `narrow` (to a narrower integer), `f2i` (truncates toward zero; NaN or out of range fails), `int_char` (not a Unicode scalar value fails). Result `(T, Bool)` as `checked_*`; the failure is `panic convert T` (R0012), not an overflow. `to_int` of a NaN or a huge `Float` takes this path | V10 |
 | `drop p [flag d]` | place | **statement form**, only when the `cleanup` fact of the type is false: if the flag is false skip; else drop the parts ([order](#drop-order)) and free. Cannot unwind or yield | V5 V6 V15 |
 | `set_flag d = b` | constant | drop-flag write | V5 |
 | `set_discriminant p, k` | place, case | in-place case change; only emitted by `layout` and SROA | V13 |
@@ -267,7 +267,8 @@ without owning anything.
 
 | Printed kind | Code | Facts, in this order |
 |--------------|------|----------------------|
-| `overflow OP T` (`OP` is `add`, `sub`, `mul`, `div`, `rem`, `pow`, `neg` or `cast`) | R0001 | `a`, `b`: the operands of the failed operation (`neg` and `cast` have only `a`) |
+| `overflow OP T` (`OP` is `add`, `sub`, `mul`, `div`, `rem`, `pow` or `neg`) | R0001 | `a`, `b`: the operands of the failed operation (`neg` has only `a`) |
+| `convert T` (a failed `checked_cast`) | R0012 | `a`: the value, operand; `reason`: `too_large`, `too_small`, `not_a_number` or `not_a_character`, or `derived`, which the runtime resolves from `a`, the cast kind and `T` (`f2i`: NaN is `not_a_number`, else the sign decides; `narrow`: the sign decides; `int_char`: `not_a_character`). `T` is in the kind words |
 | `index_oob` | R0002 | `i`, `n` (the length): operands; `what`: `list` or `text`; `unit`: `items` or `characters` |
 | `div_zero` | R0003 | `a`: operand; `op`: text `"/"` or `"%"` |
 | `slice_oob` | R0010 | `from`, `to`, `n`: operands; `what`; `unit` as above |
@@ -310,8 +311,8 @@ passes ([10 §10.6](10-testing-and-verification.md)). A failure is an internal
 compiler error, `V9902` ([16 §16.2](16-diagnostics-catalog.md#162-families)), whose label reads "rule {rule} failed in
 `{function}`" and whose primary span is the span of the offending line. In
 script mode a failure at the first call of an instance stops the run with that
-diagnostic before the instance executes, and the exit status is the one of any
-compile error, 1 (assumption). Rule ids `V1`..`V24` are **not** diagnostic
+diagnostic before the instance executes, and the exit status is 3, a compiler
+bug ([16 §16.6.1](16-diagnostics-catalog.md#1661-exit-statuses)), in `run` as in `build`. Rule ids `V1`..`V24` are **not** diagnostic
 codes (those are `V` plus four digits, [02 §2.8](02-compiler-architecture.md#28-diagnostics)).
 Rules V3 to V9 re-derive what the ownership pass decided; they are a safety net
 and the oracle for the soundness fuzzer ([10 §10.4](10-testing-and-verification.md)).
@@ -334,7 +335,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V7 | Borrow values (`&T`, `&mut T`) appear only as call or `yield` operands, as the source of a store into a local of borrow type (a temporary, or a `view` or `exclusive` binding), and as parameters; never in `aggregate`, in a store to a field, element or `_0`, in `spawn`, in `yield send`, or captured by `closure` | second-class borrows (spec §5.3) | `_0 = aggregate tuple(move _2)` with `_2: &Text` |
 | V8 | An exclusive borrow of `p` conflicts with any other access to `p` or an overlapping place (prefix or extension) while it is live; it starts after every other operand of its call has been evaluated; no operand pair of one call may include `ref mut p` and any use of `p` | exclusive access, args first then borrow (§5.3) | `call merge(move _3, copy _1)` with `_3 = ref mut _1` |
 | V9 | While a borrow is live its source is not moved, dropped, reassigned (shared borrow) or `storage_dead`; a borrow's live range ends at its last use | no dangling pointer, views stay valid | `_2 = ref _1` ... `drop _1` ... `call f(move _2)` |
-| V10 | The `.1` flag of every `checked_*` and `checked_cast` result is tested by a `switch` before `.0` is read, and the overflow edge reaches `panic overflow OP TYPE` with the operands of the operation as facts | one overflow policy for all tiers (03 invariant 6) | `_5 = checked_add(...)` then `copy _5.0` with no `switch` |
+| V10 | The `.1` flag of every `checked_*` and `checked_cast` result is tested by a `switch` before `.0` is read, and the failure edge reaches `panic overflow OP TYPE` (for `checked_*`, with the operands of the operation as facts) or `panic convert T` (for `checked_cast`, with `a`) | one overflow policy for all tiers (03 invariant 6) | `_5 = checked_add(...)` then `copy _5.0` with no `switch` |
 | V11 | `checked_div` and `checked_rem` need a dominating fact that the divisor is not zero: a constant, or the false edge of a `switch` on `eq(d, 0)`. `checked_pow` needs the same for the exponent: a constant that is not negative, or the true edge of `ge(e, Int(0))` whose other edge reaches `panic neg_exponent {n: e}` | division and power panics are explicit data | `checked_div(copy _1, copy _2)` with no zero test |
 | V12 | `p[i]` (on a `List<T>`, `Bytes` or `Slice<T>`) needs a dominating fact `ult(i, len(p))` on the true edge, or both `ge(i, Int(0))` and `lt(i, len(p))`; a signed `lt` alone does not qualify. The other edge reaches `panic index_oob {i, n: len(p), ...}`, or user code that decides what to do | bounds checks are explicit data and a negative index cannot pass | `copy _1[_2]` straight after a call that grew `_1`; `lt(_2, len(_1))` alone |
 | V13 | `(p as #k)` is read or moved only on a path where a `switch` on `discriminant p` selected case `k`; moving it uninitialises all of `p` | enum payload safety | `move (_4 as #1)` in the block for case 0 |
@@ -762,4 +763,3 @@ the `DropT` terminator of M7, the `join` kind and `CheckedCast`. Rows M7 to M9 f
 | M9 | A panic inside `Cleanup` during unwinding is task-level: R0009, the first panic stays primary, remaining cleanups still run; cleanup blocks stay `nounwind` for the verifier | Q13 | follows Q13 (open) |
 | M10 | Open: a `Task` stored in a list or record. Proposal: the drop glue of any type that contains a `Task` is a terminator `drop` that joins it, as if it had `Cleanup` | V17 covers locals only | proposal |
 | M11 | Proposal for 03 §3.4: `move-elim` also turns a `move` of a `Copy` type into a `copy`; a new `param-by-value` pass passes small `Copy` parameters by value and rewrites `copy (*_1)` to `copy _1` | 13.6 leaves both to the optimizer | proposal |
-| M12 | Open: spec §3.8 does not say what `to_int` of a `Float` that is NaN or too large does; `checked_cast f2i` assumes a panic (`overflow cast`) | needs a spec ruling | assumption |

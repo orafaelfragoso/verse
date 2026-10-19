@@ -66,8 +66,15 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   macOS, IOCP on Windows, with `io_uring` as a later optimization on Linux. A
   blocking call such as `get` registers interest and yields. File I/O that has
   no async primitive runs on a small blocking thread pool.
-- **Stack overflow** is a guard page fault turned into a panic with a clear
-  message ("recursion too deep in task N"), because deep recursion is a bug
+- **Stack overflow** is caught by an explicit check in the prologue of each
+  non-leaf function, which raises the panic `stack_overflow` (R0004, "recursion
+  is too deep in task N", [16 §16.6](16-diagnostics-catalog.md#166-run-time-panics)).
+  A fault cannot run cleanup, because cleanup needs stack that is exhausted, so
+  the check fires `headroom` above the real end and `Cleanup` runs in the
+  reserve ([15 §15.6.4](15-target-and-abi.md#1564-stack-bounds-and-overflow)).
+  The **guard page** stays only as a backstop for code that does not check (a
+  runtime function, foreign code): a fault there prints the same R0004 text and
+  ends the program with status 101, running no cleanup. Deep recursion is a bug
   and must not corrupt memory.
 
 **State-machine targets (Wasm without stack switching)**
@@ -107,6 +114,11 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
 - A panic in a task becomes `TaskPanicked` at `.wait()`.
 - Cancellation unwinds the task like a panic, running `Cleanup` (§11.5).
 - Unwaited failed tasks set the exit status (§12.5).
+- `exit(code)` ends the program **immediately**, from any task. It runs no
+  `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes
+  standard output and error. A code outside 0 to 255 is a panic, R0013, on every
+  platform. A program that needs its cleanups returns from `main` or ends with a
+  failed `?` ([15 §15.8.1](15-target-and-abi.md#1581-statuses); ruled, final).
 
 ## 5.4 Panics and unwinding
 
@@ -121,7 +133,7 @@ MIR has explicit unwind edges. Each backend chooses how to realize them:
 | native with `unwind = "native"` | DWARF unwind tables and a personality routine in `verse-rt` |
 | Wasm with exception handling | `try_table` and `throw` |
 | Wasm without it, and embedded | the compiler emits a status check after calls that can unwind and branches to the cleanup block (zero cost on the success path except the check) |
-| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification and rejected unless the program has no `Cleanup` types in scope of any panic site. Ruled in [12](12-open-questions.md) Q5: panics clean up on every target, and `abort` is allowed only when the compiler proves no `Cleanup` value is live at any panic site; otherwise the build fails |
+| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification and rejected unless the program has no `Cleanup` types in scope of any panic site. Ruled in [12](12-open-questions.md) Q5: panics clean up on every target, and `abort` is allowed only when the compiler proves no `Cleanup` value is live at any panic site; otherwise the build fails. An `abort` build also fails with V0910 when a `spawn` is reachable, because a task's panic could not reach its waiter ([15 §15.7.6](15-target-and-abi.md#1576-the-abort-profile-and-unreachable)) |
 
 Panic output is a structured record first (message, task, source span, stack),
 rendered as text for humans and emitted as JSON when `VERSE_PANIC=json` or when

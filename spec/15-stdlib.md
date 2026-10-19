@@ -16,7 +16,7 @@ file-level import may hide one (an import warns); see §3.9.
 | `input(prompt: ""): Text?` | read a line from standard input; `none` at end of input |
 | `args` | `List<Text>` of command-line arguments |
 | `env(name): Text?` | read an environment variable |
-| `exit(code: Int)` | end the program immediately with a status code |
+| `exit(code: Int)` | end the program immediately with a status code from 0 to 255; it flushes standard output and error but runs no `Cleanup` (§12.5) |
 | `error(message, cause: none): Error` | build a simple error |
 | Types | `Int`, `Float`, `Bool`, `Char`, `Text`, `Bytes`, `Nothing`, `List`, `Map`, `Set`, `Range`, `Task` |
 | Traits | `Show`, `Eq`, `Order`, `Hash`, `Iterable`, `Index`, `Default`, `Cleanup`, `Copy`, `Copyable`, `Error`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` |

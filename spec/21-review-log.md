@@ -314,3 +314,16 @@ Michelangelo's `reviews/review-6.md` (R6-2). No section is reopened.
 | R8-3 | `verse build` | Builds for the selected profile and target (dev or release executable, WebAssembly module, bytecode bundle), not only "an optimized native executable". | §16 |
 | R8-4 | Variants of an imported type | Importing a type does not import its variants. A pattern looks a variant name up in the type being matched, so matching needs no import; building a value needs `import Circle from shapes` or the qualified `Shape.Circle(2.0)` (§4.4). The error names both fixes. Ruled in review-6 R6-2. | §12.2 |
 | R8-5 | No-heap byte buffer | A fixed-size mutable byte buffer for bulk I/O on boards without a heap is reserved for 0.2, together with `extern`; 0.1 adds no type. | §18.15 |
+
+### Round 9 (architecture follow-ups: conversions and exit statuses)
+
+Fixes carried over from architecture 16 (§16.6, §16.6.1, run-time panic codes `R0012` and `R0013`
+there, not to be confused with the `R` rows of this log) and architecture 15 (P15-13, P15-16, review-12).
+No section is reopened. The spec itself names no catalog codes, so the sections below describe the behavior
+in words.
+
+| # | Item | Resolved decision | Where |
+|---|------|-------------------|-------|
+| R9-1 | Failed numeric conversions | A conversion that does not fit panics: `to_int` of a `NaN` or of a `Float` too large for `Int`, an `Int` or `Float` to a narrower type, a non-Unicode value to `Char`. The message is "`{a}` cannot be converted to `{T}`" with a reason: too large, too small, not a number, or not a Unicode character. One sentence; the earlier wording of §3.8.4 said nothing about these cases, so nothing is replaced. | §3.8.4 |
+| R9-2 | Exit statuses | The §12.5 list is a table aligned with architecture 16 §16.6.1: `0` normal; `1` a top-level `?` failed or an unwaited task failed; `2` errors in the source or a failed capability check, so the program did not start; `3` a bug in Verse (a compiler bug before the program started, or a trap inside the runtime that Verse caused), in `run` as in `build`; `70` a deadlock; `101` a panic. | §12.5 |
+| R9-3 | `exit(code)` | The code is 0 to 255; any other value panics with "the exit code {n} is outside 0 to 255" on every platform, so `exit(256)` never reports success. `exit` may be called from any task and ends the program immediately: it flushes standard output and standard error, runs **no `Cleanup`** and does not wait for or cancel the other tasks. A program whose cleanups must run finishes the entry file or ends with a failed `?`. Ruling tie-broken by Bob, agreed by Picasso and Michelangelo (P15-13, `reviews/review-12-michelangelo-on-15.md`); Picasso's earlier proposal that `exit` run `Cleanup` and Michelangelo's interim amendment are withdrawn. A cleanup-aware exit is a 0.2 candidate (architecture 12). | §12.5, §15.1 |

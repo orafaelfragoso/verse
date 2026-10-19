@@ -474,6 +474,11 @@ comparison.
   `-2 ** 2` is `-4`, as in mathematics. On `Int` it is overflow-checked, and
   the exponent must not be negative: `2 ** -1` is a compile-time error (use
   `2.0 ** -1.0`), and a negative `Int` exponent computed at run time panics.
+- A conversion never changes a value silently: converting a value that does not
+  fit, such as `to_int` of a `NaN` or of a `Float` too large for `Int`, an `Int`
+  or `Float` to a narrower type, or a non-Unicode value to `Char`, panics with
+  "`{a}` cannot be converted to `{T}`" and a reason (too large, too small, not a
+  number, or not a Unicode character).
 
 ### 3.9 Statements and expressions
 

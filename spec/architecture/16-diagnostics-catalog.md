@@ -234,6 +234,12 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V0907 | error | the file `{f}` for target `{t}` does not exist | listed in `[targets.{t}.files]` | create it or remove the line | 19 §19.3 |
 | V0908 | error | this panic would skip the cleanup of `{x}` | `{x}` is alive here | turn the `abort` profile off, or move the panic site after the cleanup | 05 §5.4 |
 | V0909 | error | `{f}` waits and calls itself, which `{target}` cannot run | the wait is here | build for a native target, or make the recursive part not wait | 03 pass 14 (`task-lower`), 04 §4.2 |
+| V0910 | error | this `abort` build cannot report a task's panic to its waiter | `spawn` is reachable here | turn the `abort` profile off, or remove the `spawn` | 15 §15.7.6 |
+| V0911 | error | `{key}` cannot be used with `{other}` in target `{t}` | {reason} | change one of them in `{file}` | 15 §15.9.4 |
+| V0912 | error | `{key}` needs {feature}, which target `{t}` does not provide | {reason} | {fix} | 15 §15.9.4 |
+| V0913 | error | target `{t}` has no provider for the `{cap}` capability | its platform layer offers {list} | remove `{cap}` from `{file}`, or pick another platform layer | 15 §15.9.4 |
+| V0914 | error | the `[memory]` section of target `{t}` is not valid | {reason: `heap` is not allowed on this layer, or the sizes do not fit in `ram`} | change `{key}` in `{file}` | 15 §15.9.4 |
+| V0915 | error | no target is named `{t}` | looked in {list of places} | check the name, or add `targets/{t}.target` | 15 §15.9.1 |
 
 ### V10xx Foreign calls (0.2, reserved)
 
@@ -351,6 +357,8 @@ the same facts are one record (05 §5.4); the message is the same.
 | R0009 | the cleanup of `{x}` panicked while the task was stopping | the first panic was {first} | 12 Q13 |
 | R0010 | the range {from}..{to} is out of range, the {what} has {n} {unit} | this range | spec §9.3 |
 | R0011 | the exponent {n} is negative, and an `Int` power needs 0 or more | this exponent | spec §3.8 |
+| R0012 | `{a}` cannot be converted to `{T}` | {reason: it is too large, it is too small, it is not a number, or it is not a Unicode character} | spec §3.8 |
+| R0013 | the exit code {n} is outside 0 to 255 | this call | spec §12.5 and §15.1 `exit`, 15 §15.8 |
 
 **From MIR panic kind to code** (13 §13.2 names the kinds; the operands a kind
 carries are the facts below, and the debugger and the compiled tiers fill the
@@ -367,11 +375,12 @@ same placeholders from them).
 | `out_of_memory` | R0007 | `size` |
 | `slice_oob` | R0010 | `from`, `to`, `n`, `what`, `unit` |
 | `neg_exponent` | R0011 | `n` |
+| `convert T` (a `checked_cast` that failed: `narrow`, `f2i`, `int_char`) | R0012 | `a`, `T`, `reason` |
 
 A panic kind with no row here is a bug in the compiler, and the build's
 verifier reports it as V9902. `what` is `list` or `text`; `unit` is `items` or
-`characters`. R0008 and R0009 are not MIR panic kinds: the runtime raises them
-(12 Q17, Q13).
+`characters`. R0008, R0009 and R0013 are not MIR panic kinds: the runtime raises them
+(12 Q17, Q13, and `exit`, 15 §15.8). A stack overflow found by the guard page, not by the prologue check, prints the same R0004 text.
 
 Rules for panic wording:
 
@@ -385,6 +394,25 @@ Rules for panic wording:
    `TaskPanicked` (spec §11.2); the waiter prints nothing more by itself.
 5. A text that holds a value (`{i}`, `{n}`, `{a}`) writes the number as the
    program would print it.
+
+### 16.6.1 Exit statuses
+
+The spec fixes 0, 1, 101 and `exit(code)` for a running program (spec §12.5).
+These are the others, so a script can tell the causes apart.
+
+| Status | Meaning |
+|--------|---------|
+| 0 | normal completion |
+| 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
+| 2 | `verse check`, `build` or `run` found errors in the source, so the program did not start. This includes a capability the target does not offer, found by the build-time check (15 §15.8.1) |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, in `run` as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
+| 70 | a deadlock (R0008, 12 Q17) |
+| 101 | a panic (16.6) |
+
+A `V99xx` message always ends with "this is a bug in Verse, not in your program"
+and the `explain:` line (16.4.1), so the cause is clear even when the status is
+all a script sees. An `exit(code)` that the program calls itself is never
+changed.
 
 ## 16.7 Open points
 
