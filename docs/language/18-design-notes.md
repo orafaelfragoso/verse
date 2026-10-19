@@ -127,7 +127,9 @@ shared until one side writes, and any other value moves. Moves are checked
 per control-flow path. A plain parameter is read in place for the call.
 **Shadowing is removed:** a name is bound once per function; parameters, loop
 variables and pattern bindings may not reuse a visible name, though sibling
-blocks may reuse one. Only locals count: a local may hide a prelude, imported
+blocks may reuse one. **A refinement** `x = f(x)` on an immutable `x` bound in
+the same block is the one rebinding: the right side consumes the old value,
+so the name always refers to one live value. Only locals count: a local may hide a prelude, imported
 or module-level name. Patterns always bind new names, except that a tuple of
 visible `mut` names is a parallel assignment, so `(a, b) = (b, a)` swaps. An
 unused binding warns, and so does a new binding one
@@ -143,9 +145,12 @@ reader has to watch. The price is that without a declaration keyword,
 `x = …` on a visible name cannot say whether it means "a new `x`" or "change
 `x`" — so shadowing had to go: with it, shadowing and reassignment would look
 identical. Without it, the rule is simple (an existing name can only be
-reassigned, and only if it is `mut`), each name means one thing for the whole
-function, and the typo warning catches the main risk of binding by writing,
-a misspelt assignment that silently creates a new name.
+reassigned if it is `mut`, or refined if the right side uses it), each line
+reads one way from its own text, and the typo warning catches the main risk
+of binding by writing, a misspelt assignment that silently creates a new
+name. A refinement reads from the line itself, because the name is on both
+sides; it needs no keyword, unlike Rust's `let x = f(x)`, and no editor hint
+to tell it from a reassignment.
 
 ### 18.10 Why no garbage collector
 

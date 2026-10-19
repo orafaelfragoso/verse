@@ -133,7 +133,7 @@ gives every rule an identifier.
 |------|-----|---------|-------|------|------|
 | V0301 | error | `{name}` is not defined | no binding, function, type or import has this name | did you mean `{near}`? (shown only when one name is within edit distance 2) | §3.9 |
 | V0302 | error | `{name}` already exists in this scope | first bound at {position} | use a different name, or write `{name} = …` without `mut` only if the first one is `mut` | §3.9 |
-| V0303 | error | `{name}` is not `mut`, so it cannot be reassigned | bound without `mut` at {position} | write `mut {name} = …` at the first binding | §3.9 |
+| V0303 | error | `{name}` is not `mut`, so it cannot be reassigned | bound without `mut` at {position} | write `mut {name} = …` at the first binding, or use `{name}` on the right side to refine it | §3.9 |
 | V0304 | warning | `{name}` hides the prelude `{name}` | this import is on the line below the doc comment | import it `as {other}`, or keep it if you meant to replace the prelude name | §3.9 |
 | V0305 | warning | `{name}` hides the import `{name}` | the import is used in this function | rename the local | §3.9 |
 | V0306 | warning | `{name}` is never used | bound here | delete it, or start the name with `_` | §3.9 |

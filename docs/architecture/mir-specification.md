@@ -421,7 +421,10 @@ needs `recursive` ([14 §14.3](bytecode-and-vm.md#143-value-representation-and-c
 - **Every `param` and `binding`** local has its user name, its mode word and
   its span. The mode word uses the 08 vocabulary: `owned`, `borrowed` (a plain
   parameter seen by a call), `exclusive` (a `mut` parameter). Temporaries have
-  no name.
+  no name. A refinement (spec §3.9) is a new `binding` local with the same
+  user name; the old local's last use is the refinement's right side, so at
+  any pc at most one local of a name is live, and the debugger shows that
+  one.
 - **Value states** (`owned`, `moved`, `borrowed`, `exclusive`,
   `dropped`, `not_yet_bound`) are computed by the VM from these words and the
   executed statements.

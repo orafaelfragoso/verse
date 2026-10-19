@@ -99,9 +99,12 @@ binding       = [ "mut" ] pattern [ ":" type ] "=" expr NEWLINE
               | [ "mut" ] pattern [ ":" type ] "=" or_expr "otherwise" exit NEWLINE ;
                 (* (semantic) a refutable pattern is allowed only in the second form.
                    `x = e` with a plain name is a *binding* when `x` is not yet
-                   visible, and an *assignment* (assign_stmt) when `x` is a visible
-                   `mut` binding; on a visible immutable name it is an error.
-                   A name is bound once per function: no shadowing (§3.9);
+                   visible, an *assignment* (assign_stmt) when `x` is a visible
+                   `mut` binding, and a *refinement* (a new binding that consumes
+                   the old value) when `x` is a visible immutable name bound in
+                   the same block and `e` uses `x`; otherwise it is an error.
+                   A name is bound once per function, apart from refinements:
+                   no shadowing (§3.9);
                    "visible" means locals only. A pattern always binds new
                    names; the exception is a tuple made only of visible `mut`
                    names, a parallel assignment (right side evaluated first,
