@@ -142,7 +142,7 @@ the place states of the ownership pass
 - A stop summary is one sentence of at most 25 words, present tense, with a
   position and a cause. It does not say "paused" or "you".
 - Debugger errors use `D0xxx` codes, never reused, listed in `events.toml`.
-- Instrumentation must not change values, `Cleanup` order or scheduler
+- Instrumentation must not change values, drop order or scheduler
   choices ([14 §14.11](../../../../docs/architecture/bytecode-and-vm.md#1411-debug-hooks)).
 - Replay depends on deterministic `Set` order, fixed hash seeds in record mode,
   no behavior that depends on addresses, and bit-identical floats

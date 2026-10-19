@@ -258,7 +258,7 @@ with the same report, and `stepBack` walks to its cause.
 | moved (to …) | transferred, invalidated | the spec word, and a move has a destination |
 | copied | cloned, duplicated | implicit `Copy` and explicit `.copy()` |
 | dropped | freed, collected | there is no collector |
-| cleaned up | closed, finalized | `Cleanup` ran (§13) |
+| cleaned up | closed, finalized | a drop released a runtime-owned handle (§13.4) |
 | `none`, present | null, nil, `some` | optionals have no null and no `some` (§8.1) |
 | error value, propagated | exception, thrown, caught | errors are values |
 | panicked, stopped | crashed | a panic stops the task (§8.5) |

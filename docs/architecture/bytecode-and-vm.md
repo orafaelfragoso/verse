@@ -16,7 +16,7 @@ Every number is a **target** or **assumption**; nothing has been measured.
    is generated lazily, per function ([14.6](#146-calls-and-lazy-bytecode-generation)).
 3. **Debug target.** Every debug session runs in the VM, live or by replay of a
    recording made by any tier ([08 §8.2](debugging.md#82-architecture)).
-4. **Identical behaviour.** Same output, same panics, same `Cleanup` order,
+4. **Identical behaviour.** Same output, same panics, same drop order,
    same task events as the compiled tiers, for a given seed ([14.12](#1412-differential-testing-contract)).
 5. **Not goals.** Peak speed, a stable bytecode format for third parties, and
    multi-threaded execution in 0.1 ([14.7](#147-tasks-scheduler-and-seed)).
@@ -80,8 +80,7 @@ and the result lands in the caller's window.
 
 **Call records** live in a separate vector per task (not in the slots), 16
 bytes each (target): `proto: u32, return_pc: u32, base: u32, seg: u16,
-flags: u16` (flags: cleanup-running, unwinding). A task also keeps a **cancel
-mask** depth ([14.8](#148-unwinding-and-cleanup)). They are the VM's internal
+flags: u16` (flags: cleanup-running, unwinding). They are the VM's internal
 "frame"; users and tools see them as **calls** (08 §8.7 says "call" and "stack",
 not "frame").
 
@@ -120,8 +119,8 @@ check-and-branch that costs one dispatch.
 | Control | `JMP`, `JT`, `JF`, `SWITCH`, `SWITCHS`, `TRAP` | `off24`; `a off`; `a k` | jump; dense jump table in the pool; sparse table with binary search; `TRAP` = `unreachable` or internal error | `TRAP` stops the VM with a bug report (exit status 3) |
 | Enum | `GETDISC`, `GETDISCN`, `SETDISC` | `a b k` | read the case from a tag byte or a niche (decode data in the pool), or write it | none |
 | Call | `CALL`, `CALLD`, `CALLI`, `CALLS`, `CALLF`, `RET` | `a f16`; `a b k`; `a id16`; `a op16`; `a x16` | call instance `f` with window at `a`; through a vtable slot; runtime intrinsic; `sys` capability op ([14.9](#149-sys-capability-calls-and-the-capability-check)); foreign function `x`, MIR `call foreign plugin.symbol`, through the call stub `verse-ffi` generated for its signature, with the symbol resolved before the first instruction ([07 §7.6](plugins.md#76-loading-in-script-mode-and-compiled-mode)); return to caller | callee's; `CALLF` none, because a foreign function never unwinds (a null `Pointer` result is the MIR `panic foreign_null` that follows) |
-| Drop | `DROP`, `DROPC` | `a glue16` | `DROP`: MIR statement `drop`, or terminator `drop` of a type without `cleanup`: run the glue of the type at slot `a`, which cannot unwind or park. `DROPC`: terminator `drop` of a type with `cleanup`: push a call record for `cleanup` (the loop does not recurse), raise the cancel mask, then drop the parts in the order of [13.4](mir-specification.md#134-statements-and-terminators) and continue at `next`. A drop with a flag compiles to `JF flag; DROP` | `DROPC`: panics inside `cleanup` follow [14.8](#148-unwinding-and-cleanup); it may park |
-| Task | `SPAWN`, `SEND`, `RECV`, `WAIT`, `JOIN`, `SLEEP`, `LOCK`, `PAUSE`, `ABANDON` | `a f16 d`, `a b`, ... | MIR `spawn`, `yield` and `intrinsic task.abandon`; each may park the task ([14.7](#147-tasks-scheduler-and-seed)). `JOIN` is `WAIT` that reports a failed child as in spec §11.3 | cancellation arrives here when the mask is 0 ([14.8](#148-unwinding-and-cleanup)) |
+| Drop | `DROP` | `a glue16` | MIR `drop`: run the glue of the type at slot `a`: release its runtime-owned handle when the type has the `cleanup` fact, drop the parts in the order of [13.4](mir-specification.md#134-statements-and-terminators), free. The glue runs no user code, so it cannot unwind or park. A drop with a flag compiles to `JF flag; DROP` | none |
+| Task | `SPAWN`, `SEND`, `RECV`, `WAIT`, `JOIN`, `SLEEP`, `LOCK`, `PAUSE`, `ABANDON` | `a f16 d`, `a b`, ... | MIR `spawn`, `yield` and `intrinsic task.abandon`; a yield may park the task ([14.7](#147-tasks-scheduler-and-seed)), and `SPAWN` and `ABANDON` never do. `JOIN` is `WAIT` that reports a failed child as in spec §11.3 | cancellation arrives at a yield ([14.8](#148-unwinding-and-cleanup)) |
 | Panic | `PANIC`, `RESUME` | `kind imm16`; none | start unwinding with a kind and a pooled list of fact operands (slots or constants, in the order of the table in [13.4](mir-specification.md#134-statements-and-terminators)); continue unwinding at the end of a cleanup chain | by definition |
 | Debug | `MARK`, `BREAK` | `span16`; `bp16` | source-line mark (debug protos only); breakpoint ([14.11](#1411-debug-hooks)) | none |
 | Misc | `NOP`, `WIDE` | | padding; operand widening | none |
@@ -208,17 +207,16 @@ Verification is eager and bytecode generation is lazy
 *implementation* of the task semantics, not a lowering; the three lowerings are
 native-code strategies. Observable behaviour is the same as the others.)
 
-- **A task** owns a stack chain, a call-record vector, a pending-unwind state (the
-  list of panics so far, [14.8](#148-unwinding-and-cleanup)), a `cancel_requested` flag and a cancel
-  mask depth. Switching is a pointer swap in the loop; the loop
+- **A task** owns a stack chain, a call-record vector, a pending-unwind state (its
+  panic, if any, [14.8](#148-unwinding-and-cleanup)) and a `cancel_requested` flag. Switching is a pointer swap in the loop; the loop
   is not recursive, so no native stack switching is needed. Ids come from one
   counter in spawn order; the main task is `t0` and runs the `<script>` function.
 - **One worker thread** in 0.1. Parallel tier-0 tasks add nothing the native
   tiers lack and break determinism; this is revisited with the M4 results.
   `Guarded` interleavings are therefore scheduler choices, which is why
   recording them is cheap.
-- **Switch points** are only the `yield` terminators that cannot proceed, a
-  `DROPC` whose `cleanup` blocks, an explicit `pause`, and task exit. `spawn` appends the child to the run queue
+- **Switch points** are only the `yield` terminators that cannot proceed, an
+  explicit `pause`, and task exit. A `DROP` never switches. `spawn` appends the child to the run queue
   and does not switch. A `send` that does not block does not switch. No
   preemption by instruction count: a task that spins on `is_done()` would
   starve the others, so `is_done` and similar non-blocking polls act as
@@ -240,37 +238,34 @@ native-code strategies. Observable behaviour is the same as the others.)
   waited (spec §11.3) by the compiler-emitted `JOIN`s of
   [13.4](mir-specification.md#134-statements-and-terminators); unwaited
   failures set the exit status (1, or 101 for a panic). A task held inside a
-  list or a record is cancelled and then joined when that value is dropped
-  (V17), through the `DROPC` of its glue.
+  list or a record is cancelled when that value is dropped, and its join is
+  handed to the scheduler, as `ABANDON` does (V17).
 - **Deadlock**. No runnable task, no pending I/O completion, no
   timer (a virtual clock jumps to the next timer instead), and blocked tasks
-  exist (a task blocked inside a `Cleanup` counts as blocked): raise R0008 ([16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)), stop with reason `deadlocked` (08 §8.7), list what each
-  task waits for (a task inside a cleanup reads "waiting inside the cleanup of
-  {type}", fact `cleanup_of`), and exit with status **70**. A program that waits
+  exist: raise R0008 ([16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)), stop with reason `deadlocked` (08 §8.7), list what each
+  task waits for, and exit with status **70**. A program that waits
   for a socket, stdin or a timer is not deadlocked.
 
-## 14.8 Unwinding and Cleanup
+## 14.8 Unwinding and cleanup
 
 - **Exception table** per proto: sorted `(pc_lo, pc_hi, cleanup_pc)` entries made
   from MIR `unwind bbN` edges. `unwind continue` and `unwind none` make no
   entry. It is read only while unwinding, so the success path pays nothing.
-- **Panic.** `PANIC` appends the panic to the task's list, prints the report of
+- **Panic.** `PANIC` records the panic in the task, prints the report of
   [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics) to standard error at once (spec §8.5, §11.2), and sets the
   pending-unwind state to `panic`. **Cancellation** sets `cancel_requested` and
-  wakes the task if it is parked; at its next `yield` executed with the cancel
-  mask at 0 (including one it is parked in) the VM sets the state to `cancel`
-  and takes the instruction's unwind edge. Nothing is printed for cancellation
+  wakes the task if it is parked; at its next `yield` (including one it is
+  parked in) the VM sets the state to `cancel` and takes the instruction's
+  unwind edge. Nothing is printed for cancellation
   (spec §11.5).
-- **Cancel mask**. The mask depth rises while a `DROPC` or any
-  cleanup block runs, so a cancel request that arrives then only sets
-  `cancel_requested` and takes effect at the first `yield` executed afterwards
-  with mask 0. A cleanup always runs to completion, even if it blocks; only
-  `exit(code)`, which ends the process at once and runs no `Cleanup`, ignores a
-  blocked cleanup.
+- **No switch point while unwinding.** A cleanup block has no `yield`, and a
+  `DROP` never parks (V15), so an unwinding task runs its cleanup blocks to the
+  task boundary without a switch. A cancel request that arrives then only sets
+  `cancel_requested`, and nothing reads it again; a second panic cannot
+  happen, because nothing in a cleanup block panics.
 - **Walk.** For the current call, look up its pc in the exception table. Found:
-  jump to `cleanup_pc`; the cleanup block runs as ordinary code (`DROP`,
-  `DROPC`, flag writes, `JF`/`SWITCH` on flags, `ABANDON`, and blocking
-  `yield`s, V15) until `RESUME`, which pops the call record and repeats with the
+  jump to `cleanup_pc`; the cleanup block runs as ordinary code (`DROP`, flag
+  writes, `JF`/`SWITCH` on flags and `ABANDON`, V15) until `RESUME`, which pops the call record and repeats with the
   caller's return pc. Not found: pop at once.
 - **Nothing intercepts.** `otherwise`, `match` and `?` are ordinary MIR and
   never see the unwind state; only the task boundary turns it into a value
@@ -285,16 +280,8 @@ native-code strategies. Observable behaviour is the same as the others.)
   including by cancellation, is reported and makes the exit non-zero). A child
   that fails with its own panic or error while unwinding is still reported on
   standard error and counts for the exit status.
-- **Panic inside `Cleanup`**. The panic prints at once and is
-  appended to the task's list. It unwinds the `cleanup` call as usual, up to the
-  `DROPC` that started it; the glue then still drops the parts of that value and
-  the outer unwinding goes on with the next cleanup, so no resource is skipped.
-  The VM raises R0009 with the facts `x` (the binding) and `first` (the first
-  panic). The task ends as `panicked` with the first panic as primary; the
-  others are attached to `TaskPanicked`. The process is not aborted. The same
-  holds when a cancellation is the first cause.
 - **Cost.** Zero instructions on the success path. Wasm and embedded tiers use
-  status codes instead ([05 §5.4](runtime.md#54-panics-and-unwinding)); the visible order of `Cleanup` calls is the same.
+  status codes instead ([05 §5.4](runtime.md#54-panics-and-unwinding)); the visible order of drops is the same.
 
 ## 14.9 `sys` capability calls and the capability check
 
@@ -349,9 +336,9 @@ event  = kind:u8 | task:varint | seq_delta:varint | payload     (seq: global eve
 |------|---------|------------|
 | `Pick` | none | which task runs next |
 | `Wake` | object, reason (timer, io, channel, wait, cancel) | wake order |
-| `Spawn`, `Finish` | child id; outcome (ok, cancelled, or panicked with the list of panics: count, then kind and code of each) | task tree, `TaskPanicked` |
+| `Spawn`, `Finish` | child id; outcome (ok, cancelled, or panicked with the kind and code of its panic) | task tree, `TaskPanicked` |
 | `Sync` | op, object id, outcome | per-object operation order |
-| `Cap` | capability, op, args digest `u64`, result (inline up to 64 bytes, else a blob block) | the value `CALLS` returns |
+| `Cap` | capability, op, args digest `u64`, result (inline up to 64 bytes, else a blob block) | the value `CALLS` returns, or a capability call that drop glue makes to release a platform handle (`fs.write`, `fs.close`) |
 | `Out` | stream, byte count, digest | validates output; fixes cross-task print order |
 | `Sig`, `End` | signal; exit status (0, 1, 2, 3, 70, 101 or the `exit` code) | delivery point; end of run |
 
@@ -417,7 +404,7 @@ or cleared.
 | Watch (a place) | the instrumented loop compares the watched bytes after each store; a watch on a call's local ends when that call returns (`watch_changed`) | none | one compare per store |
 | Event stream and trace | instrumented loop reads the event table and writes events to the **separate** trace channel | none | per event |
 
-Instrumentation must not change values, `Cleanup` order or scheduler choices;
+Instrumentation must not change values, drop order or scheduler choices;
 the differential suite runs the VM in both loops. Target: debug-marked
 protos run within 1.3x of unmarked on the micro benchmarks of [09 §9.2](performance.md#92-benchmark-suite).
 
@@ -436,9 +423,9 @@ capability fakes:
 |------------|--------|
 | standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too, folded as 16.6 says: they come from the user-level call list below, which every build has (15 §15.7.1). The one exception is the R0004 text and its stack lines when a compiled task fills its stack before the call limit (May differ) |
 | exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule and can report V9902 at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
-| panic record | `kind`, facts, span, task, and the **user-level** call list as the walk prints it in the structured record's `stack` (`VERSE_PANIC=json`, folded as 16.6 says; inlined calls reconstructed from spans, 13.7), since no tier stores the list (15 §15.7.1); which panic comes first; the secondary panics of a failed `Cleanup` (R0009); the R0004 exception of the row above applies here too |
+| panic record | `kind`, facts, span, task, and the **user-level** call list as the walk prints it in the structured record's `stack` (`VERSE_PANIC=json`, folded as 16.6 says; inlined calls reconstructed from spans, 13.7), since no tier stores the list (15 §15.7.1); which panic comes first; the R0004 exception of the row above applies here too |
 | call limit | the call at which the first form of R0004 fires, on every tier that reaches the limit before its stack fills: the count of calls of `recursive` functions is the same on every tier ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
-| order of `Cleanup` and drops | including on panic and cancellation |
+| order of drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |
 | capability calls | capability, operation and arguments, in order |
 | `Float` results | bit for bit: IEEE 754 binary64, no fast-math, no implicit fused multiply-add; every NaN is the canonical quiet NaN `0x7FF8000000000000` wherever bits can be seen (`to_bits`, hashing, byte serialization, `Show`). A hash of a float, where one exists, treats `-0.0` as `0.0` (they compare equal); this binds only internal hashing and a library wrapper such as `OrderedFloat`, because `Float` is not `Hash` (spec §9.4); `to_bits` keeps the sign of zero; `Show` prints `NaN` for every NaN and `-0.0` for negative zero |

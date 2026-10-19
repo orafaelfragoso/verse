@@ -65,7 +65,7 @@ not visible inside `fn` bodies
 ([§12.4](../../../../docs/language/12-modules.md#124-module-contents)).
 
 **HIR lowering.** It expands `otherwise`, `?`, `if … is`, key-path lambdas,
-postfix guards, string interpolation, `with`, `for`, plain dots through
+postfix guards, string interpolation, `for`, plain dots through
 optionals and uniform call syntax into a small core
 ([03 §3.2](../../../../docs/architecture/ir-and-passes.md#32-hir-the-desugared-core)).
 Why: later stages then handle a small language.

@@ -110,8 +110,8 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   segments and a vector of call records, and the interpreter loop switches
   between them. The loop never recurses, so no native stack switching is
   needed. One worker thread in 0.1.
-- Switch points are only the MIR `yield` terminators that cannot proceed, a
-  `DROPC` whose `cleanup` blocks, an explicit `pause`, and task exit. The scheduler policy with and without
+- Switch points are only the MIR `yield` terminators that cannot proceed, an
+  explicit `pause`, and task exit; a drop never switches. The scheduler policy with and without
   `--seed` is specified in [14 §14.7](bytecode-and-vm.md#147-tasks-scheduler-and-seed);
   the seeded single-worker mode of `verse-rt` implements the same policy so
   that differential tests compare the same task events.
@@ -121,18 +121,21 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
 - A spawned call's arguments are evaluated and moved into the task before it
   starts (§11.1).
 - A panic in a task becomes `TaskPanicked` at `.wait()`.
-- Cancellation unwinds the task like a panic, running `Cleanup` (§11.5).
+- Cancellation unwinds the task like a panic, dropping what it owns (§11.5).
+  A drop runs no user code and never switches tasks, so the unwinding has no
+  switch point and needs no cancel protection (spec §13.4,
+  [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)).
 - Unwaited failed tasks set the exit status (§12.5).
-- `exit(code)` ends the program **immediately**, from any task. It runs no
-  `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes
-  standard output and error. A code outside 0 to 255 is a panic, R0013, on every
-  platform. A program that needs its cleanups returns from `main` or ends with a
+- `exit(code)` ends the program **immediately**, from any task. It drops
+  nothing, does not cancel the other tasks, and flushes standard output and
+  error. A code outside 0 to 255 is a panic, R0013, on every platform. A
+  program whose files must be written out returns from `main` or ends with a
   failed `?` ([15 §15.8.1](target-and-abi.md#1581-statuses)).
 
 ## 5.4 Panics and unwinding
 
-Spec: a panic stops the current task, running `Cleanup` for owners in scope,
-prints to standard error, and exits with status 101 for the main program
+Spec: a panic stops the current task, dropping the owners in scope, prints to
+standard error, and exits with status 101 for the main program
 (§8.5). Cancellation unwinds the same way.
 
 MIR has explicit unwind edges. Each backend chooses how to realize them:
@@ -142,7 +145,7 @@ MIR has explicit unwind edges. Each backend chooses how to realize them:
 | native with `unwind = "native"` | DWARF unwind tables and a personality routine in `verse-rt` |
 | Wasm with exception handling | `try_table` and `throw` |
 | Wasm without it, and embedded | the compiler emits a status check after calls that can unwind and branches to the cleanup block (zero cost on the success path except the check) |
-| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification. Panics clean up on every target, and `abort` is allowed only when the compiler proves no `Cleanup` value is live at any panic site; otherwise the build fails. An `abort` build also fails with V0910 when a `spawn` is reachable, because a task's panic could not reach its waiter ([15 §15.7.6](target-and-abi.md#1576-the-abort-profile-and-unreachable)) |
+| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification. Panics clean up on every target, and `abort` is allowed only when the compiler proves no platform handle (a file, a socket, a device: a handle whose release reaches outside the process) is live at any panic site; otherwise the build fails (V0908). An `abort` build also fails with V0910 when a `spawn` is reachable, because a task's panic could not reach its waiter ([15 §15.7.6](target-and-abi.md#1576-the-abort-profile-and-unreachable)) |
 
 Panic output is a structured record first (message, task, source span, stack),
 rendered as text for humans and emitted as JSON when `VERSE_PANIC=json` or when
@@ -171,7 +174,7 @@ This is a description of the interface, not Verse code.
 
 ```
 capability fs      { open, read, write, close, stat, list, remove, ... }
-capability net     { connect, listen, accept, send, recv, resolve, tls_* }
+capability net     { connect, listen, accept, send, recv, close, resolve, tls_* }
 capability clock   { monotonic_now, wall_now, sleep_until }
 capability random  { fill_bytes }
 capability stdio   { write_stdout, write_stderr, read_stdin, read_stdin_line }
@@ -216,4 +219,4 @@ heap and a 64-bit `Int`.
 - `Int` stays 64-bit (spec §4.1). The optimizer uses range analysis to lower to
   32-bit operations where it can prove values fit, and sized types
   (`math.Int32`) are the explicit tool for hot code.
-- **Interrupts only wake tasks.** No Verse code runs in interrupt context. The platform layer owns a tiny handler, written once in the runtime and not in Verse, that records the event (a pin change, a timer tick, a received byte) and marks the waiting task ready. The task then runs on the cooperative executor like any other, so ordinary rules (ownership, `Cleanup`, panics) hold in it. A program waits for an interrupt through the `gpio`, `uart` or `clock` capability, never by registering a function ([20 §20.6](first-party-packages.md#206-iot)).
+- **Interrupts only wake tasks.** No Verse code runs in interrupt context. The platform layer owns a tiny handler, written once in the runtime and not in Verse, that records the event (a pin change, a timer tick, a received byte) and marks the waiting task ready. The task then runs on the cooperative executor like any other, so ordinary rules (ownership, drops, panics) hold in it. A program waits for an interrupt through the `gpio`, `uart` or `clock` capability, never by registering a function ([20 §20.6](first-party-packages.md#206-iot)).

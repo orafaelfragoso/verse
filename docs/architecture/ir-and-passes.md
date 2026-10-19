@@ -25,7 +25,6 @@ language. The table gives the mapping. Source forms are from the spec. The core 
 | `.name` key-path lambda (§5.4) | lambda with one parameter |
 | `x if cond` postfix guards (§6.7) | `if cond` block |
 | `"{a} and {b:.2}"` | concatenation of `Show` calls and format calls |
-| `with e as y` (§13) | binding plus a scope with a cleanup edge |
 | `for x in it` (§6.3) | loop over `Iterable.next` with a pattern |
 | plain dot through optionals (§8.1) | `Lift(chain)` nodes at consuming positions only; other positions error |
 | `a.b.c(args)` uniform call syntax (§5.7) | resolved call node (method or function) |
@@ -54,7 +53,7 @@ Operand = Move(Place) | Copy(Place) | Const       // ownership made explicit
 Stmt =                                             // every Stmt has a span and a debug name
   | Assign(Place, Rvalue)
   | StorageLive(Local) | StorageDead(Local)
-  | Drop(Place, flag: Option<DropFlag>)         // only for a type with no Cleanup: free
+  | Drop(Place, flag: Option<DropFlag>)         // run the type's drop glue: no user code
   | SetFlag(DropFlag, bool)
   | SetDiscriminant(Place, Variant)
   | Intrinsic(IntrinsicOp, [Operand])            // backend-visible primitives
@@ -73,8 +72,6 @@ Terminator =
   | Call(Callee, [Operand], dest: Place, next: Block, unwind: Unwind)
   | CallDyn(vtable_slot, [Operand], dest, next, unwind)
   | Return(propagated: bool) | Unreachable | ResumeUnwind
-  | DropT(Place, flag: Option<DropFlag>, next: Block, unwind: Unwind)
-                                                  // a type with Cleanup (or unknown, in generic MIR)
   | Panic(PanicKind, [Fact], unwind: Unwind)     // structured kind and named facts, not a message
   | Yield(YieldKind, [Operand], dest: Place, resume: Block, unwind: Unwind)
                                                   // scheduler point: send, recv, wait, join, sleep, lock, sys, pause
@@ -97,9 +94,10 @@ Notes on the shape (details and examples in [13](mir-specification.md)):
   nothing to clean up in this function; `Unwind::None` means the call cannot
   unwind.
 - **Drop flags** are written with `SetFlag`.
-- **Two drop forms.** `Drop` (statement) cannot unwind or yield and is only for
-  types whose drop glue runs no user code. `DropT` (the printed `drop p, next bbN,
-  unwind u` of [13.4](mir-specification.md#134-statements-and-terminators)) is for types with `Cleanup`, which may block or panic.
+- **One drop form.** `Drop` is a statement: drop glue runs no user code, so it
+  cannot unwind or yield. It frees the value and releases the runtime-owned
+  handles in it ([13.4](mir-specification.md#134-statements-and-terminators),
+  [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)).
 
 ### Invariants (checked by the verifier)
 
@@ -115,11 +113,12 @@ numbers the full rule set (V1 to V24) with a rejected example for each.
    only as call or `Yield` operands, as parameters, and as the source of a
    store into a local of borrow type (a temporary, or a binding that only
    looks at its source: `b = a` while `a` is used later, a `for` loop
-   variable, a lock-guard value). They never reach a stored position (a field,
+   variable). They never reach a stored position (a field,
    an element, the return place, a `Spawn` operand or a captured variable).
 5. Every `Call`, `Spawn`, `Yield` or `Panic` that can unwind names a cleanup
    block (or `Continue` when nothing needs cleanup), and cleanup blocks drop in
-   reverse declaration order and end in `ResumeUnwind`.
+   reverse declaration order, contain no call or yield, and end in
+   `ResumeUnwind`.
 6. `CheckedBinary` and `CheckedCast` are followed by a `Switch` to a `Panic(Overflow)` block, so
    no backend decides overflow policy on its own.
 7. In **mono** MIR no type contains a type parameter, and every callee is a
@@ -151,11 +150,11 @@ differential tester can isolate a miscompile.
 | 3 | `inline` | inline small and single-call functions; always-inline for intrinsics; never a `recursive` function | unwind and drop order; the calls the call limit counts ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | 4 | `sroa` | split records and tuples into scalars when they do not escape | field-level move state |
 | 5 | `const-prop` and `fold` | evaluate constants, fold branches | overflow panics (folding a checked op that overflows stays a panic, not a wrap) |
-| 6 | `move-elim` | remove copies of values at last use (spec: "a source at its last use is moved"); turn a `move` of a `Copy` type into a `copy` | observable `Cleanup` order |
+| 6 | `move-elim` | remove copies of values at last use (spec: "a source at its last use is moved"); turn a `move` of a `Copy` type into a `copy` | the order of drops that release runtime-owned handles |
 | 7 | `copy-elide` | avoid copying immutable data when the copy is never mutated and the source outlives it | no aliasing visible to `mut` |
 | 8 | `range-analysis` | prove bounds and arithmetic checks redundant | panics that can still occur |
 | 9 | `devirtualize` | turn `dyn` calls into direct calls when the concrete type is known | semantics |
-| 10 | `drop-opt` | remove drops of types without `Cleanup` and with no heap, merge flags | order of `Cleanup` calls |
+| 10 | `drop-opt` | remove drops of types with no heap data and no `cleanup` fact, merge flags | the order of drops that release runtime-owned handles |
 | 11 | `dce` | delete unreachable blocks and unused pure computations | side effects and panics |
 | 12 | `layout` | choose field order, niche optimization (`T?` of a pointer type costs no extra byte) | none observable; the `(T, Bool)` result of a checked operation keeps its order (value, then flag), because the bytecode VM and backends rely on it ([13.3](mir-specification.md#133-types-and-layout-facts), [14.4](bytecode-and-vm.md#144-instruction-set-and-encoding)) |
 | 13 | `refcount-opt` | elide atomic operations on `Shared` when whole-program analysis shows the program never spawns, or elide the pair on a clone and drop in one block | counts at any observable point |

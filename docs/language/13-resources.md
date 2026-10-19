@@ -1,100 +1,94 @@
 ## 13. Resource management
 
-### 13.1 `with` blocks
+### 13.1 Release at last use
 
-External resources — files, network connections, locks, temporary directories —
-must be released promptly and reliably. Because every value has one owner and
-is freed at the end of its owner's scope (§4.10), a type that implements the
-`Cleanup` trait is cleaned up **automatically** when its owner's scope ends,
-however it ends: normally, by `return`, `break`, `continue`, `?`
-propagation, or a panic.
-
-```verse
-trait Cleanup
-    fn cleanup(mut self)       # must not fail
-```
-
-That automatic cleanup is a safety net: a file you open in a function is
-closed when the function ends, even if you forget about it. The `with`
-statement is the **explicit** way to say *exactly* where a resource's life
-ends. It acquires the resource, binds it to a name for the indented block, and
-cleans it up when the block ends:
+External resources, such as files, network connections, locks and channel
+ends, must be released promptly and reliably. Every value has one owner (§4.9), and a
+value is **dropped right after its owner's last use**. Dropping a resource
+releases it, however the code goes on from there: normally, by `return`,
+`break`, `continue`, `?` propagation, a panic or a cancellation. A use through
+a view of the value (§4.9), such as the iterator of `file.lines()`, counts as
+a use of the value. A temporary that no name owns is dropped at the end of
+the statement that made it.
 
 ```verse
 import open from fs
 
-with open("log.txt")? as file
-    for line in file.lines()
-        print(line)
-# file is closed here, not at the end of the function
+file = open("log.txt")?
+for line in file.lines()
+    print(line)
+# `file` is closed here: the loop was its last use
 ```
 
-`with … as name` binds the resource itself, with one documented exception: a
-**lock guard**. `with guarded.lock() as value` (§11.4) cleans up the guard
-(releasing the lock) like any other resource, but binds `value` to the
-protected value inside the guard, as an exclusive borrow (mutable only with
-`as mut value`). Lock guards are the only type that behaves this way.
+There is no statement that marks where a resource's life ends. To release a
+resource earlier, use it for the last time earlier; to keep it open, use it
+later.
 
-The same `mut` rule applies to every resource: `File`'s write methods
-(`write_line`, `write`, `flush`) take `mut self`, so a file you write to is
-bound with `as mut`: `with create("out.txt")? as mut target`.
+A resource is an ordinary value. `File`'s write methods (`write_line`,
+`write`, `flush`) take `mut self`, so a file you write to is bound with
+`mut`: `mut target = create("out.txt")?`. Acquiring a resource can fail, and
+the failure is handled like any other: `open` returns `File | Error`, so it
+needs `?`, `otherwise` or `match` (§8).
 
-`cleanup` must not fail: it has nowhere to report an error, because it may run
-during a panic or while another error is propagating. Types whose closing can
-fail (a buffered writer that must flush) also offer an explicit, fallible
-method — `file.finish()?` — to call when the error matters; `cleanup` is the
-quiet fallback.
+### 13.2 Order of release
 
-`cleanup` may block, like any other code (a buffered `File` flushes when it is
-closed), and nothing limits how long. A task blocked inside a `cleanup` still
-counts as blocked when the program looks for a deadlock (§12.5); only `exit`
-ignores a blocked cleanup. Cancellation is masked while a cleanup runs (§11.5).
-
-### 13.2 Acquisition failure
-
-Acquiring a resource can fail: `open` returns `File | Error`. **`with` never
-propagates anything by itself.** Its resource expression must be a value whose
-type implements `Cleanup`, so a fallible acquisition needs an explicit `?`,
-exactly as anywhere else:
-
-```verse
-import open from fs
-
-with open("log.txt")? as file          # `?` propagates a failed open
-    ...
-
-with open("log.txt") as file           # error: `open("log.txt")` is `File | Error`, which cannot be cleaned up
-    ...                                #   help: add `?` to propagate the error
-```
-
-So `with` means one thing — *clean this up when the block ends* — and every early
-exit is still marked by `?` or `return`. Infallible acquisitions such as
-`counter.lock()` (§11.4) need no `?`.
-
-To handle the failure locally, acquire first and decide:
-
-```verse
-match open("log.txt")                  # File | Error
-    err: Error -> print("no log yet: {err.message()}")
-    file: File ->
-        with file as log               # `file` moves into the `with`
-            print(log.read_all())
-```
-
-### 13.3 Several resources
-
-Several resources can be acquired in one `with`, separated by commas. They are
-cleaned up in reverse order of acquisition.
+Values whose last use is the same point are dropped in **reverse declaration
+order**, because a later value may have been made from an earlier one. The
+parts of one value drop in the order they were written (§4.10).
 
 ```verse
 import open, create from fs
 
-with open("input.txt")? as source, create("output.txt")? as mut target
-    for line in source.lines()
-        target.write_line(line.upper())?
+source = open("input.txt")?
+mut target = create("output.txt")?
+for line in source.lines()
+    target.write_line(line.upper())?
+# the loop is the last use of both: `target` closes first, then `source`
 ```
 
-### 13.4 Custom resources
+### 13.3 Closing explicitly
+
+Dropping a resource cannot fail: a drop has nowhere to report an error,
+because it may run during a panic or while another error is propagating. A
+type whose closing can fail therefore offers a **named method** to call when
+the error matters. A `File` you wrote to writes what is still buffered when it
+is dropped, and loses an error there; `finish` writes it, closes the file and
+returns the error:
+
+```verse
+import create from fs
+
+mut writer = create("out.txt")?
+writer.write_line("done")?
+writer.finish()?                        # the fallible close: `writer` is consumed
+```
+
+| Operation | Signature | Meaning |
+|-----------|-----------|---------|
+| `file.finish()` | `finish(take self): Nothing \| Error` | write what is buffered and close the file; consumes it |
+
+### 13.4 What a drop does
+
+A drop runs no code of the program. It frees the value's memory and releases
+the **runtime-owned handles** in it:
+
+| Handle | Released by its drop |
+|--------|----------------------|
+| platform handles: `File`, network connections, processes, devices | the handle is closed; a `File` first writes what is still buffered |
+| a lock guard (§11.4) | the lock is released |
+| `Sender<T>`, `Receiver<T>` | the channel end is closed; the channel closes when its last `Sender` is dropped |
+| `Shared<T>`, `Guarded<T>`, `Weak` | the count goes down; the value inside is dropped with the last `Shared` or `Guarded` handle |
+| a `Task<T>` held in another value | the task is cancelled, and it finishes before the task that dropped it ends (§11.3) |
+
+A drop never fails, never panics, and never pauses the task, so no other task
+runs in the middle of one and a cancellation cannot interrupt it (§11.5). A
+value that contains a runtime-owned handle releases it when the value is
+dropped. A platform handle or a lock guard is not `Copyable`, and neither is a
+value that contains one (§10.4).
+
+Something the runtime does not own, such as a temporary directory or a handle
+from a foreign library (§12.6), is released by a named method that the type
+offers. A value dropped without it is not released:
 
 ```verse
 import fs
@@ -109,17 +103,12 @@ impl TempDir
         fs.make_dir(path)?
         TempDir(path:)
 
-impl Cleanup for TempDir
-    fn cleanup(mut self)
-        _ = fs.remove_all(self.path)       # ignore failures during cleanup
+    fn remove(take self)                   # inferred: Nothing | Error
+        fs.remove_all(self.path)
 
-with TempDir.create()? as dir
-    fs.write_text("{dir.path}/scratch.txt", "draft")?
-    ...
+dir = TempDir.create()?
+fs.write_text("{dir.path}/scratch.txt", "draft")?
+dir.remove()?
 ```
 
-`_ = …` discards a result deliberately; `cleanup` must not fail, because
-it may run during a panic.
-
 ---
-

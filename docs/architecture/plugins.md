@@ -95,7 +95,7 @@ The functions are items of the module that holds the block, imported and
 exported like any other function. A C name that is not a Verse value name is
 renamed with `as`, in the order of an import: `fn SDL_Init as sdl_init(flags:
 UInt32): Int32`. The call site is a normal call. There is no `unsafe`
-marker and no `with` block. The full rules are spec
+marker and no special block. The full rules are spec
 [§12.6](../language/12-modules.md#126-foreign-functions-extern).
 
 ## 7.4 Values across the boundary
@@ -152,9 +152,11 @@ model and selects it with `[targets.<t>.files]`.
 | a `mut` parameter | an exclusive borrow for the duration of the call, as in Verse (§5.3) |
 | a result | owned by the caller. A `Pointer` result is only an address: Verse never frees what it points to |
 
-Foreign memory is released by calling the library's own function. The usual
-shape is a Verse record that holds the `Pointer` and implements `Cleanup`
-(§13), so the handle is closed when its owner's scope ends, on every path:
+Foreign memory is released by calling the library's own function. A drop runs
+no user code and never calls foreign code (spec §13.4,
+[ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)), so the usual
+shape is a Verse record that holds the `Pointer` and offers a named close
+method; a value dropped without it leaks the foreign resource:
 
 ```verse
 import sqlite3_open, sqlite3_close from sqlite_c
@@ -162,23 +164,25 @@ import sqlite3_open, sqlite3_close from sqlite_c
 export type Database
     handle: Pointer
 
-impl Cleanup for Database
-    fn cleanup(mut self)
+impl Database
+    ## Closes the database. A `Database` dropped without `close` stays open.
+    export fn close(take self)
         sqlite3_close(self.handle)
 
 export fn open(path: Text): Database | Error
     mut db: Pointer? = none
     status = sqlite3_open(path.bytes(), mut db)
     handle = db otherwise return error("cannot open {path}: out of memory")
-    database = Database(handle:)          # closed by its cleanup on every path from here
+    database = Database(handle:)
     if status != 0
+        database.close()                  # SQLite returns a handle even when the open fails
         return error("cannot open {path}: SQLite status {status}")
     database
 ```
 
 Errors stay values: a C function returns a status code, and a Verse
 function turns it into `T | Error` (§8). The binding file declares the C
-functions as they are; the wrapper module is where errors and cleanup live.
+functions as they are; the wrapper module is where errors and closing live.
 
 Other rules at the boundary:
 

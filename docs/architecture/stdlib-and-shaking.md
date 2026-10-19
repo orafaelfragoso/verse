@@ -122,8 +122,8 @@ An item is a node; an edge says "if this is included, that must be too".
 | function | `dyn-call` | slot *k* of trait *T* (`CallDyn` terminator) | combines with `trait-coerce` |
 | function | `const` | a module constant's initializer instance | first read only; spec §12.4 |
 | function | `drop` | drop glue for type *X* (a `Drop` statement) | |
-| drop glue of *X* | `cleanup` | `Cleanup.cleanup` for *X*, if implemented | spec §13 |
-| drop glue of *X* | `field-drop` | drop glue of each field, element or payload type that needs dropping | types without heap data or `Cleanup` have no drop glue ([03 §3.4](ir-and-passes.md#34-pass-list), `drop-opt`) |
+| drop glue of *X* | `cleanup` | the runtime release of *X*'s handle, when *X* has the `cleanup` fact, and the capability that release uses (`TcpStream` → `sys.net.close` → `net`) | spec §13.4, [15 §15.3.6](target-and-abi.md#1536-drop-glue-and-runtime-owned-handles) |
+| drop glue of *X* | `field-drop` | drop glue of each field, element or payload type that needs dropping | types without heap data or the `cleanup` fact have no drop glue ([03 §3.4](ir-and-passes.md#34-pass-list), `drop-opt`) |
 | function | `layout` | the type's layout record | layout costs no code; it is recorded so the report can show which types exist |
 | function | `panic` | panic machinery in `core`; the `unwind` slice if a reachable unwind edge runs a drop | spec §8.5 |
 | function | `intrinsic` | the capability the intrinsic belongs to (`sys.net.accept` → `net`) | see §6.5 |
@@ -214,7 +214,7 @@ Non-capability slices are selected by MIR facts rather than by capabilities:
 | Slice | Included when |
 |-------|---------------|
 | `core` | always (allocator, panic machinery including the panic report's stack walk, trace map and folding, `Text`, `List`, `Map`, `Set` primitives) |
-| `unwind` | a reachable unwind edge runs a drop (a `Cleanup` call or a heap free) *and* the target's unwind strategy needs runtime support (`native`); with `status-code` the cleanup paths are ordinary code (Assumption, see [05 §5.4](runtime.md#54-panics-and-unwinding)) |
+| `unwind` | a reachable unwind edge runs a drop (a handle release or a heap free) *and* the target's unwind strategy needs runtime support (`native`); with `status-code` the cleanup paths are ordinary code (Assumption, see [05 §5.4](runtime.md#54-panics-and-unwinding)) |
 | `tasks` | a `Spawn` terminator or a `task` primitive is reachable |
 | `debug` | debug builds, running a file, or an attached debugger ([08](debugging.md)); it adds trace events, record and replay, and the `values` and `last_events` of a panic report |
 
@@ -314,7 +314,7 @@ http.write_response                    function    <n>  call      http.serve
 log.error                              function    <n>  call      http.serve (a handler error)
 Map<Text, Text> (headers)              layout        -  layout    http.parse_request
 drop Request                           drop        <n>  drop      http.serve
-Cleanup for TcpStream                  impl        <n>  cleanup   drop TcpStream
+sys.net.close                          intrinsic     -  cleanup   drop TcpStream
 …                                      …             …  …
 sys.net.accept                         intrinsic     -  intrinsic net.TcpListener.accept
 spawn per request                      function    <n>  spawn     http.serve

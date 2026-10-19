@@ -270,10 +270,10 @@ print("Hello, {args.first() otherwise "world"}!")
   be 0 to 255; any other value panics with "the exit code {n} is outside 0 to
   255" on every platform, so `exit(256)` never reports success. `exit` may be
   called from any task. It flushes standard output and standard error, but
-  **`exit` runs no `Cleanup`** and does not wait for or cancel the other tasks:
-  the process just ends, so a file's unwritten buffer is lost and a temporary
-  directory stays. A program whose cleanups must run ends by finishing the
-  entry file or with a failed `?` instead. An explicit `exit(code)` always
+  **`exit` drops nothing** and does not wait for or cancel the other tasks:
+  the process just ends, so a file's unwritten buffer is lost. A program
+  whose files must be written out ends by finishing the entry file or with a
+  failed `?` instead. An explicit `exit(code)` always
   overrides the failed-unwaited-task status, which applies only when the
   program ends naturally.
 
@@ -308,14 +308,14 @@ status = sqlite3_open("app.db".bytes(), mut db)
 - **The functions are module items.** They are exported with `export` and
   imported like any other function. An `extern` block may appear only at the
   top level of a module.
-- **A call is a normal call.** There is no `unsafe` marker and no `with`
+- **A call is a normal call.** There is no `unsafe` marker and no special
   block.
 - **Only plain data crosses.** Parameters and results are numbers
   (`Int`, `Float`, `Int8` … `UInt64`, `Float32`), `Bool`, `Char`,
   `Pointer`, `Pointer?`, `Bytes` and byte views (parameters only), and `Copy`
   records made only of these. `Text` does not cross: call `.bytes()` on it.
-  Collections, other optionals, variants, trait types, function values, `Task`
-  and `Cleanup` types do not cross.
+  Collections, other optionals, variants, trait types, function values, `Task`,
+  lock guards and platform handles such as `File` do not cross.
 - **Ownership words keep their meaning.** A plain parameter is borrowed for the
   call. A `mut` parameter is an exclusive borrow that the foreign function may
   write. `take` is not allowed: Verse memory is never handed to foreign code.
@@ -331,7 +331,10 @@ byte.
 Verse side of the call. What the library does inside is outside the
 language: it can corrupt memory, keep a pointer it was given, or reach the
 network under `--deny net`. A foreign function must not unwind, and it
-cannot call back into Verse. The type mapping to C, loading in script and
+cannot call back into Verse. A drop never calls foreign code, so a foreign
+handle, such as the database of `sqlite3_open`, is released only by calling
+the library's own function; a wrapper type offers it as a named close method
+(§13.4). The type mapping to C, loading in script and
 compiled mode, and `verse bind` are described in architecture
 [07](../architecture/plugins.md).
 

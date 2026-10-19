@@ -17,7 +17,7 @@ compiler privileges and no syntax.
 | **One obvious name.** No second spelling of a standard library idea: `finance` uses `math.Decimal`, `web` builds on `http.serve`, every package uses `time` for dates and durations | 06 §6.2 |
 | **No stored references.** Values are owned; borrows are second-class (spec §5.3, §9.3). Long-lived structures refer to parts by `Int` index (the arena pattern of spec §4.10) or by `Shared`/`Guarded` handles (spec §11.4) | spec |
 | **Failure in the type.** Anything that can fail returns `T \| Error` or a named error type (spec §8, §15) | spec |
-| **Resources are `Cleanup` values** used with `with` (spec §13): files, devices, windows, pins | spec |
+| **Resources are runtime-owned handles** (spec §13): files, devices, windows and pins are released when they are dropped, at their owner's last use; a close that can fail is a named method | spec |
 | **Capabilities are declared** in `[library] capabilities` and are the most any module may reach; a program pays only for what it reaches (06 §6.5) | 06 |
 | **Per-target availability is data** in `[library.targets]`, never conditions in source | 06 §6.9 |
 | **Each package has a size budget** in `[library] size_budget`, checked by `verse publish` against its examples (no numbers are set yet) | 06 §6.9 |
@@ -163,7 +163,7 @@ so every expensive duplicate is visible in the source (spec §4.3).
 | `fn param(mut self, value: Tensor): Var`, `fn input(mut self, value: Tensor): Var` | |
 | `fn matmul(mut self, a: Var, b: Var): Var \| Error`, `fn mean(mut self, x: Var): Var` | each operation records a node |
 | `fn backward(mut self, loss: Var): Gradients \| Error` | |
-| `fn open_gpu(index: Int = 0): Gpu \| Error` | `Gpu` is a `Cleanup` resource; needs `gpu` |
+| `fn open_gpu(index: Int = 0): Gpu \| Error` | `Gpu` is a runtime-owned handle (spec §13.4); needs `gpu` |
 | `fn upload(mut self, value: Tensor): GpuTensor \| Error` | `Gpu` method |
 | `fn download(mut self, value: GpuTensor): Tensor \| Error` | |
 
@@ -194,16 +194,16 @@ A `Var` used with a different tape is an error value naming both tapes
 ```verse
 import Tensor, open_gpu from ml
 
-with open_gpu()? as mut gpu
-    a = gpu.upload(Tensor.zeros([1024, 1024]))?
-    b = gpu.matmul(a, a)?
-    result = gpu.download(b)?
-    print(result.sum())
+mut gpu = open_gpu()?
+a = gpu.upload(Tensor.zeros([1024, 1024]))?
+b = gpu.matmul(a, a)?
+result = gpu.download(b)?                 # the last use: the device is released here
+print(result.sum())
 ```
 
 `GpuTensor` is also an index into the `Gpu` resource that owns device memory,
-so it cannot outlive the device in a harmful way: using it after the `with`
-block, or with another device, is an error value. The capability appears
+so it cannot outlive the device in a harmful way: using it with a device
+opened later, or with another device, is an error value. The capability appears
 where the resource is acquired.
 
 ### Shaking
@@ -421,9 +421,10 @@ type Edge
     export at: Instant                # time.Instant
 ```
 
-`Board`, `Pin`, `I2c`, `Spi` and `Uart` are opaque `Cleanup` resources: when
-one goes out of scope the peripheral is released (pin back to input, bus
-disabled).
+`Board`, `Pin`, `I2c`, `Spi` and `Uart` are opaque runtime-owned handles
+(spec §13.4): when one is dropped, at its owner's last use, the peripheral is
+released (pin back to input, bus disabled). Dropping the `Board` releases
+none of the peripherals it gave out: each is released by its own drop.
 
 ### Functions (sketch)
 
@@ -433,7 +434,7 @@ disabled).
 | `fn output_pin(mut self, number: Int): Pin \| Error` | `Board` method; a pin already taken is an error naming its first owner |
 | `fn input_pin(mut self, number: Int): Pin \| Error` | |
 | `fn set(mut self, level: Level)`, `fn toggle(mut self)`, `fn read(self): Level` | `Pin` methods; no heap |
-| `fn send_edges(mut self, take tx: Sender<Edge>): Nothing \| Error` | interrupts arrive as channel messages on the program's own channel |
+| `fn send_edges(take self, take tx: Sender<Edge>): Nothing \| Error` | interrupts arrive as channel messages on the program's own channel; the pin moves to the runtime, which releases it when the channel closes |
 | `fn i2c(mut self, bus: Int, speed_hz: Int): I2c \| Error` | |
 | `fn read_register(mut self, address: Int, register: Int): Int \| Error` | `I2c`; one byte, no buffer |
 | `fn write_bytes(mut self, address: Int, data: Bytes): Nothing \| Error` | data from a `b"…"` literal or a byte view (spec §4.1) |
@@ -452,13 +453,14 @@ fn watch(take edges: Receiver<Edge>)
             print("pressed")
 
 mut board = Board.take()?
-with board.output_pin(13)? as mut led, board.input_pin(2)? as mut button
-    (tx, rx) = Channel.new<Edge>(capacity: 4)
-    button.send_edges(tx)?
-    spawn watch(rx)
-    while true
-        led.toggle()
-        sleep(500.millis())
+mut led = board.output_pin(13)?
+button = board.input_pin(2)?
+(tx, rx) = Channel.new<Edge>(capacity: 4)
+button.send_edges(tx)?                    # the pin stays configured while `rx` is open
+spawn watch(rx)
+while true
+    led.toggle()
+    sleep(500.millis())
 ```
 
 On a board, `print` goes to the UART console if the target grants `stdio`.

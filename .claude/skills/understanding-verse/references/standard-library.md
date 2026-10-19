@@ -68,8 +68,9 @@ capabilities for tests
 ([05 §5.6](../../../../docs/architecture/runtime.md#56-the-sys-capability-interface)).
 
 **Conventions.** A function that can fail returns `T | Error` or a module
-error type. A function that may find nothing returns `T?`. Resources implement
-`Cleanup` ([spec §15](../../../../docs/language/15-stdlib.md#15-standard-library-overview)).
+error type. A function that may find nothing returns `T?`. Resources close
+when they are dropped, and a close that can fail is a named method
+([spec §15](../../../../docs/language/15-stdlib.md#15-standard-library-overview)).
 
 **Importing is the opt-in.** Imports have no side effects, and module
 constants initialize on first use. So an import alone adds nothing to a
@@ -133,7 +134,8 @@ Slices are prebuilt per target and content-addressed
 - Every first-party package declares `[library] capabilities`,
   `[library.targets]` and a `size_budget`, and keeps the rules of
   [20 §20.1](../../../../docs/architecture/first-party-packages.md#201-rules-every-package-follows):
-  no stored references, failure in the type, resources are `Cleanup` values.
+  no stored references, failure in the type, resources are runtime-owned
+  handles.
 - Per-target code is chosen by files and manifest data, never by `cfg`-style
   conditions in source
   ([06 §6.9](../../../../docs/architecture/stdlib-and-shaking.md#69-package-format-of-a-domain-library)).

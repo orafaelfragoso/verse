@@ -85,7 +85,7 @@ impl_block    = "impl" [ generics ] [ bound "for" ] type
 (* ---------- Statements ---------- *)
 block         = NEWLINE INDENT statement { statement } DEDENT ;
 statement     = binding | assign_stmt | if_stmt | loop_stmt
-              | with_stmt | match_expr | exit_stmt
+              | match_expr | exit_stmt
               | "pass" NEWLINE | assert_stmt | fn_decl | expr NEWLINE ;
 exit_stmt     = exit [ "if" expr ] NEWLINE ;           (* postfix guard: one line, no else;
                                                            an `if` right after an exit is
@@ -118,10 +118,6 @@ if_stmt       = "if" expr block
 loop_stmt     = [ IDENT ":" ] ( for_stmt | while_stmt ) ;          (* loop label *)
 for_stmt      = "for" pattern "in" expr block ;
 while_stmt    = "while" expr block ;
-with_stmt     = "with" resource { "," resource } block ;
-resource      = expr "as" [ "mut" ] IDENT ;  (* (semantic) expr's type must implement
-                                           Cleanup; a fallible acquisition needs `?`;
-                                           the name is mutable only with `mut` *)
 assert_stmt   = "assert" expr [ "," expr ] NEWLINE ;
 test_block    = "test" TEXT block ;
 

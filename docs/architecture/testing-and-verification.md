@@ -66,8 +66,9 @@ implicitly.
   produced by the compiler for the concurrency tests.
 - **Overflow, bounds, division**: every operation has tests at the boundary
   values, in all tiers.
-- **Panic and cleanup order**: tests that panic or cancel inside nested
-  `with` blocks, and check that `Cleanup` runs in the specified order.
+- **Panic and drop order**: tests that panic or cancel while files, locks
+  and channel ends are live, and check that they are released in the
+  specified order (spec §13.2).
 
 ## 10.5 Diagnostics quality tests
 

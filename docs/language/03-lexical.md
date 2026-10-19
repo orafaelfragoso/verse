@@ -126,7 +126,7 @@ export     extern     false      fn         for        from       if
 impl       import     in         is         let        match      mut
 none       not        or         otherwise  pass       return     self
 Self       set        spawn      take       test       then       trait
-true       type       while      with
+true       type       while
 ```
 
 `let` is reserved but not used: Verse has no `let` (bindings are written
@@ -573,7 +573,7 @@ explain: V0315 (run `verse explain V0315`)
 **No shadowing.** The rule is: **you cannot bind a name that is currently
 visible**, where *visible* means **locals only**: parameters, earlier
 bindings, and loop, pattern and lambda names in scope. Parameters (of functions and of lambdas), `for` loop variables,
-pattern bindings in `match` arms and `if … is`, and `with … as` names all
+and pattern bindings in `match` arms and `if … is` all
 count: each lives in its own block, but it may not reuse a name that is
 already visible there. A name bound before a block cannot be bound again
 inside it; a name bound inside a block may be bound again after that block
@@ -609,9 +609,6 @@ reachable there (there is no qualifier for prelude names; import
 `log` as a module, `log.error(…)`, to keep both). Because this changes a
 name for the whole file, it **warns on the import line**: "`error` hides the
 prelude `error`".
-Names bound by `with … as` follow the same rule as other bindings: on a lock
-guard, the bound value can be changed only when written `as mut value`
-(§11.4).
 
 A `mut` parameter is the caller's place under an exclusive borrow, so
 assigning to it replaces the caller's value in place (§5.3):

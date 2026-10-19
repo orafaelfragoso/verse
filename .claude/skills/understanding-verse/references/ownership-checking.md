@@ -19,7 +19,7 @@ borrow or view, finds every drop point, and explains every ownership error.
 6. Spec [§9.5 Transforming collections](../../../../docs/language/09-collections.md#95-transforming-collections):
    chains pass views, the end decides.
 7. Spec [§11.1 Ownership across tasks](../../../../docs/language/11-concurrency.md#ownership-across-tasks)
-   and [§13.1 `with` blocks](../../../../docs/language/13-resources.md#131-with-blocks).
+   and [§13.1 Release at last use](../../../../docs/language/13-resources.md#131-release-at-last-use).
 8. Spec [§18.10 Why no garbage collector](../../../../docs/language/18-design-notes.md#1810-why-no-garbage-collector):
    the trade-offs and the error-message requirement.
 9. The V05xx and V07xx tables of the
@@ -29,7 +29,7 @@ borrow or view, finds every drop point, and explains every ownership error.
 
 | Input invariant | Output invariant | Errors it owns |
 |-----------------|------------------|----------------|
-| THIR | every use is classified as move, copy, borrow, mut borrow, or view; every drop point is known | use after move, borrow rules, `Copy` bound errors, resource and task rules (`with`, views sent to tasks) |
+| THIR | every use is classified as move, copy, borrow, mut borrow, or view; every drop point is known | use after move, borrow rules, `Copy` bound errors, task rules (views and `mut` borrows sent to tasks, one owner per `Receiver`) |
 
 Source: [02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts).
 

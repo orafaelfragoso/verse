@@ -122,7 +122,7 @@ target in a known backend family is only data
 - **No backend holds ownership logic or picks an overflow or panic policy**
   ([13 §13.1](../../../../docs/architecture/mir-specification.md#131-purpose-and-relation-to-03)).
 - **Same observables on every tier**: output bytes, exit status, panic record,
-  `Cleanup` and drop order, task events for a seed, capability calls, `Float`
+  drop order, task events for a seed, capability calls, `Float`
   bits, collection order, the call at which the call limit fires, and the
   folded stack lines of every build. Timing, addresses, memory use, and
   whether a compiled task stops at the call limit or at a full stack (and with
@@ -136,7 +136,7 @@ target in a known backend family is only data
   ([14 §14.2](../../../../docs/architecture/bytecode-and-vm.md#142-design-rules)).
 - **MIR order decides which panic comes first**
   ([14 §14.5](../../../../docs/architecture/bytecode-and-vm.md#145-checked-arithmetic-bounds-and-division)).
-- **Instrumentation changes nothing observable**: values, `Cleanup` order and
+- **Instrumentation changes nothing observable**: values, drop order and
   scheduler choices stay the same with hooks on or off
   ([14 §14.11](../../../../docs/architecture/bytecode-and-vm.md#1411-debug-hooks)).
 - **Every reachable instance is verified before the first instruction.**

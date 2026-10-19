@@ -72,16 +72,18 @@ runs identical semantics with no ownership logic of its own
 deletes checks in one place for all targets
 ([03 Why this shape](../../../../docs/architecture/ir-and-passes.md#why-this-shape)).
 
-**Unwind edges as data.** `call`, `spawn`, `yield`, `panic` and terminator
-`drop` name `unwind bbN`, `unwind continue` or `unwind none`. Why: each
+**Unwind edges as data.** `call`, `spawn`, `yield` and `panic`
+name `unwind bbN`, `unwind continue` or `unwind none`. Why: each
 backend picks its own mechanism (native tables, Wasm exception handling,
 status codes) from the same edges
 ([13 §13.4](../../../../docs/architecture/mir-specification.md#134-statements-and-terminators)).
 
-**Two drop forms.** The `drop` statement is for a type whose `cleanup` fact is
-false; it cannot unwind or yield. The terminator `drop` is for a type with
-`Cleanup`, or an unknown type in generic MIR; it may block or panic
-([13 §13.4](../../../../docs/architecture/mir-specification.md#drop-order)).
+**One drop form.** `drop` is a statement placed right after the owner's last
+use. Drop glue runs no user code, so a drop cannot unwind or yield; the
+`cleanup` fact only says that the glue releases a runtime-owned handle, and
+`drop-opt` never moves such a drop
+([13 §13.4](../../../../docs/architecture/mir-specification.md#drop-order),
+[ADR-0013](../../../../docs/decisions/0013-drop-glue-runs-no-user-code.md)).
 
 **Tasks.** `spawn` and `yield` are terminators with operands, a destination, a
 continuation and an unwind edge. Cancellation arrives at a `yield` and takes

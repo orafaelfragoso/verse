@@ -31,7 +31,7 @@ Nothing here is implemented and no number is measured.
 - Goals: **G1** one layout function, computed once on mono MIR, so that no
   backend invents a layout; **G2** one calling convention per target family
   that a stock debugger, profiler and unwinder understand; **G3** the same
-  observable behaviour of panics, `Cleanup`, cancellation and exit statuses on
+  observable behaviour of panics, drops, cancellation and exit statuses on
   every tier; **G4** a new target of a known family is data only (R2).
 - Non-goals: a stable ABI for third parties, the plugin rules themselves
   ([07](plugins.md)), the instruction-level encoding of the VM
@@ -248,41 +248,40 @@ ptr)` with a non-null niche, so that `Nothing | Error` is 16 bytes with no tag
   first parameter is the receiver. `drop_glue` is null for a type with no glue.
   The only callee form on a vtable is `dyn #slot` (13.3).
 
-### 15.3.6 `Cleanup` values and drop glue
+### 15.3.6 Drop glue and runtime-owned handles
 
-A type with the `Cleanup` trait has **the same layout as it would without
-it**: the trait adds no field. What it adds is the `cleanup` fact in its
-`layout` line and a **drop glue function** with these rules:
+Every type that needs dropping has a **drop glue function**, and glue runs no
+user code (spec §13.4, [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)):
 
 - **Symbol and signature.** `drop<T>(p: ptr)`: one pointer to the value, no
-  result, `nounwind` as seen by callers (MIR calls it with `unwind none` from
-  `cleanup` blocks, V15). It runs `cleanup(mut self)` if the type has it, then
-  drops the parts (fields and tuple elements in declaration
-  order, list elements by index, map and set entries in insertion order; locals
-  drop in reverse because a later local may borrow an earlier one, which the
-  fields of one value cannot do), then frees the storage if the value owns heap
-  memory.
-- **`cleanup` is a catch point.** The glue calls the user's `cleanup` inside
-  a runtime catch (15.7.5). A panic that escapes `cleanup` is recorded and does
-  not leave the glue. This is what keeps cleanup blocks `nounwind` for the
-  verifier (V15).
-- **Blocking.** `cleanup` may block, and cancellation is
-  **masked** while it runs; a cancel request that arrives then takes effect at
-  the first blocking point after the cleanup finishes. The TCB carries a mask
-  depth counter (`cancel_mask`), `drop` of a `Cleanup` type is a MIR terminator
-  with edges ([13.4](mir-specification.md#134-statements-and-terminators)),
-  and the glue of such a type is a *may-yield* function, which on
-  state-machine targets uses the resumable convention ([15.6.2](#1562-resumable-functions-state-machine-and-cooperative-targets)).
-  A task blocked inside a cleanup counts as blocked for deadlock detection
-  (15.8.1); only `exit(code)` ignores it.
+  result, `nounwind`, and never *may-yield*. The MIR `drop` statement calls it,
+  in normal and `cleanup` blocks alike (V15). It releases the type's own
+  runtime-owned handle if it has one, then drops the parts (fields and tuple
+  elements in declaration order, list elements by index, map and set entries
+  in insertion order; locals drop in reverse because a later local may borrow
+  an earlier one, which the fields of one value cannot do), then frees the
+  storage if the value owns heap memory.
+- **The `cleanup` fact.** A type whose glue releases a runtime-owned handle,
+  or that has a part whose glue does, has the `cleanup` fact in its `layout`
+  line. The fact adds no field: the layout is the same as without it.
+- **Releases.** The release is a runtime function per handle kind: close a
+  platform handle (a `File` first writes its buffer and ignores an error
+  there), release a lock and count a `Guarded` down, close a channel end,
+  count a `Shared` down (15.3.7), or cancel an unwaited `Task` part and hand
+  its join to the scheduler (15.7.3). A release never fails, never panics and
+  never parks the task. The final write of a `File` is a synchronous system
+  call: while the platform blocks it (a full pipe), it holds the worker thread
+  and no task switch happens, so a program that writes to a pipe another of
+  its own tasks reads calls `finish()` before the last use.
 - **Platform handles.** `File`, `Socket`, `Process`, and so on are
   records in the standard library whose first field is a handle `Int`: a file descriptor on
   Unix, a `HANDLE` widened to 64 bits on Windows, a WASI `fd` widened, an index
   into the glue's handle table on `std-web`, a peripheral id on `std-embedded`.
   A handle has no meaning in a different process or after a replay without
   the recorded capability results ([14.10](bytecode-and-vm.md#1410-record-and-replay)).
-- **Partial moves.** A field of a `Cleanup` type is never moved out (V4), so a
-  glue never sees a partly initialised value.
+  Releasing one makes capability calls (`fs.write` for a `File`'s buffer,
+  then `fs.close` or `net.close`), recorded and replayed like those of
+  `CALLS` (14 §14.10).
 
 ### 15.3.7 Handles: tasks, channels, `Shared`, `Guarded`
 
@@ -293,12 +292,13 @@ operations.
 
 | Type | Word points to | Drop | Notes |
 |------|----------------|------|-------|
-| `Task<T>` | task cell: state, result slot for `T \| TaskPanicked \| Cancelled`, join list, panic record pointer | never dropped directly: consumed by `yield wait` or `task.abandon` (V17). Inside another value, that value's glue cancels it and then joins it, so the glue may yield | not `Copy`. In tier 0 the slot holds an opaque 64-bit value, not necessarily a pointer, and the debugger shows `t<N>` |
+| `Task<T>` | task cell: state, result slot for `T \| TaskPanicked \| Cancelled`, join list, panic record pointer | never dropped directly: consumed by `yield wait` or `task.abandon` (V17). Inside another value, that value's glue cancels it and hands its join to the scheduler (15.7.3); the glue does not yield | not `Copy`. In tier 0 the slot holds an opaque 64-bit value, not necessarily a pointer, and the debugger shows `t<N>` |
 | `Sender<T>` | channel core: sender count, receiver flag, bounded buffer, wait queues | decrements the sender count; closes the channel at zero | `Channel.new<T>()` returns a pair `(Sender<T>, Receiver<T>)` of size 2W |
 | `Receiver<T>` | the same channel core | closes the receiving side | not `Copy` |
 | `Shared<T>` | allocation `{ strong: usize, weak: usize, value: T }` | strong count down; at zero run `T`'s glue, then weak count down and free | counts are **atomic** when the program can spawn tasks and plain otherwise (`refcount-opt`, 05 §5.2): two code shapes, **one layout** |
 | `Weak<T>` | the same allocation | weak count down | |
-| `Guarded<T>` | allocation `{ strong: usize, lock: usize, waiters: ptr, value: T }` | as `Shared` | the lock word and queue are used by `yield lock`; a guard value of `with g.lock() as mut value` is a `&mut T` (MIR only) plus a release on drop |
+| `Guarded<T>` | allocation `{ strong: usize, lock: usize, waiters: ptr, value: T }` | as `Shared` | the lock word and queue are used by `yield lock` |
+| `Guard<T>` | the same allocation, locked | releases the lock and wakes the next waiter, then counts down as `Shared` | made by `yield lock` (spec §11.4); holds one strong count; not `Copy` |
 
 Reference counts are `usize`; an overflow aborts the program (a reference
 cycle of 2^32 handles on a 32-bit target is a bug, not a panic). The cell of a
@@ -675,10 +675,9 @@ the strategies need from the ABI. The scheduler policy is 14 §14.7.
 - The unwinder must stop at the trampoline: the trampoline frame is the last
   frame of the stack and its call-frame information marks the return address
   undefined.
-- The TCB holds the stack bounds (`stack_lo`, `stack_limit`), the call count
-  and its limit (15.6.4), the unwind state
-  ([15.7.1](#1571-the-panic-record-and-the-unwind-state)), `cancel_requested`,
-  and `cancel_mask`.
+- The TCB holds the stack bounds (`stack_lo`, `stack_limit`), the calls left
+  of the call limit (15.6.4), the unwind state
+  ([15.7.1](#1571-the-panic-record-and-the-unwind-state)) and `cancel_requested`.
 
 ### 15.6.2 Resumable functions: state-machine and cooperative targets
 
@@ -794,11 +793,11 @@ reservation is a backstop behind it, and on some targets it fills first
 
 ## 15.7 Unwinding and abort ABI
 
-Spec §8.5 and §11.5: a panic or a cancellation stops the task and runs
-`Cleanup` for the owners in scope, in reverse declaration order. MIR already
-holds every edge (13.4, V14, V15); this section fixes how a target realizes
-them. Panics clean up on every target; `abort` is allowed only when no
-`Cleanup` value is live at a panic site.
+Spec §8.5 and §11.5: a panic or a cancellation stops the task and drops the
+owners in scope, in reverse declaration order. MIR already holds every edge
+(13.4, V14, V15); this section fixes how a target realizes them. Panics clean
+up on every target; `abort` is allowed only when no platform handle is live
+at a panic site.
 
 ### 15.7.1 The panic record and the unwind state
 
@@ -888,73 +887,58 @@ Details that each backend must follow:
 - **Status code** (`thumb`, RV32, Wasm without EH). The state is **one word in the
   TCB**. On single-threaded targets that word is a global (a Wasm global, a
   fixed RAM address), and the scheduler **swaps it with the saved copy of each
-  task at every task switch**, so a task that yields inside a cleanup block
-  keeps its own state. A call that can unwind is followed by the test;
+  task at every task switch**, so each task keeps its own state. A call that can unwind is followed by the test;
   nothing else changes in the callee's signature. It is chosen over a
   second result register because it needs no change to the platform
   convention on any of these targets; M7 measures it against a second result
   register on Cortex-M.
 - **Wasm EH** is a per-target-file opt-in in 0.1: shipped Wasm target files
   default to `status-code`, because it works on every engine and the visible
-  order of `Cleanup` is the same (05 §5.4). The `-eh` variants set `wasm-eh`.
+  order of drops is the same (05 §5.4). The `-eh` variants set `wasm-eh`.
   The default switches to `wasm-eh` at M3 only if both hold: every engine on
   the supported list (the browsers and WASI runtimes of the Wasm differential
   tests) runs Wasm exception handling, and `wasm-eh` binaries are smaller or
   faster than `status-code` ones ([11](../roadmap.md), M3).
 - **Cleanup blocks are ordinary code** on every mechanism: only `drop`,
-  `set_flag`, `storage_dead`, intrinsics, `task.abandon` and calls to
-  `nounwind` functions (V15), so the same block serves the normal and the
-  unwinding path of a status-code target.
+  `set_flag`, `storage_dead` and intrinsics such as `task.abandon` (V15), so
+  the same block serves the normal and the unwinding path of a status-code
+  target.
 
 ### 15.7.3 `task.abandon` and unwaited tasks
 
 `intrinsic task.abandon(move t)` ([13.4](mir-specification.md#134-statements-and-terminators))
 requests cancellation of the child `t` and **hands its join to the
-runtime**: the runtime finishes the child (it unwinds with its own `Cleanup`)
-before the parent's own unwinding completes. Only a child cancelled by an unwinding parent prints
+runtime**: the runtime finishes the child (it unwinds and drops what it owns)
+before the task that abandoned it ends. The glue of a value that holds an
+unwaited `Task` does the same on every path (15.3.6). Only a child cancelled by an unwinding parent prints
 nothing for that cancellation (spec §11.3); an explicit `cancel()` keeps the
 §11.3 behaviour (an unwaited task that failed, including by cancellation, is
 reported and makes the exit non-zero). A child that fails with its own panic or
 error while unwinding is still reported on standard error and counts for the
 exit status.
 
-### 15.7.4 A panic inside `Cleanup`
+### 15.7.4 Drops while unwinding
 
-This section is the target mechanism. The rule is **task-level**: a panic
-inside a `Cleanup` never takes the process down by itself.
+Drop glue runs no user code (15.3.6), and a cleanup block holds only drops,
+flag writes and intrinsics (V15). So a cleanup block cannot panic and cannot
+park, which fixes three things on every mechanism:
 
-1. The user's `cleanup(mut self)` runs inside the drop glue's catch point
-   (15.7.5). If it panics, the panic unwinds `cleanup`'s own frames, running
-   *their* cleanups, and stops at the glue.
-2. The runtime **records the second panic**, prints it at once like any panic,
-   and appends it to the `secondary` chain of the task's primary record. If
-   the task was not unwinding, the second panic is the primary one.
-3. The glue **returns normally to its cleanup block**: the remaining fields of
-   the value and every later `drop` in the chain still run (no resource is
-   leaked because one `cleanup` failed). The unwind state of the task is
-   unchanged.
-4. When the unwinding finishes at the task boundary, the task ends **panicked
-   with the primary record**; `TaskPanicked.trace()` shows the chain. At the
-   main task this is exit status 101 (15.8).
-5. A panic in a `Cleanup` that runs **during cancellation** is handled the same
-   way: the task ends as panicked, not cancelled, with that panic primary.
-6. A panic in a `Cleanup` on the **normal path** (no unwind in progress): the
-   glue stores the record as the task's panic and returns; the caller then
-   starts unwinding. In MIR this needs the `drop` of a `Cleanup` type to have
-   an unwind edge after the call, so the
-   `drop` of a `Cleanup` type is a terminator whose `unwind` edge starts the
-   unwinding at once ([13.4](mir-specification.md#134-statements-and-terminators)).
-
-The MIR verifier is unchanged: the cleanup blocks stay `nounwind` (V15).
+1. **One panic per task.** Nothing that runs while a task unwinds can start a
+   second panic, so the task ends with the panic that started the unwinding.
+2. **No switch point.** A cancel request that arrives while a task unwinds
+   sets `cancel_requested` and changes nothing: a task unwinding from a panic
+   still ends panicked, and one unwinding from a cancellation ends cancelled.
+3. **No parked drop.** A task never parks in the middle of a drop, so the
+   deadlock report (15.8.1) lists only tasks parked at a `yield`. A `File`'s
+   final write is a system call, not a park (15.3.6).
 
 ### 15.7.5 Catch points
 
-The runtime owns every catch. There are exactly three:
+The runtime owns every catch. There are exactly two:
 
 | Catch point | Where | What it does |
 |-------------|-------|--------------|
 | **Task boundary** | the task entry trampoline (stackful), the scheduler's call of the root `poll` (state-machine, cooperative), the `Pick` of tier 0 | turns the state into the task's outcome: `ok`, `panicked(record)` or `cancelled`; wakes joiners; the `TaskPanicked` and `Cancelled` errors are values only from here on (14.8) |
-| **`cleanup` call** | the drop glue (15.3.6) | the rule of 15.7.4 |
 | **Program entry** | the runtime start function, around the main task | maps the main task's outcome to the exit status ([15.8](#158-exit-codes)) |
 
 Nothing else catches. In particular a **foreign frame is never unwound
@@ -966,8 +950,9 @@ function that unwinds is undefined behaviour ([07 §7.5](plugins.md#75-ownership
 
 - **`abort`** (profile `unwind = "abort"` or a target file with `unwind =
   "abort"`): `rt_panic` prints the report, flushes standard error and ends the
-  process with status 101. It is allowed only when no `Cleanup` value is live
-  at any panic site (V0908 otherwise). Under `abort` a panic in a non-main
+  process with status 101. It is allowed only when no platform handle (15.3.6),
+  whose release reaches outside the process, is live at any panic site (V0908
+  otherwise). Under `abort` a panic in a non-main
   task cannot become `TaskPanicked` at `.wait()`, so an `abort` build **also
   fails with V0910 when a `spawn` is reachable**.
 - **`unreachable`** (13.4) and an internal runtime error are **traps**: native
@@ -995,29 +980,27 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 | `1` | a top-level `?` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 |
 | `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or when running a file, and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement: the program did not start | [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses), [14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) |
 | `3` | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused (`unreachable`, an internal runtime error, a VM `TRAP`) (15.7.6). A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule | 16 §16.6.1, 14.4, 14.6 |
-| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the second form of R0004 (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 |
+| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); also the `abort` profile (15.7.6) and a guard-page fault, which prints the second form of R0004 (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 |
 | `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](debugging.md#87-vocabulary-and-wording), stop reason `deadlocked`) | 14.7, 14.12 and 16 §16.6.1 |
 | `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) |
 | host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 |
 
 **`exit(code)`** (spec §12.5 and §15.1). It ends the
-program **immediately**, from any task: it runs **no `Cleanup`**, does not
-cancel the other tasks, never raises R0009, flushes standard output and
+program **immediately**, from any task: it **drops nothing**, does not
+cancel the other tasks, flushes standard output and
 standard error, writes the `debug` end event, and delivers `code`. A code
 outside 0 to 255 is not an exit: it is a panic, **R0013**, on every platform
-(status 101, with `Cleanup` as for any panic), so the same call means the same
-on every target. A program that needs its cleanups returns from `main` or ends
-with a failed `?`. There is no second, cleanup-aware exit: those two paths
-already run every `Cleanup` and wait for the other tasks (spec §11.3).
+(status 101, unwinding as for any panic), so the same call means the same
+on every target. A program whose files must be written out returns from `main` or
+ends with a failed `?`. There is no second exit that drops: those two paths
+already drop every value and wait for the other tasks (spec §11.3).
 
 **Deadlock detection** is the same predicate on every tier and is computed by
 the scheduler of the platform layer: *no runnable task, no pending I/O
 completion, no timer, no interrupt source armed for a waiting task*.
 A program that waits on stdin, a socket, a timer or a pin is **not**
-deadlocked. A task blocked inside a `Cleanup` counts as blocked; its
-line in the R0008 report reads "waiting inside the cleanup of {type}" (fact
-`cleanup_of`), and the debugger stop is `deadlocked` with the same fact. Only
-`exit(code)` ignores a blocked cleanup. On `std-web` the host event loop may still wake the program, so
+deadlocked. A drop never blocks (15.7.4), so every blocked task is
+parked at a `yield`. On `std-web` the host event loop may still wake the program, so
 "no pending completion" includes outstanding host callbacks registered through
 the glue; with none outstanding the report is printed to the console and the
 exit status `70` is delivered to the glue.
@@ -1548,9 +1531,10 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
    exclusive) and result class, with 0 to 12 parameters, and checks the values
    in each backend and in the VM. It also checks that a Memory result is left
    uninitialised and undropped when the callee unwinds (V14).
-4. **Unwinding matrix.** The same panic, cancellation and panic-in-`Cleanup` programs run with
-   each `unwind` value a target supports; the suite compares the order of
-   `Cleanup`, the panic record and the exit status (14.12).
+4. **Unwinding matrix.** The same panic and cancellation programs, with files,
+   locks and channel ends live, run with each `unwind` value a target
+   supports; the suite compares the order of drops, the panic record and the
+   exit status (14.12).
 5. **Exit statuses.** A table-driven test per platform layer for each row of
    15.8.1, including the deadlock program, run under the harness of each
    layer (a process, a WASI host, a JavaScript host, an emulator with

@@ -197,8 +197,8 @@ older = ana.copy(age: 31)         # ana is unchanged
 
 `.copy()` is the one way to duplicate a value, with or without changes. It is
 provided by the built-in trait `Copyable` (§10.4), which almost every type has
-automatically; the exceptions are `Task<T>`, types that implement `Cleanup`
-(files, locks, temporary directories), and anything that contains them.
+automatically; the exceptions are `Task<T>`, lock guards and platform handles
+such as files (§13.4), and anything that contains them.
 
 ### 4.4 Variant types
 
@@ -334,8 +334,8 @@ type UserId
 ### 4.9 Ownership, moves and copies
 
 Every value has **exactly one owner**: a binding, a field of a record, an
-element of a collection, or a task. When the owner's scope ends, the value is
-freed — immediately and deterministically.
+element of a collection, or a task. Right after the owner's last use, the
+value is dropped, immediately and deterministically (§4.10).
 
 **Copy types.** Scalars (`Int`, `Float`, `Bool`, `Char`, `Nothing`) and
 records, variants and tuples made *only* of copy types (a `Point(x: Float, y:
@@ -500,8 +500,8 @@ counts[word] = counts.get(word, default: 0) + 1   # borrows `word`, then moves i
 
 Verse has **no garbage collector** and no manual memory management:
 
-1. **Single ownership.** Every value has one owner and is freed at the end of
-   its owner's scope (or when a `mut` owner is reassigned). There is no
+1. **Single ownership.** Every value has one owner and is freed right after
+   its owner's last use (or when a `mut` owner is reassigned). There is no
    collector running in the background and no pause.
 2. **No references in the surface language.** There are no pointer types, no
    reference types, and no lifetime syntax. Functions *borrow* their
@@ -512,11 +512,13 @@ Verse has **no garbage collector** and no manual memory management:
 3. **Recursive types are boxed for you.** Variant types such as `Json` or
    `Tree<T>` are stored with the indirection they need; the boxes are owned
    like any other value and freed with their owner.
-4. **Cleanup is deterministic.** A type that implements `Cleanup` has its
-   `cleanup(mut self)` run automatically when its owner's scope ends — also
-   during a panic (§13). Locals are freed in reverse order of declaration,
-   because a later local may borrow an earlier one. The parts of one value
-   cannot borrow each other, so they are freed in the order they were written:
+4. **Release is deterministic.** Dropping a value frees its memory and
+   releases the runtime-owned handles in it, such as an open file or a lock,
+   on every path, a panic included (§13). A drop runs no code of the program.
+   Locals whose last use is the same point are freed in reverse order of
+   declaration, because a later local may borrow an earlier one. The parts of
+   one value cannot borrow each other, so they are freed in the order they were
+   written:
    fields and tuple elements in declaration order, list elements by index, and
    `Map` and `Set` entries in insertion order.
 5. **Sharing is opt-in.** The only ways for two owners to share one value are

@@ -74,18 +74,17 @@ Calls through a trait type are dispatched at run time.
 | `Hash` | use as map key / set element | yes, when all parts are `Hash` |
 | `Iterable<T>` | `for … in`, and all the methods of §9.5 | lists, maps, sets, ranges, text, channel receivers |
 | `Default` | `Type.default()` | when all fields have defaults |
-| `Cleanup` | `cleanup(mut self)`, run automatically at the end of the owner's scope and by `with` (§13) | no |
 | `Copy` | implicit copying on assignment and passing (§4.9); every `Copy` type is also `Copyable` | yes, for scalars and for records, variants and tuples made only of `Copy` parts; cannot be implemented by hand |
-| `Copyable` | the `.copy()` method, with no arguments (a duplicate) or with field arguments on records (a duplicate with changes, §4.3) | yes, structurally, for every type whose parts are all `Copyable`; **absent** for `Task<T>`, for types that implement `Cleanup`, and for anything that contains them by value (a record field, variant, tuple or collection element); cannot be implemented by hand in 0.1. The handles `Shared<T>`, `Guarded<T>`, `Sender<T>`, `Weak<Shared<T>>` and `Weak<Guarded<T>>` are always `Copyable`, whatever `T` is — including resources, as in `Guarded<File>` — because their `.copy()` copies the handle (a new reference to the same shared value) and never duplicates the value inside (§11.4); `Receiver<T>` is not `Copyable` in 0.1 (single consumer) |
+| `Copyable` | the `.copy()` method, with no arguments (a duplicate) or with field arguments on records (a duplicate with changes, §4.3) | yes, structurally, for every type whose parts are all `Copyable`; **absent** for `Task<T>`, for lock guards and platform handles such as `File` (§13.4), and for anything that contains them by value (a record field, variant, tuple or collection element); cannot be implemented by hand in 0.1. The handles `Shared<T>`, `Guarded<T>`, `Sender<T>`, `Weak<Shared<T>>` and `Weak<Guarded<T>>` are always `Copyable`, whatever `T` is — including resources, as in `Guarded<File>` — because their `.copy()` copies the handle (a new reference to the same shared value) and never duplicates the value inside (§11.4); `Receiver<T>` is not `Copyable` in 0.1 (single consumer) |
 | `Index<K, V>` | `x[k]` reads (§9.3) | lists, maps, text and slices; cannot be implemented by hand in 0.1 |
 | `Error` | `message(self)`, `cause(self)` | no |
 | `Add`, `Sub`, `Mul`, `Div`, `Rem` | `+`, `-`, `*`, `/`, `%` | `Int`, `Float`, `math` types; `Add` also for `Text` and `List` (concatenation) |
 | `Neg` | unary `-` | `Int`, `Float`, `math` types |
 
 **`Copyable` is deliberately closed in 0.1.** It cannot be implemented by
-hand, and a type that implements `Cleanup` is deliberately **not**
-`Copyable`: duplicating a file handle, a lock guard or a temporary directory
-would run its cleanup twice or leave two owners of one external resource. A
+hand, and platform handles and lock guards are deliberately **not**
+`Copyable`: duplicating a file handle or a lock guard would leave two owners
+of one external resource, and each drop would release it (§13.4). A
 type that does need duplication offers an explicit method with its own name
 and its own meaning, such as `duplicate()` (for example, reopening the same
 file), so the call site says what really happens.
