@@ -1,0 +1,29 @@
+name: pr
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  # The title becomes the squash commit's subject, so it must follow the
+  # commit format in CONTRIBUTING.md.
+  pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title against the commit format
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          types='feat|fix|perf|refactor|test|docs|spec|build|ci|chore'
+          scopes='spec|compiler|vm|runtime|std|cli|tooling|packages|plugins|targets'
+          pattern="^($types)(\(($scopes)\))?!?: [^ ].*[^. ]$"
+          if [[ ! $TITLE =~ $pattern ]]; then
+            echo "::error::'$TITLE' does not match <type>(<scope>): <summary>. See CONTRIBUTING.md."
+            exit 1
+          fi
+          if (( ${#TITLE} > 72 )); then
+            echo "::error::The title is ${#TITLE} characters; the limit is 72."
+            exit 1
+          fi

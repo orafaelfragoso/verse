@@ -1,0 +1,46 @@
+name: Bug
+description: Verse behaves differently from what the spec or the docs say.
+labels: [bug]
+body:
+  - type: textarea
+    id: program
+    attributes:
+      label: Program
+      description: The smallest `.vs` file that shows the problem.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      placeholder: verse app.vs
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What should happen. Link the spec or docs section if you know it.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: The full output and the exit status.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `verse --version`, or a commit SHA.
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target
+      placeholder: x86_64-linux, wasm32-wasi, thumbv7em-none-eabihf
