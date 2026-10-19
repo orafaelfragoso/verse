@@ -13,7 +13,7 @@ The compiler is only useful if it is right. This document defines how we know.
 | Property based | formatter idempotence, parse and print round trip, `verse fmt` never changes meaning | `proptest` | every commit |
 | Fuzzing | lexer, parser, type checker, ownership pass, VM, with grammar-aware generators | `cargo fuzz`, a Verse program generator | continuous |
 | Soundness | programs that must be **rejected** (use after move, borrow conflicts, data races) | `tests/must-fail/` with expected diagnostic codes | every commit |
-| Verifier | MIR invariants after every pass | `verse-verify` | debug builds and CI |
+| Verifier | MIR invariants after MIR build, after monomorphization and after every optimizer pass | `verse-verify` | after MIR build and monomorphization: every build of `verse` (`build`, running a file, `verse check`); after every optimizer pass: debug builds and CI |
 | Benchmarks | [09](performance.md) | `verse bench` | nightly and on request |
 
 ## 10.2 Specification conformance
@@ -26,6 +26,11 @@ The compiler is only useful if it is right. This document defines how we know.
   sections that have no test. The target is 100%.
 - A spec change that changes behavior must change a conformance test in the
   same commit. This keeps the spec and the compiler from drifting.
+- The check-then-run test runs `verse check` on each conformance program and
+  then runs it with the same inputs. It fails when the check exits 0 and the
+  run breaks the rule of
+  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses): it
+  stops with V9902, or it exits 2 for a reason the rule does not except.
 - Ambiguities discovered while writing tests are raised against the spec,
   not settled in the code as silent choices.
 

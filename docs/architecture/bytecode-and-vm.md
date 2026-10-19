@@ -161,8 +161,9 @@ Verification is eager and bytecode generation is lazy
   of [02 §2.6](compiler-architecture.md#26-monomorphization). It monomorphizes
   every reachable instance and verifies it with the mono rules of
   [13.6](mir-specification.md#136-generic-mir-and-mono-mir). It builds no
-  bytecode, runs no optimizer pass, and caches its result per module. It yields
-  the verified mono instances with their `caps` and `mayyield`, and the
+  bytecode, runs no optimizer pass, and caches each verified instance
+  ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)).
+  It yields the verified mono instances with their `caps` and `mayyield`, and the
   capability check of [14.9](#149-sys-capability-calls-and-the-capability-check)
   runs on it. A verifier failure stops the run here, before the first
   statement ([13.5](mir-specification.md#135-verifier-rules)).
@@ -296,9 +297,15 @@ native-code strategies. Observable behaviour is the same as the others.)
   message names the first call chain, in the shape of 04 §4.3: "this program
   calls `http.get`, which this run does not allow" (V09xx). Exit status 2:
   an error before the program starts ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
+  `verse check` runs the same check, with the `[run] deny` list of
+  `verse.toml`; what a passing check promises about a run is the rule of
+  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses).
 - **Debug assertion.** In debug builds of `verse` itself, `CALLS` asserts the
-  capability bit of the proto. The assertion checks the VM's own code. Release
-  builds do not contain it, and it is never an exit status of a program.
+  capability bit of the proto. The assertion checks the VM's own code, not the
+  program. A failed assertion is a trap inside the runtime that Verse itself
+  caused, so it stops the run with status 3, a bug in Verse
+  ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
+  Release builds do not contain it, and it adds no exit status of its own.
 - **Debugger.** `evaluate` runs only expressions the compiler proves pure: no
   `CALLS`, no `SPAWN` ([08 §8.9](debugging.md#89-safety)).
 
@@ -414,7 +421,7 @@ capability fakes:
 | Observable | Detail |
 |------------|--------|
 | standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too: they come from the user-level call list below |
-| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug, V9901 or V9902, also before it starts); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
+| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
 | panic record | `kind`, facts, span, task, and the **user-level** call list (inlined calls reconstructed from spans, 13.7); which panic comes first; the secondary panics of a failed `Cleanup` (R0009) |
 | order of `Cleanup` and drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |

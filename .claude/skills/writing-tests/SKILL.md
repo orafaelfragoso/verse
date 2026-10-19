@@ -31,7 +31,7 @@ the `editing-docs` skill).
 | Property | formatter idempotence, parse and print round trip, `verse fmt` never changes meaning | `proptest` | every commit |
 | Fuzzing | lexer, parser, type checker, ownership pass, VM | `cargo fuzz` and a Verse program generator; corpora in `tests/` | continuous |
 | Soundness | programs that must be rejected | `tests/must-fail/` with expected diagnostic codes | every commit |
-| Verifier | MIR invariants after every pass | `verse-verify` | debug builds and CI |
+| Verifier | MIR invariants after MIR build, after monomorphization and after every optimizer pass | `verse-verify` | after MIR build and monomorphization: every build of `verse` (`build`, running a file, `verse check`); after every optimizer pass: debug builds and CI |
 | Benchmarks | the budgets of [09](../../../docs/architecture/performance.md#92-benchmark-suite) | `verse bench`, programs in `bench/` | nightly and on request |
 
 The crate list and the `tests/` and `bench/` folders are in
@@ -68,6 +68,12 @@ ties each test to a normative spec sentence.
   number, and the test file name contains it. The exact numbering scheme
   and file name format are not decided yet.
 - A coverage report lists spec sections with no test. The target is 100%.
+- The check-then-run test runs `verse check` on each conformance program and
+  then runs it. It fails when the check exits 0 and the run stops with V9902
+  or exits 2 for a reason the rule of
+  [16 §16.6.1](../../../docs/reference/diagnostics-catalog.md#1661-exit-statuses)
+  does not except. A change to `verse check`, the pre-pass or the capability
+  check must keep it passing.
 - Every ```verse block in the spec is extracted by `tools/extract-examples`
   and either runs as a passing test or is tagged with the reason it is a
   fragment. `...` in an example is not Verse syntax

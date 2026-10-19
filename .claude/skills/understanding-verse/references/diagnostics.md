@@ -109,12 +109,15 @@ row is a compiler bug reported as V9902
 ([16 §16.6](../../../../docs/reference/diagnostics-catalog.md#166-run-time-panics)).
 
 **Exit statuses.** 0 normal; 1 a top-level `?` or an unwaited task failed;
-2 source errors or a capability check failed before start; 3 a bug in
-Verse; 70 a deadlock (R0008); 101 a panic
+2 source errors, a capability check failed before start, or a plugin
+library that is missing, fails to build, lacks a symbol or is static only
+(V1007 to V1009, V1011), found before the first statement; 3 a bug in Verse; 70 a deadlock (R0008); 101 a panic
 ([16 §16.6.1](../../../../docs/reference/diagnostics-catalog.md#1661-exit-statuses)).
-After `verse check` exits 0 on a file, running it never exits 2 and never
-stops with V9902, except for the run-only inputs 16.6.1 names: a `--deny` and
-a plugin library.
+After `verse check` exits 0 on a file, running that file with the same
+sources, `verse.toml`, `verse.lock`, compiler and target never stops with
+V9902, and never exits 2 except for a capability refused by a `--deny` flag
+of that run, or a plugin library that is missing, fails to build, lacks a
+symbol or is static only (V1007 to V1009, V1011).
 
 ## Rules that must hold
 

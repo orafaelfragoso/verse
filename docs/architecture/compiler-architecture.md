@@ -30,8 +30,11 @@ in the front end ever sees a target triple.
 ## 2.2 Stage contracts
 
 Each stage has an input invariant it may rely on and an output invariant it
-must establish. A violated invariant is a compiler bug and is caught by a
-verifier pass that runs in debug builds and in CI (`verse-verify`).
+must establish. A violated invariant is a compiler bug and is caught by the
+MIR verifier (`verse-verify`). After MIR build and after monomorphization it
+runs in every build of `verse`: in `build`, when running a file and in
+`verse check`. After every optimizer pass it runs only in debug builds of
+`verse` and in CI ([13 §13.5](mir-specification.md#135-verifier-rules)).
 
 | Stage | Input invariant | Output invariant | Errors it owns |
 |-------|-----------------|------------------|----------------|
@@ -154,14 +157,15 @@ Spec §4.2 requires "specialized code for each concrete type used".
   pre-pass** from the entry statements. It monomorphizes every reachable
   instance (resolving trait calls and vtable slots) and verifies each one with
   the mono rules of [13 §13.6](mir-specification.md#136-generic-mir-and-mono-mir).
-  It builds no bytecode, runs no optimizer pass, and caches its result per
-  module (2.7). A verifier failure (V9902) stops the run there, before the
+  It builds no bytecode, runs no optimizer pass, and caches each verified
+  instance (2.7). A verifier failure (V9902) stops the run there, before the
   first statement. The **capability check** runs right after it, exactly as it
   runs after full reachability in a compiled build, so a missing or denied
   capability fails with the same V09xx diagnostic in every tier before the
   first instruction. `verse check` runs the same pre-pass and the same check,
-  so a file it passes does not stop for either reason when it runs
-  ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)). Only
+  with the `[run] deny` list of `verse.toml`. What a passing check promises
+  about a run is the rule of
+  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses). Only
   the pre-pass scales with what is reachable; protos are still built lazily
   ([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
 
@@ -171,11 +175,17 @@ Spec §4.2 requires "specialized code for each concrete type used".
   query keyed by content hash (the Salsa model used by rust-analyzer). Edits
   invalidate only dependent queries.
 - **Unit of parallelism** is the function body for inference, ownership and MIR
-  build; the module for parsing and resolution; the instance for optimization
-  and code generation.
-- **Persistent cache.** `.verse/cache/` stores parsed modules, signatures, the
-  verified instances of the script-mode pre-pass (2.6) and object code keyed by `blake3(source, compiler version, flags, verse.api of
-  imports)`. `verse x.vs` on an unchanged script skips straight to execution.
+  build; the module for parsing and resolution; the instance for
+  monomorphization, verification, optimization and code generation.
+- **Persistent cache.** `.verse/cache/` stores parsed modules, signatures and
+  object code keyed by `blake3(source, compiler version, flags, verse.api of
+  imports)`. It stores each verified instance of the script-mode pre-pass
+  (2.6) under its own key, `blake3(compiler version, flags, target, generic
+  MIR of its DefId, its type arguments with their layouts)`. An instance of an
+  imported generic takes its body from the dependency, whose `verse.api` stays
+  the same when only that body changes, so the module key would return a
+  stale instance. `verse x.vs` on an unchanged script skips straight to
+  execution.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.

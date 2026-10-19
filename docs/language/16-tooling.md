@@ -10,7 +10,7 @@ manager.
 | `verse .` | run the package in the current folder from its entry file |
 | `verse test [path]` | run `test` blocks and doc tests; `--filter "name"`, `--watch` |
 | `verse fmt [path]` | format code in the one canonical style; `--check` for CI |
-| `verse check` | type-check without running; fast feedback for editors |
+| `verse check` | checks without running: every check a run makes before its first statement, except loading plugins ([19 §19.2.3](../reference/cli-and-manifest.md#1923-building-and-checking)) |
 | `verse build` | build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle |
 | `verse build --size-report` | build, and list every included item with its size and why it was included |
 | `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`http.get`), the chain of uses from the program's entry statements; for a file path (`generated/items/item.vs`), the `verse generate` entry that wrote it |

@@ -11,7 +11,7 @@ the harness, and each target becomes a regression gate once it has a baseline.
 
 | Dimension | Metric | Initial target | Gate |
 |-----------|--------|----------------|------|
-| Compile speed | `verse check` on 10k lines, cold | under 300 ms on 8 cores | M1 |
+| Compile speed | `verse check` on 10k lines, cold | under 300 ms on 8 cores: under 150 ms for the front end and the ownership pass, under 150 ms for the reachability pre-pass ([14 §14.13](bytecode-and-vm.md#1413-performance-targets)) | M1 |
 | Compile speed | `verse check` after a one-line edit | under 30 ms | M1 |
 | Compile speed | `verse build` (Cranelift) 10k lines | under 2 s | M2 |
 | Startup | `verse hello.vs`, warm cache | under 20 ms | M1 |

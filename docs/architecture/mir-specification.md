@@ -315,8 +315,12 @@ mode and may not change behavior.
 
 ## 13.5 Verifier rules
 
-`verse-verify` checks these after MIR build, after monomorphization, and after
-every optimizer pass in debug builds and CI. It is written independently of the
+`verse-verify` checks these at three points. After MIR build (the generic
+rules) and after monomorphization (the mono rules,
+[13.6](#136-generic-mir-and-mono-mir)) it runs in every build of `verse`: in
+`build`, when running a file and in `verse check`. After every optimizer pass
+it runs only in debug builds of `verse` and in CI; `verse check` runs no
+optimizer pass. It is written independently of the
 passes ([10 §10.6](testing-and-verification.md)). A failure is an internal
 compiler error, `V9902` ([16 §16.2](../reference/diagnostics-catalog.md#162-families)), whose label reads "rule {rule} failed in
 `{function}`" and whose primary span is the span of the offending line.

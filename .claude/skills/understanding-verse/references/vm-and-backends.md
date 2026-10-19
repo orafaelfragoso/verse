@@ -138,12 +138,13 @@ target in a known backend family is only data
   scheduler choices stay the same with hooks on or off
   ([14 §14.11](../../../../docs/architecture/bytecode-and-vm.md#1411-debug-hooks)).
 - **Every reachable instance is verified before the first instruction.** A
-  verifier failure never happens mid-run, so a file `verse check` passes never
-  stops with V9902
+  Verification after monomorphization never fails mid-run
   ([14 §14.6](../../../../docs/architecture/bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
+  What a passing `verse check` promises about a run is the rule of
+  [16 §16.6.1](../../../../docs/reference/diagnostics-catalog.md#1661-exit-statuses).
 - **Capabilities are checked before the first instruction.** The `CALLS`
-  capability assertion exists only in debug builds of `verse` and is never an
-  exit status
+  capability assertion exists only in debug builds of `verse` and adds no exit
+  status of its own; a failed assertion is a trap inside the runtime, status 3
   ([14 §14.9](../../../../docs/architecture/bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check)).
 - **A `.vsb` bundle is rejected** on a compiler version or pointer width
   mismatch ([14 §14.1](../../../../docs/architecture/bytecode-and-vm.md#141-role)).

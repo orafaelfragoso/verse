@@ -114,8 +114,8 @@ type gives one shared body.
 **Script mode.** Before the first statement, the reachability pre-pass
 monomorphizes every reachable instance and verifies it with the mono rules,
 exactly as a compiled build does. It builds no bytecode, runs no optimizer
-pass, and caches its result per module. Only bytecode generation waits for the
-first call, so a verifier failure never happens mid-run
+pass, and caches each verified instance. Only bytecode generation waits for the
+first call, so verification after monomorphization never fails mid-run
 ([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir),
 [ADR-0011](../../../../docs/decisions/0011-verify-before-first-statement.md)).
 
@@ -132,8 +132,10 @@ steps mean the same in every session
 
 ## Rules that must hold
 
-- **V1 to V24.** `verse-verify` checks them after MIR build, after
-  monomorphization, and after every optimizer pass in debug builds and CI.
+- **V1 to V24.** `verse-verify` checks them after MIR build and after
+  monomorphization in every build of `verse`: in `build`, when running a
+  file and in `verse check`. After every optimizer pass it checks them only
+  in debug builds of `verse` and in CI.
   Generic MIR is checked against V1 to V21, V23 and V24. Mono MIR is checked
   against V1 to V20 and V22 to V24
   ([13 §13.5](../../../../docs/architecture/mir-specification.md#135-verifier-rules),

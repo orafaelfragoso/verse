@@ -31,43 +31,58 @@ which leaves out V21 (generic only, checked after MIR build) and adds V22.
 1. **The pre-pass monomorphizes and verifies.** Before the first statement,
    script mode monomorphizes every reachable instance, with the five steps of
    13 §13.6, and verifies each one with the mono rules of 13 §13.6. It runs no
-   optimizer pass and builds no bytecode. Its result is cached per module
+   optimizer pass and builds no bytecode. Each verified instance is cached
+   under a key that covers its generic body, type arguments and target
    ([02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)).
 2. **Bytecode generation stays lazy.** The first call of an instance builds its
    proto from the verified mono MIR
    ([14 §14.6](../architecture/bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
-   A verifier failure therefore never happens after the first statement.
+   Verification after monomorphization therefore never fails after the first
+   statement.
 3. **`verse check` runs the same pre-pass and the same capability check.** It
    makes every check that running a file makes before the first statement,
-   except loading plugin libraries, and generates no code
+   with the `[run] deny` list of `verse.toml`, except loading plugin
+   libraries, and generates no code
    ([19 §19.2.3](../reference/cli-and-manifest.md#1923-building-and-checking)).
 4. **The promise.** After `verse check` exits 0 on a file, running that file
-   with the same sources, `verse.lock`, compiler and target never exits 2 and
-   never stops with V9902
+   with the same sources, `verse.toml`, `verse.lock`, compiler and target
+   never stops with V9902, and never exits 2 except for a capability refused
+   by a `--deny` flag of that run, or a plugin library that is missing, fails
+   to build, lacks a symbol or is static only (V1007 to V1009, V1011)
    ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
 5. **The capability check before run is the only capability check.** In debug
    builds of `verse` itself, `CALLS` asserts the capability bit of the proto.
-   The assertion checks the VM's own code and is never an exit status
+   The assertion checks the VM's own code and adds no exit status of its own:
+   a failed assertion is a trap inside the runtime, status 3
    ([14 §14.9](../architecture/bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check)).
 
 Points the proposal left open, decided here:
 
 - **What the promise excludes.** Two inputs exist only when the program runs:
-  the capabilities it is granted (`--deny`, `[run] deny`) and the plugin
-  libraries on the machine (V1007 to V1009, V1011,
+  the `--deny` flags of that run and the plugin libraries on the machine
+  (V1007 to V1009, V1011,
   [07 §7.6](../architecture/plugins.md#76-loading-in-script-mode-and-compiled-mode)).
   `verse check` cannot decide them, so either can still stop a checked
-  program before it starts, with status 2. `verse check` does not load plugin
-  libraries because a plugin's `build` never runs during `verse check`, so the
-  library it would load may not exist yet.
+  program before it starts, with status 2. `[run] deny` is not one of them:
+  it is in `verse.toml`, which `verse check` reads, so `verse check` applies
+  it and `verse.toml` is one of the promise's conditions. `verse check` does
+  not load plugin libraries because a plugin's `build` never runs during
+  `verse check`, so the library it would load may not exist yet.
 - **Status 3 stays possible.** Bytecode generation stays lazy by decision 2,
   so a bug in it is reported at a first call (V9901). A trap inside the
   runtime is a bug no pre-run check can rule out. The promise covers every
   check `verse check` runs, not every bug in Verse.
-- **The verifier runs in every build of `verse`.** Verification after
-  monomorphization is part of running a file and of `verse check`, not a
-  debug-build or CI check. The checks after every optimizer pass stay in debug
-  builds and CI.
+- **Where the verifier runs.** After MIR build and after monomorphization,
+  `verse-verify` runs in every build of `verse`: in `build`, when running a
+  file and in `verse check`. Verification after monomorphization is what the
+  promise rests on. The proposal did not place the generic verification after
+  MIR build; it runs in every build too, because V21 is checked only on
+  generic MIR (13 §13.6), so skipping it would let `verse check` pass a
+  generic body that breaks V21. After every optimizer pass, `verse-verify`
+  runs only in debug builds of `verse` and in CI, as a check of the optimizer.
+  `verse check` runs no optimizer pass, and a run optimizes an instance at its
+  first call, so in a debug build of `verse` a failure there is V9902 at a
+  first call. 16 §16.6.1 puts that failure outside the promise.
 - **Performance target.** The cold pre-pass target for 10,000 reachable
   instances is under 150 ms on 8 cores
   ([14 §14.13](../architecture/bytecode-and-vm.md#1413-performance-targets)).
@@ -75,8 +90,14 @@ Points the proposal left open, decided here:
   a verified 50-statement instance to bytecode. Taking the same bound for
   monomorphizing and verifying one instance gives 1 s of work for 10,000
   instances, about 125 ms over 8 cores, since the instance is the unit of
-  parallelism (02 §2.7). The warm target stays under
-  5 ms, because the cache holds verified instances.
+  parallelism for monomorphization and verification (02 §2.7). The warm
+  target stays under 5 ms, because the cache holds verified instances.
+  The cold `verse check` target for 10,000 lines
+  ([09 §9.1](../architecture/performance.md#91-what-we-measure)), under
+  300 ms on 8 cores, splits into under 150 ms for the front end and the
+  ownership pass and under 150 ms for the pre-pass. The split assumes that
+  10,000 lines reach at most 10,000 instances; the M1 gate of that row
+  verifies it.
 
 ## Alternatives
 
@@ -108,4 +129,5 @@ Points the proposal left open, decided here:
   late.
 - The promise is a spec conformance rule
   ([10 §10.2](../architecture/testing-and-verification.md#102-specification-conformance)):
-  a test runs `verse check` and then the file, and compares the statuses.
+  the check-then-run test runs `verse check` and then the file, and fails when
+  the run breaks the rule.
