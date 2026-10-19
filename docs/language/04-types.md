@@ -227,10 +227,20 @@ Long variant lists may continue across lines when each line starts with `|`
 
 ```verse
 type Direction = North | East | South | West   # fine: four new unit variants
-type Meters = Float            # error: `Float` is an existing type
-                               #   help: to give it another name, write `alias Meters = Float`
-type Value = Int | Text        # error: help: write `alias Value = Int | Text`
-type Reply = Text(body: Text) | Empty   # error: variant name `Text` is already a type
+type Meters = Float            # error: `Float` is already a type, so it cannot be a variant
+type Value = Int | Text        # error: help: to give it another name, write `alias Value = Int | Text`
+type Reply = Text(body: Text) | Empty   # error: `Text` is already a type, so it cannot be a variant
+```
+
+```
+error: `Float` is already a type, so it cannot be a variant
+  --> units.vs:2:15
+   |
+ 2 | type Meters = Float
+   |               ^^^^^ a variant of `Meters` cannot reuse the name of a type in scope
+   |
+help: to give it another name, write `alias Meters = Float`
+explain: V0314 (run `verse explain V0314`)
 ```
 
 Variants are constructed like records — `Circle(radius: 2.0)` or
@@ -455,12 +465,22 @@ name is always a reassignment, and on an immutable name always an error.
 
 ```verse
 user = User(name: "Ana", age: 30)
-user.age = 31                     # error: `user` is immutable; write
-                                  #   `mut user = …` where it is declared
+user.age = 31                     # error: `user` is not `mut`, so `user.age` cannot be changed
 
 mut guest = User(name: "Guest", age: 0)
 guest.age = 18                    # fine
 guest = User(name: "Other", age: 5)   # fine; the old guest is freed
+```
+
+```
+error: `user` is not `mut`, so `user.age` cannot be changed
+  --> users.vs:2:1
+   |
+ 2 | user.age = 31
+   | ^^^^^^^^ bound without `mut` at line 1
+   |
+help: write `mut user = …` at the first binding
+explain: V0514 (run `verse explain V0514`)
 ```
 
 Methods that change their receiver declare `mut self` and can only be called on

@@ -201,7 +201,18 @@ nums[..3]
 ```
 
 A bare `{}` is a compile-time error: it does not say whether a map or a set is
-meant, and the message points to `{:}` (empty map) and `set{}` (empty set).
+meant, and the message points to `{:}` (empty map) and `set{}` (empty set):
+
+```
+error: `{}` does not say whether it is a map or a set
+  --> config.vs:1:12
+   |
+ 1 | settings = {}
+   |            ^^ this could be an empty map or an empty set
+   |
+help: write `{:}` for an empty map, or `set{}` for an empty set
+explain: V0210 (run `verse explain V0210`)
+```
 
 **Spread.** Inside a list, set or map literal, a *prefix* `..` spreads another
 collection's elements into the new one: `[0, ..rest, 99]`,
@@ -402,9 +413,19 @@ a chain of them), a parenthesized expression, or another `otherwise`. Anything e
 compile-time error:
 
 ```verse
-n = counts["a"] otherwise 0 + 1          # error: write `(counts["a"] otherwise 0) + 1`
-                                         #        or `counts["a"] otherwise (0 + 1)`
+n = counts["a"] otherwise 0 + 1          # error: `+` needs parentheses here
 count = counts.get("a", default: 0) + 1  # clearer still, for maps (§9.2)
+```
+
+```
+error: `+` cannot be in the right operand of `otherwise` without parentheses
+  --> counts.vs:1:29
+   |
+ 1 | n = counts["a"] otherwise 0 + 1
+   |                             ^ `otherwise` binds more loosely than `+`
+   |
+help: write `(counts["a"] otherwise 0) + 1` or `counts["a"] otherwise (0 + 1)`
+explain: V0209 (run `verse explain V0209`)
 ```
 
 #### `otherwise return`, `otherwise break`, `otherwise continue`
@@ -535,7 +556,18 @@ error.
 mut a = 1
 mut b = 2
 (a, b) = (b, a)                # parallel assignment: a == 2, b == 1
-(a, c) = (3, 4)                # error: `a` exists but `c` is new; do not mix
+(a, c) = (3, 4)                # error: `a` exists but `c` is new
+```
+
+```
+error: cannot mix the existing `a` and the new `c` in one tuple
+  --> swap.vs:4:1
+   |
+ 4 | (a, c) = (3, 4)
+   | ^^^^^^ a tuple of existing names reassigns them all, so every name must be a `mut` binding
+   |
+help: bind `mut c = …` before this line
+explain: V0315 (run `verse explain V0315`)
 ```
 
 **No shadowing.** The rule is: **you cannot bind a name that is currently

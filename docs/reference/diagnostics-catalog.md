@@ -124,6 +124,8 @@ gives every rule an identifier.
 | V0206 | error | `from` must come last in an import | the item list goes first | write `import {names} from {module}` | §12.2 |
 | V0207 | error | an import must be at the top of the file | imports come right after the doc comment | move this line up | §12.2 |
 | V0208 | error | a long import needs parentheses | the list continues on the next line | wrap the names in `( … )` | §12.2 |
+| V0209 | error | `{op}` cannot be in the right operand of `otherwise` without parentheses | `otherwise` binds more loosely than `{op}` (second form, when the operand holds `return`, `break` or `continue`: "an exit must be the whole right operand") | write `({left} otherwise {right}) {op} {rest}` or `{left} otherwise ({right} {op} {rest})` (shown when the operand holds no exit) | §3.8.2 |
+| V0210 | error | `{}` does not say whether it is a map or a set | this could be an empty map or an empty set | write `{:}` for an empty map, or `set{}` for an empty set | §3.7 |
 
 ### V03xx Names and imports
 
@@ -142,6 +144,8 @@ gives every rule an identifier.
 | V0311 | error | `{case}` is a case of `{Type}` | cases are not imported with the type | write `{Type}.{case}(…)`, or add `import {case} from {module}` | §12.2, §4.4 |
 | V0312 | error | a renamed type needs a capitalised name | `{x}` is a value name | write `as {X}` | §3.5 |
 | V0313 | warning | new binding `{name}` looks like the `mut` binding `{near}` | this creates a new binding | did you mean to reassign `{near}`? `{near} = {value}` | §3.9 |
+| V0314 | error | `{name}` is already a type, so it cannot be a variant | a variant of `{type}` cannot reuse the name of a type in scope | to give it another name, write `alias {type} = {rhs}` (shown when every variant is an existing type); otherwise rename the variant | §4.4 |
+| V0315 | error | cannot mix the existing `{existing}` and the new `{new}` in one tuple | a tuple of existing names reassigns them all, so every name must be a `mut` binding | bind `mut {new} = …` before this line | §3.9 |
 
 ### V04xx Types
 
@@ -188,6 +192,7 @@ fact has a position.
 | V0511 | error | a chain bound to a name is collected here | `{name}` holds the whole result | no change needed; this note explains why `{name}` is owned | §9.5 |
 | V0512 | warning | `{name}` is only a view because `{other}` uses it later | | move the later use first, or copy | §4.9 |
 | V0513 | error | `{name}` is a borrowed function and cannot outlive this call | `{name}` is a parameter without `take`; it is {use: stored, returned, sent to a task, or captured by an escaping lambda} here | declare the parameter as `take {name}` | §5.4 |
+| V0514 | error | `{name}` is not `mut`, so `{place}` cannot be changed | bound without `mut` at {position} | write `mut {name} = …` at the first binding | §4.9 |
 
 V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
