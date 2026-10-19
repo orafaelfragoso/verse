@@ -6,18 +6,12 @@ the verifier rules, and the debug-info contract. [03](ir-and-passes.md)
 introduces MIR and lists the passes; this document is the detail. The
 bytecode VM that executes mono MIR is specified in [14](bytecode-and-vm.md).
 
-Status: **draft 3**. Labels follow the [README](README.md):
-*decision*, *target*, *assumption*, *proposal*. The changes this document made
-to 03 §3.3 (M1 to M9) are **applied** in 03; [13.10](#1310-changes-against-03-and-open-items)
-lists them and keeps the rows that are still proposals.
-
 ## 13.1 Purpose and relation to 03
 
-- **Decision** ([ADR-0003](../decisions/0003-one-mir-many-backends.md)): every
-  execution tier consumes one mono MIR in which moves, drops, checked
+- Every execution tier ([ADR-0003](../decisions/0003-one-mir-many-backends.md)) consumes one mono MIR in which moves, drops, checked
   arithmetic, panics, unwind edges and yield points are explicit. A backend
   holds no ownership logic and chooses no overflow or panic policy.
-- **Decision** ([ADR-0002](../decisions/0002-ownership-on-generic-code.md)): ownership
+- Ownership ([ADR-0002](../decisions/0002-ownership-on-generic-code.md))
   is analysed once, on the generic definition ([02 §2.4](compiler-architecture.md#24-the-ownership-pass)).
   Generic MIR is its output; monomorphization ([02 §2.6](compiler-architecture.md#26-monomorphization))
   substitutes types and never re-runs ownership.
@@ -28,7 +22,7 @@ lists them and keeps the rows that are still proposals.
   start here.
 - Goals: **G1** a backend needs no ownership logic; **G2** every panic, unwind
   and yield point is a visible edge; **G3** a stable printed form for golden
-  tests and `verse dump mir` (the command name is a proposal).
+  tests and `verse dump mir`.
 - Non-goals: surface sugar (gone in HIR), inference, a format for third parties
   ([13.9](#139-versioning-policy)).
 
@@ -232,7 +226,8 @@ function never unwinds ([07 §7.5](plugins.md#75-ownership-and-lifetime)); a
 `Pointer` result is followed by a `switch` whose null edge reaches
 `panic foreign_null`. `lock` blocks and is a cancellation point (assumption:
 spec §11.5 lists I/O, wait, sleep, send and recv but not lock). `pause` has no
-surface syntax in 0.1; it is emitted only for the polling rule P14-2 and test
+surface syntax in 0.1; it is emitted only for the polling rule of
+[14.7](bytecode-and-vm.md#147-tasks-scheduler-and-seed) and test
 harnesses.
 
 **Implicit waits and conditional spawns.** At every exit of the scope that
@@ -355,9 +350,9 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V14 | Every `call`, `spawn`, `yield`, `panic` and terminator `drop` that can unwind names `unwind bbN` whenever any local with `needs_drop` (other than the place being dropped) is maybe-initialised there, and `bbN` drops exactly those locals in reverse declaration order (honouring flags) before `resume_unwind`; otherwise it names `continue`. In a cleanup block the edge is `none` | `Cleanup` runs on panic and cancellation, in the specified order (spec §8.5, §11.5) | a `call` with `_2` owned and `unwind continue` |
 | V15 | A `cleanup` block is reached only by `unwind` edges and by the `next` or `goto`/`switch` edges of other cleanup blocks; together they form an acyclic region. A block of it contains `drop` (either form, `unwind none`), `set_flag`, `storage_dead`, `intrinsic`, `call` and `yield` with `unwind none`, `goto`, and `switch` on a flag; no `spawn`, `panic` or `return`; every path ends in `resume_unwind`. A panic or a cancel request inside it does not start a second unwinding: the runtime handles it | unwinding always terminates; `Cleanup` may block (a flush) but runs to completion | a `spawn` inside `cleanup bb7` |
 | V16 | `spawn` operands and the value of `yield send` are `move` of an owned value or `copy` of a `Copy` value; no borrow, no `mut` | tasks own their arguments (spec §11.1) | `spawn f(move _3)` with `_3 = ref mut _1` |
-| V17 | A `Task<T>` local is never the operand of `drop`; on every path it is consumed by `yield wait`, `yield join` (whose unwind edges hand the child to the runtime) or `intrinsic task.abandon` in a cleanup block. A `Task` inside a list or record is open (M10) | structured lifetimes (spec §11.3) | `drop _3` with `_3: Task<Int>` |
+| V17 | A `Task<T>` local is never the operand of `drop`; on every path it is consumed by `yield wait`, `yield join` (whose unwind edges hand the child to the runtime) or `intrinsic task.abandon` in a cleanup block. Open: a `Task` inside a list or record. One candidate: the drop glue of any type that contains a `Task` is a terminator `drop` that joins it, as if it had `Cleanup` | structured lifetimes (spec §11.3) | `drop _3` with `_3: Task<Int>` |
 | V18 | `yield` may appear in normal and `cleanup` blocks. A function containing a `yield`, a call to a `mayyield` function, or a terminator `drop` of a type whose `cleanup` may yield carries `mayyield`; in generic MIR a terminator `drop` of an unknown type counts as `mayyield` | `task-lower` finds every switch point, including a blocking `Cleanup` | `yield recv(...)` in a function without `mayyield` |
-| V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees (in script mode, those the pre-pass of [13.6](#136-generic-mir-and-mono-mir) computed for the callee instance) | exact capability check before run (P6-5) | `call sys net.connect(...)` with `caps(fs)` |
+| V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees (in script mode, those the pre-pass of [13.6](#136-generic-mir-and-mono-mir) computed for the callee instance) | exact capability check before run | `call sys net.connect(...)` with `caps(fs)` |
 | V20 | Every statement and terminator has a span inside a known file and a non-empty `dbg`; every `binding` and `param` has a name and a mode word; event words exist in `events.toml` | debugger and diagnostics speak the same words | a `drop` line with no `;` clause |
 | V21 | Generic only: an operation on a value of type `T` must be licensed by a bound of the function: trait calls need the trait bound, `copy` of `T` needs `Copy`, field projection needs `has.field` | generics are checked once, at the definition (spec §10.6) | `_2 = copy _1` with `_1: T` and bound `Copyable` |
 | V22 | Mono only: no type parameter or `trait` callee remains; every `call` target exists as an instance; `layout` exists for every type used; instance keys are unique | backends can lower without resolving anything | `call <T as Show>::show(...)` in `mir mono` |
@@ -373,7 +368,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | Callees | function, `<T as Trait>::m`, `dyn #n`, intrinsic, sys | function **instance**, `dyn #n`, intrinsic, sys |
 | Drops | `drop` of `T` is the terminator form (`cleanup` unknown); `needs_drop` unknown | glue resolved, form unchanged; `drop-opt` rewrites a cleanup-free terminator to a statement or deletes it, and can delete cleanup blocks |
 | Moves and flags | decided by the ownership pass | identical structure; `monomorphize` never adds or removes a move, drop or panic |
-| Parameters | a plain `p` of **any** type, `Int` included, is `&T` (borrowed) and is read as `copy (*_1)` | unchanged. A later `param-by-value` pass (proposal, M11) passes small `Copy` types by value and rewrites the reads (04 §4.5) |
+| Parameters | a plain `p` of **any** type, `Int` included, is `&T` (borrowed) and is read as `copy (*_1)` | unchanged. Verse-cc passes a shared borrow of a small `Copy` value by value ([15 §15.4.1](target-and-abi.md#1541-lowering-a-signature)); the MIR reads stay `copy (*_1)` |
 | Layout | none | `layout` lines, per target |
 | Verifier | V1 to V21, V23, V24 | V1 to V20, V22 to V24 (V21 replaced by V22) |
 | Names | source names and spans | same, plus the instance key `pair_of<Text>` in the function header |
@@ -388,8 +383,8 @@ panic sites. Ownership facts are not recomputed (spec §4.2 rule 9); the
 verifier re-checks V3 to V9 on the result as a safety net.
 
 A moved `T` stays a `move` after substitution even when `T = Int`. Turning a
-`move` of a `Copy` type into a `copy` (a job for `move-elim`, 03 §3.4 pass 6;
-M11), or rewriting a `drop` of a type with no glue, is the optimizer's job, so
+`move` of a `Copy` type into a `copy` (a job for `move-elim`, 03 §3.4 pass 6),
+or rewriting a `drop` of a type with no glue, is the optimizer's job, so
 that monomorphization stays a pure substitution and its output is predictable in
 golden tests.
 
@@ -738,7 +733,7 @@ cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
 
 ## 13.9 Versioning policy
 
-- **Decision**: in 0.1 the MIR
+- In 0.1 the MIR
   serialization, text and binary, is **internal and unversioned for third
   parties**. No tool or backend outside the repository may depend on it.
 - The header `rev N` is an internal revision. Any change to the grammar, to a
@@ -750,25 +745,5 @@ cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
 - Bytecode bundles (`.vsb`) have their own compiler-version rule
   ([04 §4.4](backends-and-targets.md#44-linking-and-artifacts)); they are a
   different artifact and do not carry MIR.
-- A stable MIR form, if ever offered, needs a new document, a version scheme
-  with a compatibility promise, and a ruling (proposal; not in 0.1).
-
-## 13.10 Changes against 03 and open items
-
-Rows M1 to M6 are **applied** in 03, and so are
-the `DropT` terminator of M7, the `join` kind and `CheckedCast`. Rows M7 to M9 are final.
-03's `CallDyn` is the `call dyn #n` form here.
-
-| # | Change | Why | Status |
-|---|--------|-----|--------|
-| M1 | `Move`/`Copy` are operand forms, not rvalues; `Use` disappears | one way to write a read | applied |
-| M2 | Borrows may be stored in `view`/`exclusive` locals (V7) | `b = a` view, `for x in items`, `with g.lock() as value` are bindings that look at a source | applied |
-| M3 | `spawn` and `yield` get `next`/`resume` and `unwind` edges; `yield` gets operands and a destination | send, recv, wait must carry values and be cancellable | applied |
-| M4 | New `resume_unwind`, `set_flag`, `intrinsic task.abandon` | end of cleanup chains, drop flags, unwinding past unwaited tasks | applied |
-| M5 | `DebugMark` statement dropped; marks derive from spans | one source of truth | applied |
-| M6 | `Panic` takes structured kinds and named facts, not a message string | wording lives in the vocabulary file and 16 §16.6 | applied |
-| M7 | `drop` of a type with `Cleanup` (or of unknown `cleanup`) is a terminator with `next` and `unwind`; the statement form stays for cleanup-free types. Cleanup may block; cancellation is masked while it runs | `task-lower` must see that a `drop` may yield | accepted |
-| M8 | Unwinding past unwaited tasks: cancel the children, then the runtime joins them (`task.abandon`, the unwind edge of `wait` and `join`) | an unwinding parent cancels, then waits for, its unwaited children | accepted |
-| M9 | A panic inside `Cleanup` during unwinding is task-level: R0009, the first panic stays primary, remaining cleanups still run; cleanup blocks stay `nounwind` for the verifier | a panic in one cleanup must not skip the other cleanups | accepted |
-| M10 | Open: a `Task` stored in a list or record. Proposal: the drop glue of any type that contains a `Task` is a terminator `drop` that joins it, as if it had `Cleanup` | V17 covers locals only | proposal |
-| M11 | Proposal for 03 §3.4: `move-elim` also turns a `move` of a `Copy` type into a `copy`; a new `param-by-value` pass passes small `Copy` parameters by value and rewrites `copy (*_1)` to `copy _1` | 13.6 leaves both to the optimizer | proposal |
+- A stable MIR form is not in 0.1. Offering one needs a new document and a
+  version scheme with a compatibility promise.

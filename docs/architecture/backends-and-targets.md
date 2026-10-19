@@ -57,8 +57,8 @@ compiler with a different last stage, so they cannot drift apart semantically.
   the first stable release. It needs the call-count and type feedback that
   Verse mostly does not need, because the program is statically typed; the
   simpler path is to compile the whole script natively behind the cache when it
-  is run twice (`--fast` as default after the second run is a proposal, not a
-  decision).
+  is run twice. Open: whether `--fast` becomes the default after the second
+  run.
 
 ### Tier W: WebAssembly
 

@@ -1,6 +1,5 @@
 # 16. Diagnostics catalog
 
-Status: **draft 1**.
 This file assigns a stable code to every diagnostic the 0.1 toolchain gives,
 and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 (vocabulary and the "don't say" table), spec §16.2 (the style) and
@@ -8,8 +7,7 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 
 ## 16.1 Rules
 
-1. **A code never changes meaning and is never reused.** A removed diagnostic
-   keeps its code, marked *retired*.
+1. **A code never changes meaning and is never reused.**
 2. **Codes are `V` and four digits.** The first two digits are the family
    (16.2). Errors and warnings share the number space; the record's `severity`
    says which one it is. Debugger codes are `D0xxx` ([`events.toml`](events.toml), 08 §8.7). Run-time panic codes are `R0xxx` (16.6). Lints are
@@ -67,6 +65,15 @@ its number.
 Each entry: code, severity, message, label under the primary position, help
 lines, rule. `{…}` is filled by the compiler. Examples show the label and the
 `help:` text only; the full layout is the one of spec §16.2.
+
+A rule given as a section only (for example `§7`) names the section, not a
+numbered rule. It is refined when the conformance suite
+([10 §10.2](../architecture/testing-and-verification.md#102-specification-conformance))
+gives every rule an identifier.
+
+Open: a list of the compiler's diagnostic families, so this catalog can be
+checked against the passes. A pass with no entry here needs a code; an entry
+with no pass is a candidate to remove.
 
 ### V01xx Source text
 
@@ -189,7 +196,6 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0802 | error | the package name `{name}` cannot be imported | a name uses letters, digits and `_`, starting with a letter | write `{suggested}` | 21 §21.3 |
 | V0803 | error | version {have} is too small for these changes; publish as {need} | {change summary} | set `version = "{need}"`, or keep the old signature and add a new function | 21 §21.6 |
 | V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 21 §21.13 |
-| V0805 | retired | | | | |
 | V0806 | error | `{pkg}` {ver} does not match its checksum | the archive hashes to `{got}` | `verse lock --refetch {pkg}` | 21 §21.13 |
 | V0807 | error | `verse.lock` is out of date | `{pkg}` asks for {req}, the lock has {have} | run `verse lock` (not allowed with `--locked`) | 21 §21.7 |
 | V0808 | error | `{pkg}` needs {T}, which `{other}` does not provide | two packages need different major versions of `{pkg}` | pin both to one major | 21 §21.8 |
@@ -198,7 +204,6 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0811 | error | `verse.api` differs from the source | `{item}`: file says `{a}`, source says `{b}` | run `verse api update` | §16.4 |
 | V0812 | error | `{name}` is not a valid license | use an SPDX name such as `MIT` | | 19 §19.3 |
 | V0813 | error | a yanked version cannot be chosen | `{pkg}` {ver} was yanked: {reason} | use {near} | 21 §21.9 |
-| V0814 to V0822 | retired | | | | |
 | V0823 | warning | this lock was made with {old}, and you run {new} | the toolchain differs | run `verse lock` to record {new}; the build continues and does not reuse old caches | 21 §21.7 |
 | V0824 | error | `{pkg}` {ver} has a different API from the one in your lock | the lock says `{a}`, the package says `{b}` | `verse lock --refetch {pkg}`; if it persists, the version was republished | 21 §21.7, §21.13 |
 | V0825 | error | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | two major versions of `{pkg}` are in this build | update `{other}`, or pin one version of `{pkg}` | 21 §21.8 |
@@ -224,7 +229,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0903 | error | this function allocates, and `--no-heap` is on | `{expr}` builds a `{T}` | use a fixed-size type, or turn `--no-heap` off | 05 §5.7 |
 | V0904 | error | `{pkg}` reaches `{cap}`, which it does not declare | its `[library] capabilities` lists {list} | add `{cap}` there, or avoid `{f}` | 06 |
 | V0905 | error | this package uses {n} KB, but its size budget is {m} KB | the biggest part is `{item}` | see `verse build --size-report` | 06 |
-| V0906 | error | `{module}` has different public items on `{target}` | the target variant exports `{item}` only here | make every variant match `verse.api` | 06 P6-7 |
+| V0906 | error | `{module}` has different public items on `{target}` | the target variant exports `{item}` only here | make every variant match `verse.api` | 06 §6.9 |
 | V0907 | error | the file `{f}` for target `{t}` does not exist | listed in `[targets.{t}.files]` | create it or remove the line | 19 §19.3 |
 | V0908 | error | this panic would skip the cleanup of `{x}` | `{x}` is alive here | turn the `abort` profile off, or move the panic site after the cleanup | 05 §5.4 |
 | V0909 | error | `{f}` waits and calls itself, which `{target}` cannot run | the wait is here | build for a native target, or make the recursive part not wait | 03 pass 14 (`task-lower`), 04 §4.2 |
@@ -239,10 +244,8 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
-| V1001 | retired | | | | |
 | V1002 | error | `{T}` cannot cross a foreign call | allowed types: {list} | pass the text's `.bytes()` | §12.6, 07 §7.4 |
 | V1003 | error | `{f}` needs a written signature | every parameter and the result need types | annotate them | §12.6 |
-| V1004 | retired | | | | |
 | V1005 | error | `{target}` cannot link foreign code | {reason} | build for a native target | 07 §7.8 |
 | V1006 | error | no plugin is named `{name}` | `extern {name}` needs `[plugins.{name}]` in verse.toml | add `[plugins.{name}]` with `lib` or `path` | §12.6, 07 §7.2 |
 | V1007 | error | the library for plugin `{name}` was not found | looked in {places} | install it, or set `path` in `[plugins.{name}]` | 07 §7.6 |
@@ -290,6 +293,10 @@ explain: V0412 (run `verse explain V0412`)
 - Documents show a message block with a bold label above it only when the
   block is not copied from real output. A block copied from real output
   includes its `explain:` line and needs no label.
+- A typo suggestion ("did you mean") uses edit distance 2 and is shown only
+  when exactly one name is that close.
+- The `V0511` note shows how chain ownership works. It is shown only with
+  `--explain-ownership` and is never printed by default.
 
 ## 16.5 `verse explain`
 
@@ -414,16 +421,3 @@ A `V99xx` message always ends with "this is a bug in Verse, not in your program"
 and the `explain:` line (16.4), so the cause is clear even when the status is
 all a script sees. An `exit(code)` that the program calls itself is never
 changed.
-
-## 16.7 Open points
-
-1. **Exact spec section numbers** in the "Rule" column marked with a section
-   only (for example `§7`) are the section, not a numbered rule. They are
-   refined when the conformance suite (10 §10.2) gives every rule an identifier.
-2. **Compiler diagnostic families:** a list of them would let us check this
-   catalog against the passes. Anything in the passes with no entry
-   here needs a code; anything here with no pass is a candidate to remove.
-3. **Typo suggestions** ("did you mean") use edit distance 2 and are shown only
-   when exactly one name is that close.
-4. **The `V0511` note** shows how chain ownership works. It is a `note` shown
-   only with `--explain-ownership` and is never printed by default.

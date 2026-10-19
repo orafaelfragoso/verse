@@ -1,13 +1,10 @@
 # 21. Packages
 
-Status: **draft 1**. This document describes the package model: what a
+This document describes the package model: what a
 package is, how it is named and found, how versions are chosen, locked and
 published, and how the registry keeps all of it trustworthy. The commands,
 their flags and every `verse.toml` key are in the reference,
-[19](../reference/cli-and-manifest.md). Labels follow the
-[README](README.md) conventions: **Fact** (stated by the spec or a ruled
-document), **Decision**, **Assumption**, **Target**, **Proposal** (rulings in
-[19 §19.6](../reference/cli-and-manifest.md#196-proposals-and-rulings)).
+[19](../reference/cli-and-manifest.md).
 
 Nothing here changes what a Verse program means. The spec
 ([§12](../language/12-modules.md), [§16.3, §16.4](../language/16-tooling.md#163-packages))
@@ -38,7 +35,7 @@ versioned with it, and is never in `verse.lock`
 ([06 §6.2](stdlib-and-shaking.md#62-library-tiers)).
 
 **First-party packages** are ordinary packages: same registry, same lock, same
-`verse.api` rules, no compiler privileges (Fact: 06 §6.2). They are published
+`verse.api` rules, no compiler privileges (06 §6.2). They are published
 by the Verse project's registry account; the registry refuses those names from
 anyone else.
 
@@ -52,19 +49,19 @@ program that imports the package.
 
 1. **Three files, three jobs.** `verse.toml` is written by people, `verse.lock`
    and `verse.api` are written by the tool and committed. A reviewer reads a
-   diff of any of them and knows what changed (Fact: spec §16.3, §16.4).
+   diff of any of them and knows what changed (spec §16.3, §16.4).
 2. **No code runs to build a dependency.** No build scripts, no install
-   hooks, no plugin `build` commands from dependencies (Fact: spec §16.3, 07 §7.2).
+   hooks, no plugin `build` commands from dependencies (spec §16.3, 07 §7.2).
 3. **Minimal version selection** picks versions, so the same manifests give
-   the same graph without a solver and without the lock (Decision, §21.8).
+   the same graph without a solver and without the lock (§21.8).
 4. **The required version bump is computed** from the `verse.api` diff, and
-   `verse publish` refuses a version that understates it (Decision, §21.6).
+   `verse publish` refuses a version that understates it (§21.6).
 5. **Everything is content-addressed** with blake3, the same hash family the
-   compiler and the shaking cache use (Fact: 02 §2.7, 06 §6.10).
+   compiler and the shaking cache use (02 §2.7, 06 §6.10).
 
 ## 21.3 Identity and naming
 
-**A package name is its root module name** (Fact: spec §16.3,
+**A package name is its root module name** (spec §16.3,
 `import red, bold from colors`). So a name must be a valid module path
 segment:
 
@@ -75,11 +72,11 @@ segment:
 | not a standard library module name (`fs`, `json`, `http`, …, spec §15.2) | `import json` always means the standard library (spec §12.2) |
 | not a prelude name (`print`, `args`, …) | an import of it would hide the prelude name (spec §3.9) |
 | not a capability name (`clock`, `net`, …) | `verse why` tells a package from a capability by its name ([19 §19.4](../reference/cli-and-manifest.md#194-verse-why)) |
-| reserved first-party names: `finance`, `ml`, `web`, `gui`, `iot` (Fact: P6-1, spec §16.3) | published only by the Verse project |
-| no name that differs from an existing one only by `_` or by one of `0`/`o`, `1`/`l` | confusable names are a supply-chain attack (registry rule, Decision) |
+| reserved first-party names: `finance`, `ml`, `web`, `gui`, `iot` (06 §6.2, spec §16.3) | published only by the Verse project |
+| no name that differs from an existing one only by `_` or by one of `0`/`o`, `1`/`l` | confusable names are a supply-chain attack (registry rule) |
 | first come, first served, never reused after deletion | a name always means the same package |
 
-Fact: spec §16.3 states this rule and its example is `word_tools`.
+Spec §16.3 states this rule and its example is `word_tools`.
 
 The registry refuses a name that is taken, reserved, too close to an existing
 one, or used before by another owner (wording as in
@@ -163,14 +160,14 @@ resolve only when it is missing or stale, and say so.
 
 Every package follows semver, and the tool **computes the smallest correct
 bump** by comparing the new `verse.api` with the one in the latest published
-version of the same major (Decision). `verse publish` refuses a version
+version of the same major. `verse publish` refuses a version
 number below the required bump; it accepts a larger bump.
 
 | Change in `verse.api` | Required bump | Why it breaks or not |
 |-----------------------|---------------|----------------------|
 | an exported item, module or field removed or renamed | major | callers stop compiling |
 | a parameter added without a default, removed, reordered or renamed | major | calls by position or by name break |
-| a parameter added *with* a default | major | the function's type `fn(…): R` changes, so uses as a function value break (spec §4.7). Proposal P19-6 discusses relaxing this |
+| a parameter added *with* a default | major | the function's type `fn(…): R` changes, so uses as a function value break (spec §4.7); a changed function type is a changed promise |
 | a parameter or return type changed, including a new or removed `Error` or `?` in the return type | major | |
 | an inferred bound added or tightened (for example the inferred `Copy` bound of spec §4.2 rule 9) | major | callers that met the old bound may not meet the new one |
 | a bound removed or loosened | minor | every old caller still compiles |
@@ -188,7 +185,7 @@ number below the required bump; it accepts a larger bump.
 | no `verse.api` change | patch | |
 
 `0.y` versions: the rules shift one place (a "major" change bumps `y`, any
-other change bumps the patch), as in Cargo (Decision).
+other change bumps the patch), as in Cargo.
 
 **What it cannot see.** Behaviour changes with the same signatures are
 invisible to a diff. The computed bump is a minimum; the author can always
@@ -212,10 +209,10 @@ explain: V0803 (run `verse explain V0803`)
 ## 21.7 `verse.lock`
 
 TOML, written only by the tool, sorted by name then version, one entry per
-package, so diffs are small and merge conflicts are rare (Decision). It is
-committed for applications (Fact: spec §16.3) and also for libraries,
+package, so diffs are small and merge conflicts are rare. It is
+committed for applications (spec §16.3) and also for libraries,
 where it is used for the library's own tests and examples and ignored by
-dependents (Decision: dependents always resolve with MVS, §21.8).
+dependents (dependents always resolve with MVS, §21.8).
 
 ```toml
 # verse.lock — generated by `verse`; do not edit
@@ -277,7 +274,7 @@ explain: V0824 (run `verse explain V0824`)
 
 ## 21.8 Resolution: minimal version selection
 
-**Decision: minimal version selection (MVS),** the algorithm of Go modules,
+**Minimal version selection (MVS),** the algorithm of Go modules,
 adapted to the spec's "one version of each package per major version"
 (§16.3).
 
@@ -320,10 +317,10 @@ explain: V0825 (run `verse explain V0825`)
 
 The spec values reproducibility and explanation (§16.3). MVS gives both. The usual objection, that users
 do not get bug fixes automatically, is answered by `verse update` showing
-newer releases, and by the registry marking versions with security advisories
-(P19-7).
+newer releases, and by the registry marking versions with security advisories,
+which `verse update` shows.
 
-**`verse update` output** (Decision):
+**`verse update` output**:
 
 ```
 updating colors   1.4.0 -> 1.5.1   api: compatible (minor)
@@ -337,7 +334,7 @@ explain: V0827 (run `verse explain V0827`)
 
 ## 21.9 Registry protocol
 
-Decision: a static, cacheable protocol over HTTPS, so a mirror is a plain file
+A static, cacheable protocol over HTTPS, so a mirror is a plain file
 server and a registry outage does not stop builds that have a cache or
 `vendor/`.
 
@@ -356,15 +353,15 @@ server and a registry outage does not stop builds that have a cache or
 - Index files are signed by the registry with Ed25519 keys listed in
   `/config.json`, with key rotation and expiry following The Update
   Framework's ideas (root, timestamp and targets roles). This protects first
-  resolution, when there is no lock yet (Decision; the TUF role layout is an
-  Assumption to be finalised in M5).
+  resolution, when there is no lock yet. The TUF role layout is an
+  assumption, finalised in M5.
 - Publishers authenticate with a token; first-party packages additionally
-  require two maintainers to approve a release (Proposal P19-7).
+  require two maintainers to approve a release.
 
 **Yanking.** `verse yank colors@1.5.0` sets `yanked` in the index. Yanked
 versions are never chosen by `add` or `update`. Existing locks keep building,
 with a warning that names the reason the publisher gave. Archives are never
-deleted, so old locks stay reproducible (Decision). Deletion exists only for
+deleted, so old locks stay reproducible. Deletion exists only for
 legal reasons and then breaks the affected locks loudly.
 
 The warning for a locked yanked version:
@@ -413,7 +410,7 @@ explain: V0828 (run `verse explain V0828`)
 **Vendoring.** `verse vendor` copies every locked package into
 `vendor/<name>-<version>/` and adds `vendored = true` to the lock entries.
 Builds prefer `vendor/` and verify each tree against the lock's `checksum`;
-an edited vendored file is an error, not a silent patch (Decision: a local
+an edited vendored file is an error, not a silent patch (a local
 change belongs in a `path` dependency, which the reader can see in
 `verse.toml`).
 
@@ -428,8 +425,8 @@ explain: V0829 (run `verse explain V0829`)
 
 ## 21.10 Reproducible builds and caching
 
-Fact (spec §16.3, 02 §2.7, 04 §4.4): the same inputs and `verse.lock` give
-identical bytes. The inputs are exactly:
+The same inputs and `verse.lock` give
+identical bytes (spec §16.3, 02 §2.7, 04 §4.4). The inputs are exactly:
 
 | Input | Hashed as |
 |-------|-----------|
@@ -457,8 +454,8 @@ reused across projects that lock the same version (Assumption: a global
 object cache is safe because every key includes the toolchain and target;
 measured in M5).
 
-`verse build --verify-reproducible` *new* builds twice in clean directories
-and compares the bytes (for CI; P19-1).
+`verse build --verify-reproducible` builds twice in clean directories
+and compares the bytes (for CI).
 When the bytes differ:
 
 ```
@@ -472,7 +469,7 @@ explain: V0832 (run `verse explain V0832`)
 
 ## 21.11 Features
 
-**Decision: there is no `[features]` section in 0.1.** Cargo-style features
+**There is no `[features]` section in 0.1.** Cargo-style features
 exist mainly to avoid compiling and linking unused code. In Verse that is
 already free: an import costs nothing and only reached code is built
 ([06](stdlib-and-shaking.md)). The remaining uses are covered by data
@@ -482,14 +479,14 @@ that does not change what a source file means:
 |------|--------------|
 | Leave out heavy code | do not reach it; the size report shows what is in |
 | Optional dependency | a separate small package (`charts` and `charts_svg`), imported only where needed |
-| Different code per target | `[targets.<t>.files]` (P6-7) |
+| Different code per target | `[targets.<t>.files]` ([06 §6.9](stdlib-and-shaking.md#69-package-format-of-a-domain-library)) |
 | Different behaviour per build | values read at run time (`env`, `args`, a config file), or a separate entry file |
 
 Why: a feature flag that changes which declarations exist is conditional
-compilation, which P6-7 ruled out. It also makes "what does this file mean?"
+compilation, which Verse does not have. It also makes "what does this file mean?"
 depend on the whole graph's feature union. If real programs need more,
-P19-5 proposes the smallest addition: named sets of optional dependencies,
-never of source.
+the smallest addition is named sets of optional dependencies, never of
+source.
 
 ## 21.12 Workspaces
 
@@ -512,16 +509,16 @@ members = ["apps/server", "libs/shapes", "libs/money_utils"]
 
 ## 21.13 Supply-chain security
 
-| Threat | Defence | Status |
-|--------|---------|--------|
-| code execution while building a dependency | no build scripts, no install hooks (spec §16.3); a dependency's plugins may name only a system library (`lib`), never `path` or `build` (V0834) | Fact / Decision |
-| a dependency calls native code | its `[plugins]` are listed by `verse add` and `verse update`; Verse cannot check foreign code, so adding the package is trusting the library (07 §7.1) | Decision |
-| a generator does harm | it runs only on `verse generate`, never on build, check, run or test (spec §16.6) | Decision |
-| a dependency starts using the network | capabilities in the index and lock; `verse update` shows the change; `[capabilities] grant` fails the build (P19-3) | Proposal |
-| a tampered archive or mirror | blake3 checksums in the lock; signed index | Decision |
-| typosquatting | name rules of §21.3 | Decision |
-| a republished version | archives are immutable; a different `api` or `checksum` for the same version is an error | Decision |
-| an abandoned package taken over | names are never reused; ownership transfer is shown in `verse update` | Decision |
+| Threat | Defence |
+|--------|---------|
+| code execution while building a dependency | no build scripts, no install hooks (spec §16.3); a dependency's plugins may name only a system library (`lib`), never `path` or `build` (V0834) |
+| a dependency calls native code | its `[plugins]` are listed by `verse add` and `verse update`; Verse cannot check foreign code, so adding the package is trusting the library (07 §7.1) |
+| a generator does harm | it runs only on `verse generate`, never on build, check, run or test (spec §16.6) |
+| a dependency starts using the network | capabilities in the index and lock; `verse update` shows the change; `[capabilities] grant` fails the build |
+| a tampered archive or mirror | blake3 checksums in the lock; signed index |
+| typosquatting | name rules of §21.3 |
+| a republished version | archives are immutable; a different `api` or `checksum` for the same version is an error |
+| an abandoned package taken over | names are never reused; ownership transfer is shown in `verse update` |
 
 Compile-time code execution does not exist in Verse at all (no macros, no
 compile-time evaluation), so reading and type-checking a dependency is

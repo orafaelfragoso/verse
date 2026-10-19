@@ -151,7 +151,7 @@ differential tester can isolate a miscompile.
 | 3 | `inline` | inline small and single-call functions; always-inline for intrinsics | unwind and drop order |
 | 4 | `sroa` | split records and tuples into scalars when they do not escape | field-level move state |
 | 5 | `const-prop` and `fold` | evaluate constants, fold branches | overflow panics (folding a checked op that overflows stays a panic, not a wrap) |
-| 6 | `move-elim` | remove copies of values at last use (spec: "a source at its last use is moved") | observable `Cleanup` order |
+| 6 | `move-elim` | remove copies of values at last use (spec: "a source at its last use is moved"); turn a `move` of a `Copy` type into a `copy` | observable `Cleanup` order |
 | 7 | `copy-elide` | avoid copying immutable data when the copy is never mutated and the source outlives it | no aliasing visible to `mut` |
 | 8 | `range-analysis` | prove bounds and arithmetic checks redundant | panics that can still occur |
 | 9 | `devirtualize` | turn `dyn` calls into direct calls when the concrete type is known | semantics |

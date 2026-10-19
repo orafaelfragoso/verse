@@ -11,24 +11,20 @@ the tier-0 VM. This document is the detail behind
 [04 §4.3](backends-and-targets.md#43-what-a-target-is) and
 [04 §4.5](backends-and-targets.md#45-calling-convention-and-abi).
 
-Status: **draft 1**. Labels follow the [README](README.md): *decision*,
-*target*, *assumption*, *proposal*, plus *fact* for what the spec or a ruled
-question already says. Nothing here is implemented and no number is measured.
-Where this document changes or extends 03, 04, 05, 13 or 14, the change is a
-**proposal** and is listed in [15.13](#1513-open-items).
+Nothing here is implemented and no number is measured.
 
 ## 15.1 Purpose and scope
 
-- **Fact** ([04 §4.5](backends-and-targets.md#45-calling-convention-and-abi)):
-  the internal ABI is free to change between compiler versions. The only
+- The internal ABI ([04 §4.5](backends-and-targets.md#45-calling-convention-and-abi))
+  is free to change between compiler versions. The only
   stable ABIs are the C ABI for `extern` calls and library exports, and the
   Wasm component ABI for component exports. Everything below is **internal**: it is
   versioned with the compiler, it may change in any release, and no artifact
   outside one toolchain build may rely on it.
-- **Decision**: internal does not mean unspecified. Two backends, the runtime
+- Internal does not mean unspecified. Two backends, the runtime
   and the VM must agree on layout and calls inside one build, so the rules are
   written down once and each backend is tested against them ([15.12](#1512-conformance-and-tests)).
-- **Decision**: an ABI never changes what a program means (spec §4.1, §9.3).
+- An ABI never changes what a program means (spec §4.1, §9.3).
   Sizes, alignments, field order, register use and the unwinding mechanism are
   not observable from Verse; the differential suite ([14 §14.12](bytecode-and-vm.md#1412-differential-testing-contract))
   compares behaviour only.
@@ -76,17 +72,17 @@ backends, the VM and the debugger read those lines; none of them recomputes
 anything. The function depends only on the type and on `pointer_width`, so two
 targets of the same width produce the same layout.
 
-| # | Rule | Label |
-|---|------|-------|
-| L1 | All targets in 0.1 are **little endian**. `endian = "big"` is reserved and rejected | decision |
-| L2 | `Int` and `Float` have size 8 and **alignment 8 on every target**, including 32-bit ones. No Verse type has alignment above 8, so the allocator only has to return 8-aligned blocks (16 on 64-bit targets, for convenience) | decision |
-| L3 | Every size is a multiple of its alignment. A type's alignment is the maximum of its fields' | decision |
-| L4 | **Record and tuple fields** are placed in order of descending alignment, ties in declaration order, with no padding between fields except what alignment needs. ZST fields take no space. A record's `size` is rounded up to its alignment. Field names and indexes in MIR never change (13.3) | decision |
-| L5 | An **enum case** is laid out as a record whose first field is the tag, pinned at offset 0 ([15.3.4](#1534-enums-option-and-fallible-types)), so small payloads pack after the tag | decision |
-| L6 | Layout is **not observable** from Verse: there is no `repr`, no `size_of`, no way to read bytes of a value except through `math` conversions and `Bytes` | fact (03 §3.5) |
-| L7 | The maximum size of a value is `2^(8W-1) - 1` bytes. A larger type is a compile error that names the type | assumption |
-| L8 | Drop flags are MIR locals (`dN`, [13.2](mir-specification.md#132-textual-format)); they are **never** stored inside a value. A value has no hidden word for ownership state | decision |
-| L9 | Any change to these rules, to a header word or to a niche value increments the MIR `rev` ([13.9](mir-specification.md#139-versioning-policy)) and regenerates golden files in the same commit | decision |
+| # | Rule |
+|---|------|
+| L1 | All targets in 0.1 are **little endian**. `endian = "big"` is reserved and rejected |
+| L2 | `Int` and `Float` have size 8 and **alignment 8 on every target**, including 32-bit ones. No Verse type has alignment above 8, so the allocator only has to return 8-aligned blocks (16 on 64-bit targets, for convenience) |
+| L3 | Every size is a multiple of its alignment. A type's alignment is the maximum of its fields' |
+| L4 | **Record and tuple fields** are placed in order of descending alignment, ties in declaration order, with no padding between fields except what alignment needs. ZST fields take no space. A record's `size` is rounded up to its alignment. Field names and indexes in MIR never change (13.3) |
+| L5 | An **enum case** is laid out as a record whose first field is the tag, pinned at offset 0 ([15.3.4](#1534-enums-option-and-fallible-types)), so small payloads pack after the tag |
+| L6 | Layout is **not observable** from Verse: there is no `repr`, no `size_of`, no way to read bytes of a value except through `math` conversions and `Bytes` |
+| L7 | The maximum size of a value is `2^(8W-1) - 1` bytes. A larger type is a compile error that names the type (assumption) |
+| L8 | Drop flags are MIR locals (`dN`, [13.2](mir-specification.md#132-textual-format)); they are **never** stored inside a value. A value has no hidden word for ownership state |
+| L9 | Any change to these rules, to a header word or to a niche value increments the MIR `rev` ([13.9](mir-specification.md#139-versioning-policy)) and regenerates golden files in the same commit |
 
 One tuple has a fixed layout that the `layout` pass must not reorder, because
 the VM and the debugger rely on it: the result of a `checked_*` operation,
@@ -116,9 +112,9 @@ order, so layout never leaks into what a user sees (L6).
 arithmetic compiles to multi-word code ([14.5](bytecode-and-vm.md#145-checked-arithmetic-bounds-and-division)).
 A narrow integer in a register is always kept **extended to the full
 register width by its producer** according to its own signedness (`Bool` and
-`Char` zero-extended); consumers may rely on it (Decision; it is the Apple
+`Char` zero-extended); consumers may rely on it. It is the Apple
 AArch64 and RISC-V rule, and Verse-cc adopts it on every target so the callee
-never re-extends).
+never re-extends.
 
 **Float bits.** Arithmetic is untouched. `to_bits`, hashing,
 byte serialization and `Show` turn every NaN into `0x7FF8000000000000`. A hash of a
@@ -169,7 +165,7 @@ The remaining form-byte values are the niche. A heap form whose capacity is
 frees it. That is how borrowed `Text` literals work without a heap
 ([05 §5.7](runtime.md#57-embedded-profile)). Building, growing and
 indexing go through `verse-rt`; spec §4.1 states the cost of character indexing.
-The inline capacity of 10 bytes on 32-bit targets is an assumption (P15-7).
+The inline capacity of 10 bytes on 32-bit targets is an assumption, revisited with measurements in M7.
 
 **`Map` and `Set`** ([03 §3.5](ir-and-passes.md#35-layout-rules)). The
 compact dictionary: `entries` points to a dense array of
@@ -219,7 +215,7 @@ nameable from Verse.
 **`Error`** in `A | Error` is the standard library's error type; its layout is defined by
 the standard library, and this document assumes it is a boxed trait object `(data ptr, vtable
 ptr)` with a non-null niche, so that `Nothing | Error` is 16 bytes with no tag
-(assumption, P15-9).
+(assumption, until the standard library fixes `Error`).
 
 ### 15.3.5 Closures, function values and `dyn`
 
@@ -229,20 +225,21 @@ ptr)` with a non-null niche, so that `Nothing | Error` is 16 bytes with no tag
   captures** (L4), moved or copied in; a closure with no captures is a ZST. The
   body takes the record as its first parameter: `&Env` for a body that may be
   called repeatedly, `Env` owned for a body that moves a capture out (spec
-  §5, captures). Borrowed captures cannot be stored (V7); how a lambda that only
-  *borrows* its captures is lowered is not specified by 13 (P15-8).
+  §5, captures). Borrowed captures cannot be stored (V7). Open: how a lambda that only
+  *borrows* its captures is lowered, by lambda lifting into extra borrowed
+  parameters or by an explicit non-escaping closure form in 13.
 - **Function value of unknown callee** (a parameter of function type that is
   not a known closure): the same representation as a trait object of a
   built-in call trait, `dyn Fn`, namely `(data ptr, vtable ptr)` with a vtable
   slot for the call. A function item with no captures uses a null `data` and a
-  static vtable (decision).
+  static vtable.
 - **`dyn Trait`**: `(data ptr, vtable ptr)` (03 §3.5), 2W bytes, align W. For an
   *owned* trait object `data` points to a heap allocation of `vtable.size`
   bytes. A **vtable** is a static, read-only array of words
   `[drop_glue, size, align, slot_0, slot_1, ...]`; slots follow the trait's
   declaration order, each a pointer to a mono instance in Verse-cc whose
   first parameter is the receiver. `drop_glue` is null for a type with no glue.
-  The only callee form on a vtable is `dyn #slot` (13.3). Assumption (P15-9).
+  The only callee form on a vtable is `dyn #slot` (13.3).
 
 ### 15.3.6 `Cleanup` values and drop glue
 
@@ -266,8 +263,8 @@ it**: the trait adds no field. What it adds is the `cleanup` fact in its
   **masked** while it runs; a cancel request that arrives then takes effect at
   the first blocking point after the cleanup finishes. The TCB carries a mask
   depth counter (`cancel_mask`), `drop` of a `Cleanup` type is a MIR terminator
-  with edges ([13.10](mir-specification.md#1310-changes-against-03-and-open-items)
-  M7), and the glue of such a type is a *may-yield* function, which on
+  with edges ([13.4](mir-specification.md#134-statements-and-terminators)),
+  and the glue of such a type is a *may-yield* function, which on
   state-machine targets uses the resumable convention ([15.6.2](#1562-resumable-functions-state-machine-and-cooperative-targets)).
   A task blocked inside a cleanup counts as blocked for deadlock detection
   (15.8.1); only `exit(code)` ignores it.
@@ -299,8 +296,8 @@ operations.
 Reference counts are `usize`; an overflow aborts the program (a reference
 cycle of 2^32 handles on a 32-bit target is a bug, not a panic). The cell of a
 task, channel or `Shared` is allocated through the target's allocator: on a
-`--no-heap` build none of these types can be reached (05 §5.7), and the
-sizing of channels for such builds is open ([20](first-party-packages.md) P20-6).
+`--no-heap` build none of these types can be reached (05 §5.7). Open: the
+sizing of channels for such builds ([20 §20.6](first-party-packages.md#206-iot)).
 
 ### 15.3.8 Worked layout examples (64-bit)
 
@@ -342,7 +339,9 @@ arguments by pointer") and is the "later ABI step" of
 [13.6](mir-specification.md#136-generic-mir-and-mono-mir).
 
 Tier 0 does not use Verse-cc; it has its own convention ([15.5.7](#1557-tier-0-the-vm)),
-and the two never meet in 0.1 (no mixed-mode execution, P15-20).
+and the two never meet in 0.1. Mixed-mode execution (a later hot-function JIT)
+needs adapters between the VM window and Verse-cc; they are specified with the
+JIT.
 
 ### 15.4.1 Lowering a signature
 
@@ -461,7 +460,7 @@ the rest on the stack in order. **Binary64 on 32-bit cores:**
 `Float` is binary64; on `thumbv7em-none-eabihf` the FPU `fpv4-sp-d16` is single
 precision only, so a `Float` operation is a runtime-library call and a `Float`
 argument follows the *target ABI string* the toolchain compiles `verse-rt`
-with, which both sides share (assumption, to verify in M7, P15-22).
+with, which both sides share (assumption, verified in M7).
 
 ### 15.5.1 x86-64 SysV (Linux, macOS, `-musl`)
 
@@ -491,7 +490,8 @@ with, which both sides share (assumption, to verify in M7, P15-22).
 - **Unwinding** uses the platform's table-based SEH: `.pdata` and `.xdata` unwind
   information with a Verse language-specific handler in `verse-rt`, and the
   raise is `RaiseException` with a Verse-specific customer exception code
-  (15.7.2).
+  (15.7.2). Cranelift's unwind information on Windows (x64 and ARM64) is
+  verified in M5; LLVM is the fallback.
 
 ### 15.5.3 AArch64 (Linux, macOS, Windows)
 
@@ -527,7 +527,8 @@ with, which both sides share (assumption, to verify in M7, P15-22).
 - ARM32 Linux (`armv7-unknown-linux-gnueabihf`) is **not** in
   [04 §4.2](backends-and-targets.md#42-target-matrix). The convention above
   would apply with `unwind = "native"` (EHABI tables) and `tasks = "stackful"`;
-  adding it is a new target file and a context-switch routine (P15-18).
+  adding it is a new target file and a context-switch routine. i686, RISC-V 32
+  Linux and big-endian targets are also outside 0.1 on the same terms.
 
 ### 15.5.5 RISC-V
 
@@ -671,8 +672,7 @@ fn F_poll(state: ptr, reason: u32) -> u32     // reason: NORMAL = 0, CANCEL = 1
 - **Unwinding between resumable functions** is always by status: a callee that
   unwinds returns `UNWOUND` from its `poll`, and the caller's cleanup block
   runs as ordinary code. The unwind mechanism of the target ([15.7.2](#1572-the-three-mechanisms))
-  applies only inside a non-yielding function and across a `poll` call
-  (P15-5).
+  applies only inside a non-yielding function and across a `poll` call.
 - Functions outside the may-yield set are plain Verse-cc functions and pay
   nothing (ADR-0007).
 - The **cooperative** executor adds only the run queue, the timer and the
@@ -688,7 +688,7 @@ Nothing in this document applies beyond the unwinding and exit rules.
 
 ### 15.6.4 Stack bounds and overflow
 
-**Decision** (P15-23). A guard page fault cannot run cleanup, because the cleanup blocks need
+A guard page fault cannot run cleanup, because the cleanup blocks need
 stack that is exhausted, and a signal handler cannot unwind arbitrary frames
 safely. So **every compiled target uses an explicit check**:
 
@@ -696,7 +696,7 @@ safely. So **every compiled target uses an explicit check**:
   (minus the frame size) with `stack_limit` in the TCB and, if it is below,
   branches to a cold block that executes `panic stack_overflow`. The limit is
   set `headroom` above the real end of the stack (assumption: 4 KiB on small
-  targets, 16 KiB on large ones) so that cleanup blocks and the panic path run
+  targets, 16 KiB on large ones, tuned in M2) so that cleanup blocks and the panic path run
   in the reserve. Cost target: at most 3 instructions per call.
 - The **guard page** stays as a backstop for code that does not check (a runtime
   function, foreign code). A fault there prints the R0004 text of
@@ -706,7 +706,8 @@ safely. So **every compiled target uses an explicit check**:
   own wording.
 - On Wasm the check is against `__verse_stack_limit` and the shadow stack; the
   engine's own call-stack limit is outside Verse's control and, when it fires
-  first, traps the instance (P15-15).
+  first, traps the instance with a host-defined status. Each recursive function
+  gets a minimum shadow frame, so the Verse check usually fires first.
 - Tier 0 checks `frame_slots` against the segment (14.3) and reports the same
   panic (R0004). The depth at which it fires may differ between tiers (14.12).
 
@@ -745,7 +746,9 @@ struct PanicRecord {            // allocated by verse-rt; layout private, shown 
   (spec §11.5). It is raised only at a `yield` ([13.4](mir-specification.md#134-statements-and-terminators)).
 - The **user-level call list** of the record is built from the unwinder's frames
   and the debug map (13.7), so it requires the debug map: in a `debug = false`
-  build the report has the message and span and **no stack** (P15-17).
+  build the report has the message and span and **no stack**; the structured
+  record carries `stack = null`, and differential tests compare the stack only
+  with debug on.
 
 ### 15.7.2 The three mechanisms
 
@@ -772,14 +775,14 @@ Details that each backend must follow:
   fixed RAM address), and the scheduler **swaps it with the saved copy of each
   task at every task switch**, so a task that yields inside a cleanup block
   keeps its own state. A call that can unwind is followed by the test;
-  nothing else changes in the callee's signature. **Decision**, chosen over a
+  nothing else changes in the callee's signature. It is chosen over a
   second result register because it needs no change to the platform
-  convention on any of these targets; P15-3 asks for a measurement against a
-  result register on Cortex-M.
+  convention on any of these targets; M7 measures it against a second result
+  register on Cortex-M.
 - **Wasm EH** is a per-target-file opt-in in 0.1: shipped Wasm target files
   default to `status-code`, because it works on every engine and the visible
   order of `Cleanup` is the same (05 §5.4). The `-eh` variants set `wasm-eh`.
-  The default is revisited after M3 (P15-5).
+  Open: whether the default changes after the M3 measurements.
 - **Cleanup blocks are ordinary code** on every mechanism: only `drop`,
   `set_flag`, `storage_dead`, intrinsics, `task.abandon` and calls to
   `nounwind` functions (V15), so the same block serves the normal and the
@@ -787,8 +790,8 @@ Details that each backend must follow:
 
 ### 15.7.3 `task.abandon` and unwaited tasks
 
-`intrinsic task.abandon(move t)` ([13.4](mir-specification.md#134-statements-and-terminators),
-M4) requests cancellation of the child `t` and **hands its join to the
+`intrinsic task.abandon(move t)` ([13.4](mir-specification.md#134-statements-and-terminators))
+requests cancellation of the child `t` and **hands its join to the
 runtime**: the runtime finishes the child (it unwinds with its own `Cleanup`)
 before the parent's own unwinding completes. Only a child cancelled by an unwinding parent prints
 nothing for that cancellation (spec §11.3); an explicit `cancel()` keeps the
@@ -820,8 +823,9 @@ inside a `Cleanup` never takes the process down by itself.
 6. A panic in a `Cleanup` on the **normal path** (no unwind in progress): the
    glue stores the record as the task's panic and returns; the caller then
    starts unwinding. In MIR this needs the `drop` of a `Cleanup` type to have
-   an unwind edge after the call, which is 13.10 M7: the
-   `drop` terminator's `unwind` edge starts the unwinding at once (P15-1).
+   an unwind edge after the call, so the
+   `drop` of a `Cleanup` type is a terminator whose `unwind` edge starts the
+   unwinding at once ([13.4](mir-specification.md#134-statements-and-terminators)).
 
 The MIR verifier is unchanged: the cleanup blocks stay `nounwind` (V15).
 
@@ -847,12 +851,12 @@ function that unwinds is undefined behaviour ([07 §7.5](plugins.md#75-ownership
   process with status 101. It is allowed only when no `Cleanup` value is live
   at any panic site (V0908 otherwise). Under `abort` a panic in a non-main
   task cannot become `TaskPanicked` at `.wait()`, so an `abort` build **also
-  fails with V0910 when a `spawn` is reachable** (P15-4).
+  fails with V0910 when a `spawn` is reachable**.
 - **`unreachable`** (13.4) and an internal runtime error are **traps**: native
   code executes the architecture's trap instruction, Wasm executes `unreachable`,
   the VM stops with a bug report ([14.4](bytecode-and-vm.md#144-instruction-set-and-encoding)). No cleanup runs. Where the runtime is the cause (a
   runtime trap, an internal error, `unreachable`, a VM `TRAP`, a failed run-time
-  capability re-check), the exit status is **3**, "a bug in Verse" ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses); P15-16). A host trap that Verse cannot control (an
+  capability re-check), the exit status is **3**, "a bug in Verse" ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)). A host trap that Verse cannot control (an
   engine's own call-stack limit, a kill signal) keeps the status the host gives.
 
 ## 15.8 Exit codes
@@ -867,25 +871,27 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 
 ### 15.8.1 Statuses
 
-| Status | Meaning | Source | Label |
-|--------|---------|--------|-------|
-| `0` | normal completion; the main task finished and all its tasks were waited | spec §12.5 | fact |
-| `1` | a top-level `?` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 | fact |
-| `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or when running a file: the program did not start | [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses), [14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) | fact |
-| `3` | a bug in Verse: a compiler bug (V9901, V9902) found before the program started, when running a file as in `build`; or a trap the runtime itself caused (`unreachable`, an internal runtime error, a VM `TRAP`); or a capability re-check that fails at run time, because the build-time check should have caught it (15.7.6) | 16 §16.6.1, 14.4, 14.9 | fact |
-| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the R0004 text (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 | fact |
-| `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](debugging.md#87-vocabulary-and-wording), stop reason `deadlocked`) | 14.7, 14.12 and 16 §16.6.1 | fact |
-| `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) | fact |
-| host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 | assumption |
+| Status | Meaning | Source |
+|--------|---------|--------|
+| `0` | normal completion; the main task finished and all its tasks were waited | spec §12.5 |
+| `1` | a top-level `?` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 |
+| `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or when running a file: the program did not start | [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses), [14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) |
+| `3` | a bug in Verse: a compiler bug (V9901, V9902) found before the program started, when running a file as in `build`; or a trap the runtime itself caused (`unreachable`, an internal runtime error, a VM `TRAP`); or a capability re-check that fails at run time, because the build-time check should have caught it (15.7.6) | 16 §16.6.1, 14.4, 14.9 |
+| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the R0004 text (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 |
+| `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](debugging.md#87-vocabulary-and-wording), stop reason `deadlocked`) | 14.7, 14.12 and 16 §16.6.1 |
+| `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) |
+| host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 |
 
-**`exit(code)`** (P15-13; spec §12.5 and §15.1). It ends the
+**`exit(code)`** (spec §12.5 and §15.1). It ends the
 program **immediately**, from any task: it runs **no `Cleanup`**, does not
 cancel the other tasks, never raises R0009, flushes standard output and
 standard error, writes the `debug` end event, and delivers `code`. A code
 outside 0 to 255 is not an exit: it is a panic, **R0013**, on every platform
 (status 101, with `Cleanup` as for any panic), so the same call means the same
 on every target. A program that needs its cleanups returns from `main` or ends
-with a failed `?`. A cleanup-aware exit is a 0.2 candidate (P15-25).
+with a failed `?`. Open: a cleanup-aware exit for 0.2 that cancels the other
+tasks, runs `Cleanup` and then exits, with a bound on how long a cleanup may
+block (a blocking `Cleanup` also hangs a `main` that returns).
 
 **Deadlock detection** is the same predicate on every tier and is computed by
 the scheduler of the platform layer: *no runnable task, no pending I/O
@@ -902,20 +908,20 @@ exit status `70` is delivered to the glue.
 Statuses 2 and 3 of a compiler or build-time check are decided before the
 program starts, so they never compete with the others.
 
-**When more than one applies** (proposal, the spec is silent on the combinations):
-an explicit `exit(code)` always wins (spec §12.5); otherwise `70` if the
+**When more than one applies.**
+An explicit `exit(code)` always wins (spec §12.5); otherwise `70` if the
 run ended by deadlock; otherwise `101` if the main task or any unwaited task
 panicked; otherwise `1` if a top-level `?` failed or an unwaited task failed
-with an error; otherwise `0` (P15-24).
+with an error; otherwise `0`.
 
 ### 15.8.2 Delivery by platform layer
 
 | Layer | How the status leaves | Range | Notes |
 |-------|-----------------------|-------|-------|
-| `std-os`, Unix | `exit(status)` after flushing standard output and error; `_exit` from a signal-unsafe context | 0 to 255 | `exit(256)` never reaches the OS: it is panic R0013 (P15-13) |
+| `std-os`, Unix | `exit(status)` after flushing standard output and error; `_exit` from a signal-unsafe context | 0 to 255 | `exit(256)` never reaches the OS: it is panic R0013 |
 | `std-os`, Windows | `ExitProcess(status)` | 0 to 255 | same |
 | `std-wasi` p1 | `proc_exit(status)` | 0 to 255 | same |
-| `std-wasi` p2 | `wasi:cli/exit.exit-with-code(status)` | `u8` | stabilized in WASI 0.2.12; an older host has only `exit(result)`, where every nonzero status becomes failure (P15-14) |
+| `std-wasi` p2 | `wasi:cli/exit.exit-with-code(status)` | `u8` | stabilized in WASI 0.2.12; an older host has only `exit(result)`, where every nonzero status becomes failure; the runtime falls back to `exit(err)` there with a warning (verified in M3) |
 | `std-web` | the glue calls `onExit(status)`; the page is not closed; the status is also logged to the console | 0 to 255 | there is no process |
 | `std-embedded` | the target's `[exit] on_exit`: `halt` (low-power loop), `reset`, `semihosting` (the semihosting exit call, used with an emulator in CI), or `host` (return to the board's own startup code) | 0 to 255 | status is also written to the console if `stdio` is granted |
 | tier 0 | the `verse` process exits with the status | as the host | the VM is a host process |
@@ -961,7 +967,7 @@ rule.
 
 ### 15.9.2 Schema
 
-Unknown tables and keys are errors (as in 19, P19-2). Sizes are text
+Unknown tables and keys are errors (as in 19). Sizes are text
 with `K`, `M`, `G` suffixes (powers of 1024) or integers (bytes).
 
 **`[target]`**
@@ -1232,7 +1238,7 @@ spi = true
 
 A target file is checked when it is loaded; a violation is a build error with
 a message naming the key. The codes are V0911 to V0915 of the V09xx family of
-[16](../reference/diagnostics-catalog.md#162-families) (P15-11); the meanings
+[16](../reference/diagnostics-catalog.md#162-families); the meanings
 below are those of 16. Like any source error, each ends the run with status 2.
 
 | Rule | Code | Reason |
@@ -1256,10 +1262,10 @@ project asks of it**. A key lives in exactly one place:
 | Question | Target file | `verse.toml` | Rule |
 |----------|-------------|--------------|------|
 | Which targets does the project build and check? | no | `[targets] default`, `check` | by target name |
-| How big is the heap? | `[memory] heap` (the default for the board) | `[targets.<t>] heap` | the manifest **wins** (19, P19-4); `[targets.<t>] no_heap = true` forbids allocation altogether (05 §5.7) |
-| Which entry file, which module variants? | no | `[targets.<t>] entry`, `files` | per-target code is chosen by files, never by conditions in source (P6-7) |
+| How big is the heap? | `[memory] heap` (the default for the board) | `[targets.<t>] heap` | the manifest **wins** (19); `[targets.<t>] no_heap = true` forbids allocation altogether (05 §5.7) |
+| Which entry file, which module variants? | no | `[targets.<t>] entry`, `files` | per-target code is chosen by files, never by conditions in source (06 §6.9) |
 | Which capabilities can the target provide? | `[capabilities]` | no | what the hardware and platform layer can do |
-| Which capabilities may the program use? | no | `[capabilities] grant` (19, P19-3) | an application's explicit allowance |
+| Which capabilities may the program use? | no | `[capabilities] grant` (19) | an application's explicit allowance |
 | Which tier and optimizer? | `backend`, `backends` | `[profile.*] backend`, `opt`, `debug` | the profile picks among `backends` |
 | Panic mechanism? | `unwind` | `[profile.*] unwind = "target" \| "abort"` | `target` means the file's mechanism; `abort` is the profile of 15.7.6 |
 | Is a library available here? | no | `[library.targets] available` / `unavailable`, by **target name** (06 §6.9) | a custom target is matched by its `name` |
@@ -1269,7 +1275,7 @@ the target provides it (V0902), the manifest grants it when `[capabilities]`
 is present (V0901), and no `--deny` removes it (14.9). In set terms:
 `required ⊆ (provided(target) ∩ grant) \ deny`, and the first failing step is
 named in the message. The check is the *capability check* that runs right
-after reachability ([02 §2.2](compiler-architecture.md#22-stage-contracts), P6-5).
+after reachability ([02 §2.2](compiler-architecture.md#22-stage-contracts)).
 
 A project-local target and `[targets.<t>]` coexist: the first declares the
 platform, the second the project's choices for it.
@@ -1345,7 +1351,7 @@ reaches the provider and the documentation.
 |------------|----------|------------|-----------|----------------|
 | `stdio` | `true` (fds 0, 1, 2; console handles on Windows) | `true` | `"console"` (`console.log`, `console.error`; `input` is a glue callback and may be absent) | `"uart"`, `"semihosting"`, `false` |
 | `fs` | `true` | `"preopened"` (only the directories the host maps in) | - | - (a flash file system is a later layer) |
-| `net` | `true` (sockets, and `tls_*`) | p2: `true` through `wasi:sockets` if the host grants it; p1: `false` | - (a client through `fetch` is a proposal, P15-12) | `false`, or `true` when a board package supplies a stack |
+| `net` | `true` (sockets, and `tls_*`) | p2: `true` through `wasi:sockets` if the host grants it; p1: `false` | - (a client through `fetch` is not in 0.1) | `false`, or `true` when a board package supplies a stack |
 | `clock` | `true` (`monotonic_now`, `wall_now`) | `true` | `true` | `"monotonic"` (no wall clock) or `true` with an RTC |
 | `random` | `"os"` | `"os"` | `"os"` (`crypto.getRandomValues`) | `"hardware"` or `"seeded"` (documented as deterministic) |
 | `process` | `true` (spawn, wait, exit) | `"exit-only"` | `"exit-only"` | `"exit-only"` (halt or reset, 15.8.2) |
@@ -1372,7 +1378,8 @@ Notes:
   change to compiled code ([14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check),
   05 §5.6 reason 4).
 - A custom target that needs a capability outside this table (a CAN bus) has no
-  way to add a provider in 0.1 (P15-12).
+  way to add a provider in 0.1. A board driver is called through a plugin,
+  outside the capability system ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 ## 15.11 Foreign-call boundary
 
@@ -1431,36 +1438,3 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
 6. **Target files.** Every shipped target file is loaded, validated and
    round-tripped by the schema of 15.9.2; every example in this document is a
    test fixture.
-
-## 15.13 Open items
-
-Open proposals and questions. The ids are
-this document's.
-
-| # | Question or proposal | Touches | Recommendation |
-|---|----------------------|---------|----------------|
-| P15-1 | A panic in `Cleanup`: its normal-path case needs `drop` of a `Cleanup` type to have an unwind edge | 13.10 M7 and M9, 14.8 | **Closed**: M7 makes `drop` of a `Cleanup` type a terminator with an unwind edge, and M9 and 14.8 follow 15.7.4 |
-| P15-2 | Deadlock status `70` | 14.7, P14-7, 08 §8.7 | **Closed**: deadlock is R0008, status 70; 14 follows |
-| P15-3 | Status-code unwinding uses a TCB word tested after each call, swapped on task switch (15.7.2) | 05 §5.4, M7 | Keep for 0.1; measure in M7 against a second result register on Cortex-M |
-| P15-4 | The `abort` profile loses `TaskPanicked` | 05 §5.4, V0908, V0910 | **Closed**: an `abort` build fails with V0910 when a `spawn` is reachable |
-| P15-5 | Wasm default (`status-code`) and the mixing of status-code between resumable functions with `wasm-eh` elsewhere | 04 §4.1, 05 §5.4 | `status-code` for all shipped Wasm targets; decide after M3 measurements; `-eh` variants opt in |
-| P15-6 | Fold into the affected documents: the layout algorithm L4 and L5, the fixed layout of the `checked_*` tuple, by-value shared borrows of small `Copy` values | 03 §3.5, 13.3, 13.6, 04 §4.5 | Adopt as written |
-| P15-7 | A 12-byte 32-bit `Text` header with 10 inline bytes (assumption); big-endian targets (s390x via Cranelift) are out | 03 §3.5, 14.1 | Accept for M7; revisit with measurements |
-| P15-8 | Closure representation: how a lambda that only borrows its captures is lowered, given V7 forbids a borrow in `aggregate closure` | 13.2, 13.5, spec §5 (captures) | 13 chooses: lambda lifting into extra borrowed parameters, or an explicit non-escaping closure form |
-| P15-9 | The vtable layout `[drop_glue, size, align, slots...]`, owned `dyn` as a heap box, and the layout of `Error` as a boxed trait object | 03 §3.5, standard library | Accept; the standard library confirms `Error` |
-| P15-10 | File names and lookup: `targets/<name>.toml` (toolchain), `targets/<name>.target`, `verse.target`, `host`, and `inherits` | 04 §4.3, 19 §19.3 | Accept 15.9.1; 19 adds `verse.target` to its file list and cache keys |
-| P15-11 | Schema extensions to 04 §4.3 (15.9.2) and diagnostics for target-file errors | 04 §4.3, 16 | **Codes closed**: V0911 to V0915, one per row of 15.9.4. Still open: fold the schema into 04 §4.3 |
-| P15-12 | Custom capabilities and providers for custom targets and boards (a CAN bus); a browser `net` client through `fetch` | 05 §5.6, 06 §6.5, 20 | Not in 0.1. A board driver can be called through a plugin, outside the capability system (07 §7.1); a custom capability needs a slice supplied by a package |
-| P15-13 | The range of `exit(code)`, whether `exit` runs `Cleanup`, and `exit` from a non-main task | spec §12.5 and §15.1, 16 R0013 | **Closed, final**: the code is 0 to 255 and anything else is panic R0013 on every platform; `exit` works from any task, ends the program immediately, runs **no** `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes standard output and error |
-| P15-14 | WASI p2 `exit-with-code` is stable from 0.2.12; older hosts only have `exit(result)` | 15.8.2 | Use `exit-with-code`; fall back to `exit(err)` with a warning on a host that lacks it; verify in M3 |
-| P15-15 | On Wasm the engine's call-stack limit can trap before the shadow-stack check, so `stack_overflow` is not always a panic | 05 §5.3 | Document as a host-defined trap; give each recursive function a minimum shadow frame so the Verse check usually fires first |
-| P15-16 | Exit status of an internal error or trap (`unreachable`, VM bug) | 14.4 `TRAP`, 15.7.6, 16 §16.6.1 | **Closed** (ruling): status 3 where the runtime is the cause; a host trap Verse cannot control stays host-defined |
-| P15-17 | The `stack` of a panic record needs the debug map; a `debug = false` build has none | 05 §5.4, 14.12 | Print message and span only; the structured record carries `stack = null`; differential tests compare it only with debug on |
-| P15-18 | Targets not in 04 §4.2: ARM32 Linux, i686, RISC-V 32 Linux, big-endian | 04 §4.2 | Out of 0.1; each is a target file plus, for stackful targets, a context-switch row |
-| P15-19 | Foreign calls: stack, blocking, the `Text` form, symbols and linking | 15.11, 07 | **Closed**: on the task's stack, not a yield point, `Text` as its `.bytes()` with a trailing zero byte, C names, linking per `[plugins]` (15.11, 07 §7.4 to §7.6) |
-| P15-20 | Mixed-mode execution (a later hot-function JIT) needs adapters between the VM window and Verse-cc | 04 §4.1, 14 | Specify with the JIT; none in 0.1 |
-| P15-21 | Cranelift unwind information on Windows (x64 and ARM64) | 04 §4.1, 15.5.2 | Verify in M5; LLVM is the fallback |
-| P15-22 | The float ABI of binary64 on an FPU with single precision only (`fpv4-sp-d16`) | 15.5 | Verify in M7 that `verse-rt` and generated code agree; both are built with the same target ABI string |
-| P15-23 | The explicit prologue stack check of 15.6.4 replaces the guard-page panic; the `headroom` numbers | 05 §5.3, 14.3 | **Accepted** (ruling): every stack-overflow path prints R0004. Open only: tune `headroom` in M2 |
-| P15-24 | Precedence among exit statuses (15.8.1) when several apply | spec §12.5 | Adopt the order of 15.8.1: `exit`, `70`, `101`, `1`, `0` |
-| P15-25 | 0.2 candidate: a **cleanup-aware exit** that cancels the other tasks, runs `Cleanup` and then exits. `exit` runs none in 0.1 (P15-13). A blocking `Cleanup` also hangs a `main` that returns, so neither path is guaranteed to stop quickly | spec §12.5 | Not in 0.1. Decide with 0.2, together with a bound on how long a cleanup may block |

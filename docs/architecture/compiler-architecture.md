@@ -145,7 +145,7 @@ Spec §4.2 requires "specialized code for each concrete type used".
   (spec §10.3) is the user-visible escape hatch for compile-time-sensitive
   code: it is one shared body instead of one copy per type.
 - **Script mode** instantiates **code** lazily at first call, so bytecode
-  generation and optimization scale with what runs. **Decision:** before tier 0
+  generation and optimization scale with what runs. Before tier 0
   starts, running a file performs a cheap whole-program **reachability pre-pass**
   from the entry statements: it walks the generic MIR with type arguments
   substituted (resolving trait calls and vtable slots), builds no bytecode and

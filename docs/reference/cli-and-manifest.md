@@ -1,12 +1,9 @@
 # 19. CLI, manifests and package manager
 
-Status: **draft 1**. This is the implementable reference for
+This is the implementable reference for
 the `verse` commands that manage projects, and for the three files a project
 carries: `verse.toml` (what the author asks for), `verse.lock` (what was
-chosen), and `verse.api` (what a package promises). Labels follow the
-[README](../architecture/README.md) conventions: **Fact** (stated by the spec or a ruled
-document), **Decision** (chosen here, inside the spec's room), **Assumption**,
-**Target**, **Proposal** (needs a ruling, collected in §19.6).
+chosen), and `verse.api` (what a package promises).
 
 Nothing here changes what a Verse program means. The spec (§12, §16.3, §16.4)
 wins wherever this document disagrees with it.
@@ -30,7 +27,8 @@ chosen, locked and published are in
 ## 19.2 Commands
 
 The spec's tool table (§16) lists the commands; this section fixes their
-behaviour. Commands marked *new* are proposals (P19-1).
+behaviour. `verse lock`, `verse vendor`, `verse yank` and `verse api diff`
+extend that table.
 
 | Command | What it does | Reads | Writes | Network |
 |---------|--------------|-------|--------|---------|
@@ -39,22 +37,22 @@ behaviour. Commands marked *new* are proposals (P19-1).
 | `verse add --dev pkg` | the same, into `[dev-dependencies]` | | | |
 | `verse remove pkg` | removes it; the lock drops what nothing else needs | toml, lock | toml, lock | no |
 | `verse update [pkg…]` | raises locked versions to the newest allowed by `verse.toml` (21 §21.8); shows each change and each capability change | toml, lock, index | lock | yes |
-| `verse lock` *new* | resolves and writes `verse.lock` without building; `--check` fails if the lock is stale (for CI) | toml, lock, index | lock | yes, unless `--offline` |
-| `verse vendor` *new* | copies every locked package into `vendor/` and records it in the lock (21 §21.9) | lock | `vendor/`, lock | yes, unless cached |
+| `verse lock` | resolves and writes `verse.lock` without building; `--check` fails if the lock is stale (for CI) | toml, lock, index | lock | yes, unless `--offline` |
+| `verse vendor` | copies every locked package into `vendor/` and records it in the lock (21 §21.9) | lock | `vendor/`, lock | yes, unless cached |
 | `verse publish` | checks, computes the required bump, packs and uploads (21 §21.6, §21.9) | everything | registry | yes |
-| `verse yank pkg@ver` *new* | marks a published version yanked (21 §21.9); `--undo` reverses | — | registry | yes |
-| `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the `verse generate` entry that wrote it (spec §16.6); this document adds package names and capabilities (§19.4, P19-8) | build graph, lock | — | no |
+| `verse yank pkg@ver` | marks a published version yanked (21 §21.9); `--undo` reverses | — | registry | yes |
+| `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the `verse generate` entry that wrote it (spec §16.6); this document adds package names and capabilities (§19.4) | build graph, lock | — | no |
 | `verse api update` / `verse api check` | as spec §16.4 | sources | `verse.api` | no |
 | `verse generate [name]` | runs the `[generate]` entries (spec §16.6): empties `generated/<name>/` and runs the entry's tool | toml, lock, the inputs the tool reads | `generated/` | only if resolving |
 | `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
-| `verse api diff [ver]` *new* | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
+| `verse api diff [ver]` | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
 | `verse debug [app.vs] [--port n]` | the debug adapter: serves the Debug Adapter Protocol on standard input and output, or on a local port ([08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) | sources, recordings | — | no |
 | `verse app.vs`, `verse .`, `build`, `check`, `test` | read the lock; resolve only if it is missing or stale (and say so) | toml, lock | lock (only if stale) | only if resolving |
 
 Global flags, accepted by every command that may touch the network:
 `--offline` (never connect; use the cache and `vendor/`), `--locked` (fail
-instead of changing `verse.lock`), `--frozen` (both). CI uses `--frozen`
-(Decision; the names follow Cargo, which users already know).
+instead of changing `verse.lock`), `--frozen` (both). CI uses `--frozen`.
+The names follow Cargo, which users already know.
 
 Every command takes `--json` and then prints records, not prose, so a script
 driving `verse` and a person at a terminal see the same facts. Positions are
@@ -111,7 +109,7 @@ Here `--deny net` is for `verse`, and `args` is `["--top", "3", "poem.txt"]`.
 Running a file ends with the status of the program it ran; every command that
 reports a problem uses the statuses below, so a script can tell the causes
 apart. The table is the one of
-[16 §16.6.1](diagnostics-catalog.md#1661-exit-statuses) (Fact: spec §12.5);
+[16 §16.6.1](diagnostics-catalog.md#1661-exit-statuses) (spec §12.5);
 16 owns it.
 
 | Status | Meaning |
@@ -132,10 +130,9 @@ lock under `--locked`, a failed resolution) is not covered by the spec or by
 ## 19.3 `verse.toml`
 
 TOML 1.0. Unknown sections and keys are errors, not warnings, because a
-misspelt key silently ignored would change a build (Decision). Every key below
+misspelt key silently ignored would change a build. Every key below
 is listed with its type and default. Sections marked *spec* are in spec
-§16.3; the others are proposals (P19-2) unless another document already
-uses them.
+§16.3; this document defines the others.
 
 ### `[package]` *spec*
 
@@ -164,10 +161,10 @@ term = { version = "0.3", registry = "corp" }    # a named alternative registry 
 
 | Form | Meaning |
 |------|---------|
-| `"1.2"` | caret requirement: `>= 1.2.0, < 2.0.0`; for `0.y`, `>= 0.y.0, < 0.(y+1).0` (Fact for 1.x: the spec's comment; the `0.y` rule is a Decision, as in Cargo) |
+| `"1.2"` | caret requirement: `>= 1.2.0, < 2.0.0`; for `0.y`, `>= 0.y.0, < 0.(y+1).0` (the 1.x rule is the spec's; the `0.y` rule is Cargo's) |
 | `"=1.2.3"` | exactly that version (discouraged; the registry shows a warning on publish) |
 | `{ version = …, registry = … }` | from a named registry |
-| `{ git = …, tag \| rev = … }` | git source; `branch` is not accepted, because a branch is not reproducible (Decision) |
+| `{ git = …, tag \| rev = … }` | git source; `branch` is not accepted, because a branch is not reproducible |
 | `{ path = … }` | local source; not allowed in a published package |
 
 A `branch` key is refused:
@@ -184,7 +181,7 @@ explain: V0830 (run `verse explain V0830`)
 ```
 
 There is no `>=`-only form and no `*`: every requirement has an upper bound
-at the next major (Decision: one version per major, spec §16.3).
+at the next major (one version per major, spec §16.3).
 A requirement without an upper bound is refused:
 
 ```
@@ -197,8 +194,8 @@ error: `>= 1.2` has no upper bound
 help: write "1.2", which means `>= 1.2.0, < 2.0.0`
 explain: V0831 (run `verse explain V0831`)
 ```
-`[dev-dependencies]` are visible only to `test` blocks and doc tests (Fact:
-spec §16.3, 06 §6.7).
+`[dev-dependencies]` are visible only to `test` blocks and doc tests (spec
+§16.3, 06 §6.7).
 
 ### `[library]` *spec*
 
@@ -255,7 +252,7 @@ args = ["schema/item.json"]
 | `[generate.<name>]` | `args` | list of text | `[]` | passed to the command, followed by `--out generated/<name>/` |
 | `[tool]` | `main` | path | required | the entry file of the package's command; it is never part of a program that imports the package |
 
-### `[capabilities]` (applications) — Proposal P19-3
+### `[capabilities]` (applications)
 
 What the program is granted. Absent means "whatever the target provides".
 Present means the build fails if reachability finds a capability outside the
@@ -275,7 +272,7 @@ of passing silently.
 The targets the project is built and checked for, by name of a target file
 ([04 §4.3](../architecture/backends-and-targets.md#43-what-a-target-is), and see *Target files* below). `verse build`
 with no `--target` uses `default`. Per-target data only, never per-target
-source conditions (Fact: P6-7 ruling).
+source conditions ([06 §6.9](../architecture/stdlib-and-shaking.md#69-package-format-of-a-domain-library)).
 
 ```toml
 [targets]
@@ -292,10 +289,10 @@ entry  = "src/board.vs"   # a different entry file for this target
 |-----|------|---------|---------|
 | `default` | target name | `"host"` | |
 | `check` | list of target names | `[default]` | `verse check` checks every listed target ([06 §6.8](../architecture/stdlib-and-shaking.md#68-per-target-constraints)) |
-| `<target>.heap` | size | target file's value | the embedded heap of 05 §5.7 (P19-4) |
+| `<target>.heap` | size | target file's value | the embedded heap of 05 §5.7 |
 | `<target>.no_heap` | bool | `false` | |
-| `<target>.entry` | path | `src/main.vs` | the per-target choice is a file, not a condition in source (P6-7) |
-| `<target>.files` | map of module path to file | `{}` | module variants for that target (P6-7); each variant must produce the same `verse.api` |
+| `<target>.entry` | path | `src/main.vs` | the per-target choice is a file, not a condition in source |
+| `<target>.files` | map of module path to file | `{}` | module variants for that target; each variant must produce the same `verse.api` |
 
 ### Target files
 
@@ -304,7 +301,7 @@ file**, TOML with the schema of
 [15 §15.9.2](../architecture/target-and-abi.md#1592-schema). Where the files live and the
 order in which a name is resolved are defined by
 [15 §15.9.1](../architecture/target-and-abi.md#1591-files-and-lookup); this section only
-restates them (P15-10).
+restates them.
 
 | File | Where | Defines |
 |------|-------|---------|
@@ -368,7 +365,7 @@ There is no `[features]` section. Why, and what to use instead, is in
 
 One command answers "why is this here?" for three kinds of argument, chosen
 by its form. Items and file paths are spec §16; packages and
-capabilities are Proposal P19-8:
+capabilities are added here:
 
 | Argument | Example | Answer |
 |----------|---------|--------|
@@ -436,19 +433,3 @@ registry (V0833, 21 §21.3).
 | V0905 | this package uses {n} KB, but its size budget is {m} KB | §19.3 `size_budget` |
 | V0906 | `{module}` has different public items on `{target}` | §19.3 `[targets.<t>.files]` |
 | V0907 | the file `{f}` for target `{t}` does not exist | §19.3 `[targets.<t>.files]` |
-
-## 19.6 Proposals and rulings
-
-| # | Proposal | Touches | Ruling |
-|---|----------|---------|----------------|
-| P19-1 | New commands: `verse lock` (`--check`), `verse vendor`, `verse yank`, `verse api diff`, `build --verify-reproducible`; global `--offline`, `--locked`, `--frozen`, `--json` | spec §16 tool table | agreed |
-| P19-2 | The `verse.toml` reference of §19.3: `[package]` keys (`authors`, `repository`, `readme`, `include`), dependency forms (`registry`, `path`, git `tag`/`rev`, no `branch`, no unbounded ranges), `[plugins]`, `[generate]`, `[tool]`, `[targets]`, `[profile.*]`, `[run]`, `[build]`, `[test]`, `[workspace]`; unknown keys are errors | spec §16.3 | agreed |
-| P19-3 | `[capabilities] grant` for applications: the build fails if reachability finds an ungranted capability | spec §16.3, 06 §6.8 | agreed; it uses the word *grant* |
-| P19-4 | The embedded heap of 05 §5.7 is set per target, as `[targets.<t>] heap` | 05 | agreed |
-| P19-5 | No `[features]` in 0.1; if needed later, only named sets of optional dependencies, never source conditions | spec §16.3, P6-7 | agreed |
-| P19-6 | Adding a defaulted parameter is a major change, because it changes the function type. Alternative: minor, and function-value uses of library functions get a lint | versioning, spec §4.7 | agreed: **major** (a changed function type is a changed promise) |
-| P19-7 | Security advisories in the index, shown by `verse update`; two-maintainer approval for first-party releases | registry | agreed |
-| P19-8 | `verse why` also accepts a package name or a capability, distinguished by form (items and paths are already spec §16) | spec §16 | agreed; wording in §19.4 (one opener per kind of argument, answer is a chain) |
-| P19-9 | Package names are `[a-z][a-z0-9_]*` | spec §16.3 | agreed |
-| P19-10 | Minimal version selection, with lock entries as extra minimums | spec §16.3 ("a single version per major") | agreed |
-| P19-11 | Libraries commit `verse.lock` too (used for their own tests, ignored by dependents) | spec §16.3 says "committed for applications" | agreed |

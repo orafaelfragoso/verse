@@ -5,9 +5,8 @@ This folder is the engineering counterpart of the language specification
 means**. These documents say **how we build it**. When the two disagree, the
 specification wins.
 
-Status: **draft**, written against spec 0.1. Nothing here
-has been implemented yet, so every number is a *target*, not a measurement.
-Facts, assumptions and hypotheses are labelled as such.
+Written against spec 0.1. Nothing here has been implemented yet, so every
+number is a *target*, not a measurement.
 
 | No. | Document | What it answers |
 |-----|----------|-----------------|
@@ -43,8 +42,10 @@ ADR-0004 if you want to challenge a decision.
 
 ## Conventions
 
-- **Decision**: chosen and recorded as an ADR.
-- **Target**: a measurable goal we have not yet measured.
-- **Assumption**: believed true, not yet verified. Each one has a milestone
-  in the roadmap that verifies it.
-- **Proposal**: needs a ruling before it is treated as established.
+- The documents state the design as decided. The reasons for the larger
+  choices are in the [decisions](../decisions/README.md).
+- A **target** is a measurable goal that has not been measured yet.
+- An **assumption** is believed true and not yet verified. Each one has a
+  milestone in the roadmap that verifies it.
+- A sentence that starts with **Open:** is a design question that is not
+  decided yet.

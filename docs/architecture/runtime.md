@@ -17,7 +17,7 @@ the ones the reachability analysis asks for ([06](stdlib-and-shaking.md)).
 | `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-os`, `sys-env` | the platform capabilities of `time`, `random`, `fs`, `net` and `http`, `process`, `os`, `env` | yes, per target | `core` |
 | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | microcontroller peripherals | board | `core` |
 | `debug` | trace events, record and replay hooks, panic reports | no | `core` |
-| `sys-surface`, `sys-gpu` | windows, input and drawing; GPU compute (capabilities `surface` and `gpu`, [06](stdlib-and-shaking.md) P6-6) | yes, per target | `core` |
+| `sys-surface`, `sys-gpu` | windows, input and drawing; GPU compute (capabilities `surface` and `gpu`, [06 §6.5](stdlib-and-shaking.md#65-capabilities-and-runtime-slices)) | yes, per target | `core` |
 
 **How platforms and slices combine.** Each target names one *platform layer* (`std-os`, `std-wasi`, `std-web`, `std-embedded`, see [04 §4.2](backends-and-targets.md#42-target-matrix)) that implements the allocator, the entry point and the `sys-*` capabilities that target provides. The feature slices above are the pieces of that layer, so a platform layer is a *menu* of slices and a build links only the slices reachability asks for, never the whole layer.
 
@@ -198,4 +198,4 @@ heap and a 64-bit `Int`.
 - `Int` stays 64-bit (spec §4.1). The optimizer uses range analysis to lower to
   32-bit operations where it can prove values fit, and sized types
   (`math.Int32`) are the explicit tool for hot code.
-- **Interrupts only wake tasks.** No Verse code runs in interrupt context. The platform layer owns a tiny handler, written once in the runtime and not in Verse, that records the event (a pin change, a timer tick, a received byte) and marks the waiting task ready. The task then runs on the cooperative executor like any other, so ordinary rules (ownership, `Cleanup`, panics) hold in it. A program waits for an interrupt through the `gpio`, `uart` or `clock` capability, never by registering a function ([20](first-party-packages.md), P20-5).
+- **Interrupts only wake tasks.** No Verse code runs in interrupt context. The platform layer owns a tiny handler, written once in the runtime and not in Verse, that records the event (a pin change, a timer tick, a received byte) and marks the waiting task ready. The task then runs on the cooperative executor like any other, so ordinary rules (ownership, `Cleanup`, panics) hold in it. A program waits for an interrupt through the `gpio`, `uart` or `clock` capability, never by registering a function ([20 §20.6](first-party-packages.md#206-iot)).

@@ -1,12 +1,10 @@
 # 20. First-party packages
 
-Status: **draft 1, every signature is a sketch
-(non-normative)**. Nothing here is designed in detail or implemented; the
-package APIs are settled in milestone M9 ([11](../roadmap.md)). Labels follow
-the [README](README.md) conventions: **Fact**, **Decision**, **Assumption**,
-**Target**, **Proposal** (collected in §20.7).
+Every signature here is a sketch (non-normative). Nothing here is designed in
+detail or implemented; the package APIs are settled in milestone M9
+([11](../roadmap.md)).
 
-The five packages are `finance`, `ml`, `web`, `gui` and `iot` (Fact: P6-1,
+The five packages are `finance`, `ml`, `web`, `gui` and `iot` ([06 §6.2](stdlib-and-shaking.md#62-library-tiers),
 spec §15.2 and §16.3). They are ordinary packages: added with `verse add`,
 pinned in `verse.lock`, checked against `verse.api`, shaken like any code
 ([06](stdlib-and-shaking.md), [19](../reference/cli-and-manifest.md)). They get no
@@ -16,13 +14,13 @@ compiler privileges and no syntax.
 
 | Rule | Source |
 |------|--------|
-| **One obvious name.** No second spelling of a standard library idea: `finance` uses `math.Decimal`, `web` builds on `http.serve`, every package uses `time` for dates and durations | 06 §6.2, P6-1 |
+| **One obvious name.** No second spelling of a standard library idea: `finance` uses `math.Decimal`, `web` builds on `http.serve`, every package uses `time` for dates and durations | 06 §6.2 |
 | **No stored references.** Values are owned; borrows are second-class (spec §5.3, §9.3). Long-lived structures refer to parts by `Int` index (the arena pattern of spec §4.10) or by `Shared`/`Guarded` handles (spec §11.4) | spec |
 | **Failure in the type.** Anything that can fail returns `T \| Error` or a named error type (spec §8, §15) | spec |
 | **Resources are `Cleanup` values** used with `with` (spec §13): files, devices, windows, pins | spec |
 | **Capabilities are declared** in `[library] capabilities` and are the most any module may reach; a program pays only for what it reaches (06 §6.5) | 06 |
-| **Per-target availability is data** in `[library.targets]`, never conditions in source (P6-7) | 06 §6.9 |
-| **Each package has a size budget** in `[library] size_budget`, checked by `verse publish` against its examples (Target; no numbers are set yet) | 06 §6.9 |
+| **Per-target availability is data** in `[library.targets]`, never conditions in source | 06 §6.9 |
+| **Each package has a size budget** in `[library] size_budget`, checked by `verse publish` against its examples (no numbers are set yet) | 06 §6.9 |
 
 How to read the signature tables: each row is `fn name(params): Return`, as
 it would appear in `verse.api`. Examples are valid Verse 0.1 apart from the
@@ -36,8 +34,7 @@ says *assumed*.
 calendars, and time series of values over dates.
 
 **Capabilities:** none. Every function is pure; "today" is passed in by the
-caller (from `time`), which keeps finance code testable and replayable
-(Decision). **Targets:** all, including `--no-heap` for `Money` and rounding
+caller (from `time`), which keeps finance code testable and replayable. **Targets:** all, including `--no-heap` for `Money` and rounding
 (Assumption: `math.Decimal` is fixed-size; calendars and series allocate).
 
 ### Types (sketch)
@@ -69,7 +66,7 @@ and needs no `.copy()`.
 |-----------|-------|
 | `fn Money.parse(text: Text, currency: Text): Money \| Error` | `"19.99"`; rejects more decimals than the currency allows |
 | `fn Money.zero(currency: Text): Money` | |
-| `fn add(self, other: Money): Money \| Error` | different currencies are an error, so `Money` does **not** implement `Add`: `+` would have to panic or hide a conversion (Decision) |
+| `fn add(self, other: Money): Money \| Error` | different currencies are an error, so `Money` does **not** implement `Add`: `+` would have to panic or hide a conversion |
 | `fn sub(self, other: Money): Money \| Error` | |
 | `fn times(self, factor: Decimal): Money` | full precision; round explicitly |
 | `fn round(self, places: Int = 2, mode: Rounding = HalfEven): Money` | the rounding rule is always visible at the call or defaulted to banker's rounding |
@@ -109,13 +106,13 @@ The example reaches `Money.parse`, `zero`, `add`, `round`, `Show` for `Money`
 and `Date`, `Calendar.named`, `add_business_days`, and the TARGET holiday
 data. Holiday tables are **module constants, one per calendar** (lazy, spec
 §12.4), so `Calendar.named` must not be one big `match` over every calendar
-name, or every table would be reachable. Decision: calendars are looked up
+name, or every table would be reachable. Calendars are looked up
 in a `Map<Text, fn(): Calendar>` built from one constant per calendar, and the
 size report shows each table separately. Assumption: a lookup by run-time text
 reaches every table in that map, so a program that uses one calendar still
-carries all bundled tables. `Calendar.named` stays the only spelling (P20-1,
-ruled: one spelling per meaning); the cost is measured in M9 before any
-second form is considered.
+carries all bundled tables. `Calendar.named` stays the only spelling (one
+spelling per meaning); the table sizes are measured in M9 before any second
+form is considered.
 
 ### Ownership notes
 
@@ -129,7 +126,7 @@ second form is considered.
 **Purpose.** Tensors, the common operations, reverse-mode automatic
 differentiation, loading trained models, inference, and device selection.
 
-**Capabilities:** none for CPU work; `gpu` for device work (P6-6, slice
+**Capabilities:** none for CPU work; `gpu` for device work (slice
 `sys-gpu`); `fs` only if `load_model` is reached. **Targets:** CPU on every
 target with a heap; `gpu` where the target file grants it; not under
 `--no-heap` (tensors allocate).
@@ -160,7 +157,7 @@ so every expensive duplicate is visible in the source (spec §4.3).
 | `fn sum(self): Float`, `fn argmax(self): Int` | |
 | `fn row(self, index: Int): Tensor` | a view (spec §9.3): readable, bindable, not storable; `.copy()` to keep |
 | `fn scale(mut self, factor: Float)` | in-place variants take `mut self`, so the change is visible at the call |
-| `fn load_model(path: Text): Model \| Error` | a documented subset of ONNX (Assumption; format choice is P20-3) |
+| `fn load_model(path: Text): Model \| Error` | a documented subset of ONNX (Assumption; the format is chosen in M9) |
 | `fn run(self, input: Tensor): Tensor \| Error` | `Model` method; inference only |
 | `fn Tape.new(): Tape` | autodiff, below |
 | `fn param(mut self, value: Tensor): Var`, `fn input(mut self, value: Tensor): Var` | |
@@ -214,19 +211,23 @@ where the resource is acquired.
 Operations are written in Verse over a small set of kernels, so a program
 that only runs inference reaches `load_model`, the operators the model's file
 uses (looked up by name, so all operators of the supported subset are
-reachable from `load_model`: Assumption, and the reason P20-3 proposes a
-generator that turns a model file into Verse code with only its operators),
-and the `fs` slice. Autodiff code is reached only from `Tape` methods.
+reachable from `load_model`: Assumption), and the `fs` slice. For that reason
+`ml` also ships a generator package that turns a model file into Verse code
+with only its operators; the generated file is visible and committed like any
+generator output (spec §16.6), and `load_model` stays for dynamic models. Autodiff code is reached only from `Tape` methods.
 
 ## 20.4 `web`
 
 **Purpose.** Routing, middleware, typed request helpers and templates **on
-top of `http.serve`** (Fact: P6-1). `web` has no server loop of its own.
+top of `http.serve`**. `web` has no server loop of its own.
 
 **Capabilities:** `net` (through `http`), `fs` only if static files are
 served, `clock` only if a time-based middleware is reached. **Targets:** OS
 targets and WASI with sockets; not the browser target (it serves nothing),
 not microcontrollers without a network stack (06 §6.8).
+
+Open: the spec gives `http.serve` and `Response.body` no signatures (§15.2),
+so every `web` example assumes `serve(port:, handler:)`.
 
 ### Types (sketch)
 
@@ -309,7 +310,7 @@ The project lists it under `[generate]`
 **Purpose.** Windows, widgets, layout and input events for desktop and
 browser targets.
 
-**Capabilities:** `surface` (P6-6, slice `sys-surface`), plus `clock` for
+**Capabilities:** `surface` (slice `sys-surface`), plus `clock` for
 animations if reached. **Targets:** Windows, macOS and Linux desktops through
 their platform layer (`std-os`), and the browser through `std-web` (canvas or
 DOM: Assumption, decided in M9). Not servers, not microcontrollers in 0.1
@@ -362,7 +363,7 @@ run_app(title: "Counter", init: Model(), update:, view:)?
 
 Long work (a download) is a task: `update` may return a command that the
 runtime spawns, and the task's result comes back as a message
-(`Update(model:, commands:)`; exact shape P20-4). Tasks never touch the model.
+(`Update(model:, commands:)`). Open: the exact shape of `Update`. Tasks never touch the model.
 
 ### Per-target availability
 
@@ -459,41 +460,25 @@ On a board, `print` goes to the UART console if the target grants `stdio`.
 
 An interrupt handler inside the runtime only records the event and wakes the
 receiving task on the cooperative executor (05 §5.3). User code never runs in
-interrupt context, so it can use the whole language (Decision, P20-5;
-05 §5.7).
+interrupt context, so it can use the whole language (05 §5.7).
 
 ### No-heap notes
 
 - `Pin`, `I2c`, `Uart`, `Level`, `Edge` and the register functions allocate
   nothing, so blinky passes `--no-heap` (05 §5.7) if the channel behind
-  `edges` is placed in a static region sized by `capacity` (Assumption: needs
-  build-time sizing; P20-6).
+  `edges` is placed in a static region sized by `capacity`. Open: build-time
+  sizing of channels on `--no-heap` targets.
 - The spec has **no fixed-capacity mutable byte buffer**: `Bytes` is
   immutable and `List<Int>` allocates. Bulk SPI and UART reads therefore need
-  a new type (P20-6). Until then, `iot` offers byte-at-a-time reads and
+  a new type: a fixed-capacity mutable byte buffer in the standard library,
+  since `iot` and `net` would both use it. It is a 0.2 item (spec §18.15):
+  its capacity is visible where the buffer is made, and writing past it
+  returns an `Error`. Until then, `iot` offers byte-at-a-time reads and
   writes from literals and views.
 
 ### Shaking
 
 Blinky reaches `Board.take`, `output_pin`, `toggle`, `sleep`, the `gpio` and
 `clock` slices, and `core`. The I2C, SPI and UART code and slices are absent.
-The Target in [09](performance.md) (blinky under 16 KB flash on Cortex-M)
+The target in [09](performance.md) (blinky under 16 KB flash on Cortex-M)
 applies to this program.
-
-## 20.7 Proposals and rulings
-
-| # | Proposal | Touches | Ruling |
-|---|----------|---------|----------------|
-| P20-1 | `finance` offers only `Calendar.named(text)`; no one-function-per-calendar form | one obvious name (§1.4), 06 | ruled: keep only `named`; measure table sizes in M9 |
-| P20-2 | `Money` does not implement `Add`/`Sub`; mixing currencies is an error value from `add`/`sub` | spec §10 operator traits | agreed |
-| P20-3 | `ml` model loading: a generator package that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | spec §16.6, 06 | agreed; the generated file is visible and committed like any generator output (spec §16.6); file format chosen in M9 |
-| P20-4 | `gui` uses the message model (Elm architecture); long work runs as tasks whose results return as messages | `gui` API, spec §11 | agreed |
-| P20-5 | `iot` interrupts only wake tasks; no user code runs in interrupt context | 05 §5.7 | agreed |
-| P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in the standard library, since `iot` and `net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in the standard library; channel sizing still open |
-| P20-7 | `web` templates are generated code from a first-party generator package, not a run-time template language | spec §16.6, §1.4 | agreed |
-| P20-8 | `web` routes receive shared state through `Router.with_state(Guarded<T>)` | `web` API | agreed |
-
-## 20.8 Conflicts with other documents
-
-1. The spec gives `http.serve` and `Response.body` no signatures (§15.2),
-   so every `web` example depends on an assumed `serve(port:, handler:)`.

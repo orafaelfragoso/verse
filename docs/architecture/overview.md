@@ -1,14 +1,10 @@
 # 00. Overview
 
-*Status: draft 1.*
-
 This page explains, in plain language, how Verse will be built. The
 specification ([../language/README.md](../language/README.md)) says what Verse programs
 mean. The documents in this folder say how the toolchain turns those programs
 into something that runs. **Nothing here is implemented yet.** Every number in
-this folder is a *target*, not a measurement, and the labels *Decision*,
-*Target*, *Assumption* and *Proposal* are used as defined in the
-[README](README.md#conventions).
+this folder is a *target*, not a measurement ([README](README.md#conventions)).
 
 ## What the implementation is
 

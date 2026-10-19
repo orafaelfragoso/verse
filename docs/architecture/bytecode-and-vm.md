@@ -5,13 +5,11 @@ the register-based bytecode and the virtual machine that runs it. It consumes
 mono MIR ([13](mir-specification.md)); it contains no ownership logic, no
 generics and no trait resolution.
 
-Status: **draft 3**. Labels follow the [README](README.md).
-Every number is a **target** or **assumption**; nothing has been measured. Open
-items at the end are **proposals**.
+Every number is a **target** or **assumption**; nothing has been measured.
 
 ## 14.1 Role
 
-1. **Reference semantics** (**decision**, [ADR-0008](../decisions/0008-tiered-execution.md)).
+1. **Reference semantics** ([ADR-0008](../decisions/0008-tiered-execution.md)).
    Where a compiled tier and the VM disagree, the VM is presumed right until the
    spec says otherwise. It is the oracle of [10 §10.3](testing-and-verification.md#103-differential-testing).
 2. **Script mode.** Running a file (`verse app.vs`), `verse test` and `verse repl` run here. Compile
@@ -21,13 +19,14 @@ items at the end are **proposals**.
 4. **Identical behaviour.** Same output, same panics, same `Cleanup` order,
    same task events as the compiled tiers, for a given seed ([14.12](#1412-differential-testing-contract)).
 5. **Not goals.** Peak speed, a stable bytecode format for third parties, and
-   multi-threaded execution in 0.1 ([14.14](#1414-open-questions-proposals)).
+   multi-threaded execution in 0.1 ([14.7](#147-tasks-scheduler-and-seed)).
 
 Pipeline: mono MIR, verifier ([13.5](mir-specification.md#135-verifier-rules)),
 bytecode compiler (`verse-bc`), a **proto** per function, interpreter loop.
 A **bundle** (`.vsb`, [04 §4.4](backends-and-targets.md#44-linking-and-artifacts)) is the serialized
 set of protos plus tables; it carries the compiler version, the pointer width
-of the host that made it, and is rejected on a mismatch of either (assumption).
+of the host that made it, and is rejected on a mismatch of either. A bundle
+is not portable across pointer widths in 0.1.
 
 ## 14.2 Design rules
 
@@ -182,7 +181,7 @@ All three are explicit MIR control flow; the VM executes it.
 
 ## 14.7 Tasks, scheduler and seed
 
-(Decision, [ADR-0007](../decisions/0007-task-model.md): VM tasks are a fourth
+([ADR-0007](../decisions/0007-task-model.md): VM tasks are a fourth
 *implementation* of the task semantics, not a lowering; the three lowerings are
 native-code strategies. Observable behaviour is the same as the others.)
 
@@ -191,19 +190,23 @@ native-code strategies. Observable behaviour is the same as the others.)
   mask depth. Switching is a pointer swap in the loop; the loop
   is not recursive, so no native stack switching is needed. Ids come from one
   counter in spawn order; the main task is `t0` and runs the `<script>` function.
-- **One worker thread** in 0.1 (proposal P14-1). `Guarded` interleavings are
-  therefore scheduler choices, which is why recording them is cheap.
+- **One worker thread** in 0.1. Parallel tier-0 tasks add nothing the native
+  tiers lack and break determinism; this is revisited with the M4 results.
+  `Guarded` interleavings are therefore scheduler choices, which is why
+  recording them is cheap.
 - **Switch points** are only the `yield` terminators that cannot proceed, a
   `DROPC` whose `cleanup` blocks, an explicit `pause`, and task exit. `spawn` appends the child to the run queue
   and does not switch. A `send` that does not block does not switch. No
-  preemption by instruction count (P14-2). This is what native tiers can match
-  in seeded mode.
+  preemption by instruction count: a task that spins on `is_done()` would
+  starve the others, so `is_done` and similar non-blocking polls act as
+  `pause` once every N calls, logged as a `Pick`. This is what native tiers
+  can match in seeded mode.
 - **Policy without a seed**: FIFO run queue; each wait queue (channel, task,
   lock) wakes in arrival order; timers fire in `(deadline, task id)` order.
 - **Policy with `--seed N`**: at each switch point choose index
   `rng.below(len)` into the runnable tasks sorted by id. The generator and
   `below` are fixed by this document so every tier produces the same choices
-  (proposal: PCG-XSH-RR 64/32 seeded through SplitMix64, `below` by rejection
+  (PCG-XSH-RR 64/32 seeded through SplitMix64, `below` by rejection
   sampling). `verse-rt` implements the same policy in its single-worker seeded
   mode ([05 §5.3](runtime.md#53-tasks-and-scheduling)); the multi-core scheduler is used only when no seed or
   recording is requested.
@@ -275,7 +278,7 @@ native-code strategies. Observable behaviour is the same as the others.)
   operations are `yield sys` in MIR and park the task until the provider
   completes. The provider is a Rust trait object per capability, so tests and
   replay substitute fakes (virtual clock, in-memory file system, a log reader).
-- **Check before run** (P6-5; the **capability
+- **Check before run** (the **capability
   check** pass of [02 §2.2](compiler-architecture.md#22-stage-contracts)). Before the first instruction, the VM
   takes `required` (union of `caps(...)` over the instances the pre-pass of
   [14.6](#146-calls-and-lazy-instantiation) found reachable) and `granted` (what the host target provides
@@ -348,7 +351,9 @@ debug session runs at level 0 so that step numbers mean the same for all.
 
 - **Snapshots** copy all task stacks and call records, the VM heap arena, the
   scheduler and PRNG state, shadow bitmaps and the log cursor. The arena is
-  mapped at a fixed address so pointers stay valid on restore (proposal P14-5).
+  mapped at a fixed address so pointers stay valid on restore; this works on
+  Wasm hosts and under tests, and `fork()` stays an optional accelerator where
+  it exists.
   Taken every K steps (K is an assumption to tune; default ring of recent
   snapshots plus sparse older ones).
 - **`verse/goto` step**: restore the nearest earlier snapshot, run forward with
@@ -419,33 +424,20 @@ passes (`--no-opt-pass=NAME`) and loops (marks on and off, hooks on and off).
 ## 14.13 Performance targets
 
 All rows are **targets**, not measurements. Rows marked 09 repeat
-[09 §9.1](performance.md#91-what-we-measure); the others are proposals to be
-adopted into 09.
+[09 §9.1](performance.md#91-what-we-measure); rows marked 14 are this
+document's.
 
 | Metric | Target | Source |
 |--------|--------|--------|
 | `verse hello.vs`, warm cache, pre-pass included | under 20 ms wall time | 09 |
-| reachability pre-pass, 10,000 reachable functions, cold module cache | under 50 ms; warm: under 5 ms | proposal |
+| reachability pre-pass, 10,000 reachable functions, cold module cache | under 50 ms; warm: under 5 ms | 14 |
 | tier 0 on the benchmark suite | within 30x of optimized native, aiming at 10x to 20x | 09 |
-| instructions executed per MIR statement, after fusion | 1.2 or fewer on average | proposal |
-| bytecode size | 8 bytes or fewer per MIR statement on average | proposal |
-| first-call cost: instantiate, verify and compile a 50-statement function | under 100 microseconds | proposal |
-| VM `spawn` plus `wait` of an empty task | under 1 microsecond | proposal (09's 300 ns is for M4 native) |
-| memory per idle VM task | under 1.25 KiB, so 1 million tasks fit in about 1.3 GB, inside 09's 2 GB budget | proposal |
-| recording overhead of a compiled program, compute bound | under 5% | proposal |
+| instructions executed per MIR statement, after fusion | 1.2 or fewer on average | 14 |
+| bytecode size | 8 bytes or fewer per MIR statement on average | 14 |
+| first-call cost: instantiate, verify and compile a 50-statement function | under 100 microseconds | 14 |
+| VM `spawn` plus `wait` of an empty task | under 1 microsecond | 14 (09's 300 ns is for native) |
+| memory per idle VM task | under 1.25 KiB, so 1 million tasks fit in about 1.3 GB, inside 09's 2 GB budget | 14 |
+| recording overhead of a compiled program, compute bound | under 5% | 14 |
 | recording size | under 100 bytes per event record, before compression | 08 |
-| time travel: `verse/goto` on a small heap | under 250 ms | proposal |
-| debug-marked protos versus unmarked | within 1.3x | proposal |
-
-## 14.14 Open questions (proposals)
-
-| # | Question | Recommendation |
-|---|----------|----------------|
-| P14-1 | VM on one worker thread in 0.1? | Yes. Parallel tier-0 tasks add nothing the native tiers lack and break determinism. Revisit with M4 results |
-| P14-2 | A task that spins on `is_done()` never yields and starves the others | `is_done` and similar non-blocking polls act as `pause` once every N calls, logged as a `Pick`; no instruction-count preemption |
-| P14-3 | Capability check needs exact reachability (P6-5) but 02 §2.6 says script mode instantiates lazily | **Resolved** by the decision in [02 §2.6](compiler-architecture.md#26-monomorphization): script mode does a cheap reachability pre-pass (no code generation, no optimization), then the capability check, then lazy instantiation |
-| P14-4 | NaN payload and sign are hardware dependent, but 10 §10.3 says floats are bit-identical | **Closed**: canonicalise every NaN where bits can be observed (`to_bits`, hashing, byte serialization, `Show`); arithmetic is untouched |
-| P14-5 | Snapshots: fixed-address arena, or `fork()` where it exists | Fixed-address arena in the VM (works on Wasm hosts and under tests); `fork()` stays an optional accelerator |
-| P14-6 | Should the VM treat `DROPC` of a `Cleanup` type as a possible switch point? | **Closed**: yes, with the cancel mask of 14.8; 13.10 M7 |
-| P14-7 | Exit status and message for a deadlock | **Closed**: R0008 and exit 70. A panic inside `Cleanup` is R0009, task-level, no process abort |
-| P14-8 | `.vsb` portability across pointer widths | Not portable in 0.1; a bundle is per host pointer width |
+| time travel: `verse/goto` on a small heap | under 250 ms | 14 |
+| debug-marked protos versus unmarked | within 1.3x | 14 |

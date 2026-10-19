@@ -83,21 +83,20 @@ Rules:
 
 These are not bugs. They are places where the specified semantics cost
 something real, and where the specification should state the price. Each has a
-proposed mitigation that **does not change semantics**. Where semantics had
-to change, the last column records the ruling.
+mitigation that **does not change semantics**.
 
-| ID | Risk | Where | Mitigation inside the spec | Needs a ruling? |
-|----|------|-------|----------------------------|-----------------|
-| P1 | `Text` is indexed by characters, so `text[i]`, `slice` and `len()` are O(n) on non-ASCII text | §4.1 | cache an "is ASCII" flag and a character count in the header; ASCII text indexes in O(1); document the complexity in the spec | ruled: §4.1 states the cost and a byte-view API is documented |
-| P2 | `Int` is 64-bit everywhere, with overflow checks | §4.1 | range analysis; wide ops lowered to 32-bit when provable; sized types exist | no |
-| P3 | A view cannot be returned or stored, so some APIs copy | §18.10 | `move-elim` and `copy-elide`; chains collect once; arenas and indices for graph data | no |
-| P4 | Ownership flips with later code | §4.9 | none needed at run time; the cost is diagnostic quality, handled in [02](compiler-architecture.md) section 2.4 | no |
-| P5 | `Shared` is reference counted, atomic when tasks exist | §4.10 | non-atomic when no spawn is reachable; copy elision; `Guarded` uses a lock with spin-then-park | no |
-| P6 | Unannotated generics are specialized per type, so compile time and code size can grow | §4.2 | identical code folding; lazy instantiation in script mode; size report | no |
-| P7 | Every task can unwind with `Cleanup` | §11.5 | unwind tables cost no run time on the success path; status-code mode costs a branch per call that can unwind | ruled: panics clean up on every target |
-| P8 | `Set` is "unordered": implementation freedom helps speed but breaks replay and reproducibility | §9.4 | **ruled: insertion order**; same compact layout as `Map`, one index array, about 4 bytes per element more than an unordered table (assumption to measure in M1) | ruled |
-| P9 | `spawn` moves all arguments in, so large values are moved or copied at spawn | §11.1 | moves are pointer-sized for heap data; copy only where the program says `.copy()` | no |
-| P10 | Fallible results cannot be dropped and `T \| Error` is a tagged value | §8 | niche packing and a pointer-sized error for the common case | no |
+| ID | Risk | Where | Mitigation inside the spec |
+|----|------|-------|----------------------------|
+| P1 | `Text` is indexed by characters, so `text[i]`, `slice` and `len()` are O(n) on non-ASCII text | §4.1 | cache an "is ASCII" flag and a character count in the header; ASCII text indexes in O(1); §4.1 states the cost, and a byte-view API is documented |
+| P2 | `Int` is 64-bit everywhere, with overflow checks | §4.1 | range analysis; wide ops lowered to 32-bit when provable; sized types exist |
+| P3 | A view cannot be returned or stored, so some APIs copy | §18.10 | `move-elim` and `copy-elide`; chains collect once; arenas and indices for graph data |
+| P4 | Ownership flips with later code | §4.9 | none needed at run time; the cost is diagnostic quality, handled in [02](compiler-architecture.md) section 2.4 |
+| P5 | `Shared` is reference counted, atomic when tasks exist | §4.10 | non-atomic when no spawn is reachable; copy elision; `Guarded` uses a lock with spin-then-park |
+| P6 | Unannotated generics are specialized per type, so compile time and code size can grow | §4.2 | identical code folding; lazy instantiation in script mode; size report |
+| P7 | Every task can unwind with `Cleanup` | §11.5 | unwind tables cost no run time on the success path; status-code mode costs a branch per call that can unwind; panics clean up on every target |
+| P8 | `Set` is "unordered": implementation freedom helps speed but breaks replay and reproducibility | §9.4 | `Set` keeps **insertion order**; same compact layout as `Map`, one index array, about 4 bytes per element more than an unordered table (assumption to measure in M1) |
+| P9 | `spawn` moves all arguments in, so large values are moved or copied at spawn | §11.1 | moves are pointer-sized for heap data; copy only where the program says `.copy()` |
+| P10 | Fallible results cannot be dropped and `T \| Error` is a tagged value | §8 | niche packing and a pointer-sized error for the common case |
 
 ## 9.5 Compile-time budget discipline
 

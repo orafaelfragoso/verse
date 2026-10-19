@@ -27,7 +27,8 @@ document.
 | 10 | [Testing and verification](architecture/testing-and-verification.md) | | |
 
 Nothing is implemented yet. Every number in these documents is a target, not a
-measurement.
+measurement. A sentence that starts with **Open:** is a design question that
+is not decided yet.
 
 Build the single-file specification with `tools/docs/build.sh`. It writes
 `dist/verse-spec.md`, and also HTML and PDF unless `NO_RENDER=1` is set.

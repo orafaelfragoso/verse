@@ -1,7 +1,5 @@
 # 06. Standard library and tree-shaking
 
-*Status: draft 1.*
-
 Requirement R6: Verse has libraries for finance, machine learning, servers,
 GUI and more; they are optional; and a build contains only what the program
 actually uses, found by analysing the program at build time. This document
@@ -11,11 +9,7 @@ details, the report format, the edge cases and the package format.
 The manifest and package manager are in [19](../reference/cli-and-manifest.md); the
 first-party package APIs are sketched in [20](first-party-packages.md).
 
-Labels follow the [README conventions](README.md#conventions): **Fact** (from
-the spec or from a ruling),
-**Decision** (an ADR), **Target** (a goal not yet measured), **Assumption**
-(believed, not verified) and **Proposal** (needs a ruling; collected in
-§6.12). Nothing in this document has been implemented or measured.
+Nothing in this document has been implemented or measured.
 
 ## 6.1 Summary
 
@@ -35,12 +29,12 @@ the spec or from a ruling),
 
 ## 6.2 Library tiers
 
-| Tier | What | Examples | Ships with | How a program gets it | Status |
-|------|------|----------|------------|-----------------------|--------|
-| Prelude | names available without import (spec §15.1) | `print`, `input`, `args`, `env`, `exit`, `error`, built-in types and traits | the toolchain | always visible; still shaken like everything else | Fact |
-| Standard library | general-purpose top-level modules (spec §15.2) | `fs`, `io`, `net`, `http`, `text`, `time`, `json`, `task`, `math`, `random`, `process`, `os`, `env`, `cli`, `log` | the toolchain, versioned with it | `import fs`, `import get from http` | Fact |
-| First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals: `finance`, `ml`, `web`, `gui`, `iot` (P6-1) | the package registry, installed on demand | `verse add finance`, then `import … from finance` | Fact: they are packages, not the standard library |
-| Third-party packages | anything published to the registry, git or path | `colors`, `http_extra` (spec §16.3 examples) | the registry | `verse add colors`, then `import red, bold from colors` | Fact |
+| Tier | What | Examples | Ships with | How a program gets it |
+|------|------|----------|------------|-----------------------|
+| Prelude | names available without import (spec §15.1) | `print`, `input`, `args`, `env`, `exit`, `error`, built-in types and traits | the toolchain | always visible; still shaken like everything else |
+| Standard library | general-purpose top-level modules (spec §15.2) | `fs`, `io`, `net`, `http`, `text`, `time`, `json`, `task`, `math`, `random`, `process`, `os`, `env`, `cli`, `log` | the toolchain, versioned with it | `import fs`, `import get from http` |
+| First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals: `finance`, `ml`, `web`, `gui`, `iot` | the package registry, installed on demand | `verse add finance`, then `import … from finance` |
+| Third-party packages | anything published to the registry, git or path | `colors`, `http_extra` (spec §16.3 examples) | the registry | `verse add colors`, then `import red, bold from colors` |
 
 Notes:
 
@@ -53,11 +47,13 @@ Notes:
   in `verse.lock`, checked against their `verse.api` (spec §16.3, §16.4), and
   installed with `verse add` (spec §16). They get no compiler privileges and
   no special syntax. They may release on their own schedule; each release
-  states the range of toolchain versions it supports (Proposal P6-2).
+  states the range of toolchain versions it supports (§6.9).
 - **One obvious name per idea.** The first-party packages must not offer a
   second spelling of something the standard library already has. For example, HTTP serving
   is `http.serve` (spec §15.2); a web package builds routing and templates
-  *on top of* it and does not ship its own server loop (Proposal P6-1).
+  *on top of* it and does not ship its own server loop. The names `finance`,
+  `ml`, `web`, `gui` and `iot` are reserved for these packages; each covers
+  one idea.
 
 ## 6.3 Importing is the opt-in
 
@@ -92,11 +88,11 @@ Two facts from the spec make "import costs nothing" safe:
   initializer is reachable only through that read.
 
 An import whose names are never used is reported as a warning by the
-compiler (Proposal P6-3); it never adds code.
+compiler; it never adds code.
 
 ## 6.4 The reachability algorithm
 
-Fact from [02 §2.1](compiler-architecture.md#21-pipeline): reachability
+As [02 §2.1](compiler-architecture.md#21-pipeline) says, reachability
 runs after the MIR optimizer, on optimized mono MIR. Monomorphization is
 already demand driven ([02 §2.6](compiler-architecture.md#26-monomorphization)),
 so instances that are never called are never created; the reachability pass
@@ -177,7 +173,7 @@ the verifier to prove that every `CallDyn` slot index is in the called set).
 
 - **Exact for the program text.** Every call in mono MIR names its callee or
   a trait slot; there is no reflection and no run-time code loading in the
-  language (Fact: the spec has neither; `Show`, `Eq`, `Hash`, `ToJson` and
+  language (the spec has neither; `Show`, `Eq`, `Hash`, `ToJson` and
   `FromJson` are derived structurally at compile time per used type, spec
   §10.4, §15.2). So nothing can be called that the analysis did not see.
 - **Conservative for run-time values.** A branch that never runs is still
@@ -207,8 +203,11 @@ directly, outside this table ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 | `os` | `os` | `sys-os` | WASI, browser, microcontrollers |
 | `env` | `env`, the prelude `env`, `args` | `sys-env` | microcontrollers (empty `args`) |
 | `gpio`, `uart`, `i2c`, `spi` | IoT packages | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | desktop targets |
-| `surface` (windows, input, drawing) | GUI package | `sys-surface` (P6-6) | servers, microcontrollers |
-| `gpu` (compute) | ML package | `sys-gpu` (P6-6) | most targets |
+| `surface` (windows, input, drawing) | GUI package | `sys-surface` | servers, microcontrollers |
+| `gpu` (compute) | ML package | `sys-gpu` | most targets |
+
+The `surface` and `gpu` capabilities are named now; their operations are
+designed in M9.
 
 Non-capability slices are selected by MIR facts rather than by capabilities:
 
@@ -224,7 +223,7 @@ Each target file declares which capabilities it provides
 reachability the build compares the needed set with the provided set; a
 missing capability is a build error that names the call chain (§6.8).
 
-Fact: `Set` iterates in insertion order, like `Map`, so both use the same
+`Set` iterates in insertion order, like `Map`, so both use the same
 compact-dictionary code in `core`, and iteration order in size reports,
 replays and test output is deterministic.
 
@@ -355,16 +354,16 @@ The chain is the stored reason of each node, followed back to a root
 
 ## 6.7 Dynamic cases
 
-| Case | What happens | Status |
+| Case | What happens | Source |
 |------|--------------|--------|
-| Trait types (`List<Speaker>`, spec §10.3) | converted types × called slots (§6.4) | Proposal (refines ADR-0004) |
-| Function values and lambdas (spec §4.7, §5.4) | taking a function's value or creating a closure includes its body (`fn-value`); a call through a function value then needs nothing new | Assumption (detail of ADR-0004) |
-| Reflection | none in the spec; `Show`, `Eq`, `Hash`, `ToJson`, `FromJson` are derived per used type and shaken like any function | Fact |
-| `Show` for interpolation and `print` | each interpolated or printed type pulls in its own `Show` instance and nothing else | Fact (spec §10.4) |
-| Generators | output is ordinary `.vs` source, reached through imports | Fact (spec §16.6) |
-| `extern` functions | each reachable call is an edge to the plugin and its symbol; a plugin with no reachable call is neither linked nor loaded | Fact ([07 §7.6](plugins.md#76-loading-in-script-mode-and-compiled-mode)) |
-| Test builds | roots are the selected tests (§6.4); `[dev-dependencies]` are visible only here (spec §16.3); fakes for capabilities (virtual clock, in-memory fs, [05 §5.6](runtime.md#56-the-sys-capability-interface)) replace slices | Fact / Assumption |
-| Module constants | included on first reachable read; the initializer is infallible (spec §12.4), so leaving out an unread one changes nothing | Fact |
+| Trait types (`List<Speaker>`, spec §10.3) | converted types × called slots (§6.4) | refines ADR-0004 |
+| Function values and lambdas (spec §4.7, §5.4) | taking a function's value or creating a closure includes its body (`fn-value`); a call through a function value then needs nothing new | detail of ADR-0004 |
+| Reflection | none in the spec; `Show`, `Eq`, `Hash`, `ToJson`, `FromJson` are derived per used type and shaken like any function | spec §10.4 |
+| `Show` for interpolation and `print` | each interpolated or printed type pulls in its own `Show` instance and nothing else | spec §10.4 |
+| Generators | output is ordinary `.vs` source, reached through imports | spec §16.6 |
+| `extern` functions | each reachable call is an edge to the plugin and its symbol; a plugin with no reachable call is neither linked nor loaded | [07 §7.6](plugins.md#76-loading-in-script-mode-and-compiled-mode) |
+| Test builds | roots are the selected tests (§6.4); `[dev-dependencies]` are visible only here (spec §16.3); fakes for capabilities (virtual clock, in-memory fs, [05 §5.6](runtime.md#56-the-sys-capability-interface)) replace slices | spec §16.3 |
+| Module constants | included on first reachable read; the initializer is infallible (spec §12.4), so leaving out an unread one changes nothing | spec §12.4 |
 
 ### Script mode (tier 0)
 
@@ -381,15 +380,16 @@ principle 1). It differs only in *when* work happens:
 - Because imports have no side effects and constants are lazy (spec §12.4),
   loading lazily cannot change behaviour.
 - Capabilities are still checked: `verse --deny net app.vs` refuses a program
-  whose reachable code needs `net` before it starts (Proposal P6-5: check
-  eagerly by running reachability on the program before execution, so a
-  denied capability fails at start, not halfway through).
+  whose reachable code needs `net` before it starts. The check runs
+  reachability on the program before execution, so a denied capability fails
+  at start, not halfway through, and script and compiled modes fail the same
+  way.
 
 ## 6.8 Per-target constraints
 
 After reachability, the build checks the result against the target:
 
-| Check | Source of the rule | Failure message (wording to be approved) |
+| Check | Source of the rule | Failure message |
 |-------|--------------------|------------------------------------------|
 | Every needed capability is provided | target file `[capabilities]` ([04 §4.3](backends-and-targets.md#43-what-a-target-is)) | "this program calls `http.get`, which `thumbv7em-none-eabihf` cannot provide" followed by the why chain |
 | No heap use under `--no-heap` | [05 §5.7](runtime.md#57-embedded-profile): no reachable allocation intrinsic | "`--no-heap`: `List.push` allocates, reached from `blink.vs:12`" |
@@ -398,15 +398,14 @@ After reachability, the build checks the result against the target:
 
 The check runs on the *reachable* set, so importing `http` in a library
 used on a board is fine as long as the board build never reaches it.
-`verse check --target T` runs the same check without code generation
-(Proposal P6-5).
+`verse check --target T` runs the same check without code generation.
 
 ## 6.9 Package format of a domain library
 
 A library package is a normal package (spec §16.3). To be shaken precisely
 and to fail early on unsupported targets it declares a little more in its
-`verse.toml`. **The section below is a proposal** (P6-2), because
-`verse.toml` is specified by the language (§16.3).
+`verse.toml`. The section is data only, so it keeps spec §16.3's "no build
+scripts" promise.
 
 ```toml
 [package]
@@ -428,8 +427,13 @@ unavailable  = []                   # for example ["thumbv7em-none-eabihf"] for 
 |-------|------------------|
 | `modules` | the public module list; anything else is private, which keeps one obvious name per idea and lets `verse doc` list them |
 | `capabilities` | an upper bound the registry can show before installation; the real set is still computed by reachability |
-| `size_budget` | a published promise checked by `verse publish` against the package's example programs (Target for each first-party package) |
+| `size_budget` | a published promise checked by `verse publish` against the package's example programs (each first-party package sets one) |
 | `targets` | lets the build fail with a clear message instead of a missing-capability error deep in a call chain |
+
+Per-target code is chosen by files and manifest data (`[library.targets]`
+here, `[targets.<t>] files` in [19](../reference/cli-and-manifest.md)), never
+by `cfg`-style conditions in source. The spec has no such syntax, and a
+plugin adds none ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 Using such a package, with assumed names:
 
@@ -470,23 +474,9 @@ finance package API is not designed yet.)
 | # | Risk or question | Why it matters | Handling |
 |---|------------------|----------------|----------|
 | R-1 | **Generic libraries are monomorphized in the consumer.** A library of unannotated functions is compiled once per concrete type, in every program that uses it | compile time and code size grow with use ([09](performance.md), P6) | identical code folding; the size report shows instance counts; library authors can annotate concrete types where specialization does not pay |
-| R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | pure-Verse kernels, a `gpu` capability proposal (P6-6), and BLAS-like libraries through a plugin ([07](plugins.md)) |
-| R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (P6-6); a pure-Verse widget library on top; the web target uses `std-web` |
-| R-5 | **Names of first-party packages** | the rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1) |
+| R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | pure-Verse kernels, a `gpu` capability (§6.5), and BLAS-like libraries through a plugin ([07](plugins.md)) |
+| R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (§6.5); a pure-Verse widget library on top; the web target uses `std-web` |
+| R-5 | **Names of first-party packages** | the rule: one obvious name per idea | `finance`, `ml`, `web`, `gui`, `iot` (§6.2) |
 | R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](plugins.md#71-what-a-plugin-is)); there are no transforming plugins |
 | R-7 | **`print` pulls in `stdio` and the failed-`?` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `?` prints (spec §12.5) | acceptable; the report shows why |
 | R-8 | **Test builds and fakes** | capability fakes must not leak into release builds | fakes live in a test-only slice selected only in `verse test` |
-
-## 6.12 Proposals and rulings
-
-These touch the spec (§12, §15, §16) or package naming, and all seven are accepted.
-
-| # | Proposal | Touches | Recommendation |
-|---|----------|---------|----------------|
-| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a standard library module (HTTP serving stays `http.serve`; `web` adds routing and templates on top) | spec §15 (a short paragraph listing first-party packages) | ruled |
-| P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
-| P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
-| P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are in the §16 tool table and planned for M2 |
-| P6-5 | **Eager capability check before running** (`verse --deny net app.vs`, `verse check --target T`) based on reachability, so a missing or denied capability fails before execution in every tier | spec §16 (flags), 04, 08 | accept; it keeps script and compiled modes failing the same way |
-| P6-6 | **New capabilities `surface` and `gpu`** with runtime slices `sys-surface` and `sys-gpu` | 05 §5.1, §5.6, later the GUI and ML packages | accept as names now; design in M9 |
-| P6-7 | **Per-target module variants without conditional compilation.** The spec has no `cfg`-style syntax. A package that needs different code per target selects files by the target's capabilities in `[library.targets]`, never by annotations in source (consistent with 07 §7.1: no new syntax) | spec §16.3, 07 | accepted: per-target code is chosen by files and manifest data, never by `cfg`-style syntax |
