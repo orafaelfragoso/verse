@@ -77,11 +77,12 @@ borrow is a host address that stays valid
 instruction. Bounds use `ULT i, len`
 ([14 §14.5](../../../../docs/architecture/bytecode-and-vm.md#145-checked-arithmetic-bounds-and-division)).
 
-**Lazy instantiation.** Before the first instruction, the reachability
-pre-pass and the capability check run. A function table entry is
-`Unresolved`, `Compiled` or `Compiling`. The first call compiles the callee;
-code is never patched. Protos are cached per instance under `.verse/cache/`
-([14 §14.6](../../../../docs/architecture/bytecode-and-vm.md#146-calls-and-lazy-instantiation)).
+**Lazy bytecode generation.** Before the first instruction, the reachability
+pre-pass monomorphizes and verifies every reachable instance, and the
+capability check runs. A function table entry is `Unresolved`, `Compiled` or
+`Compiling`. The first call compiles the verified callee to bytecode; code is
+never patched. Protos are cached per instance under `.verse/cache/`
+([14 §14.6](../../../../docs/architecture/bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
 Why: code generation scales with what runs.
 
 **Unwinding.** Each proto has an exception table built from `unwind bbN`
@@ -136,8 +137,13 @@ target in a known backend family is only data
 - **Instrumentation changes nothing observable**: values, `Cleanup` order and
   scheduler choices stay the same with hooks on or off
   ([14 §14.11](../../../../docs/architecture/bytecode-and-vm.md#1411-debug-hooks)).
-- **Capabilities are checked before the first instruction.** The debug-only
-  run-time re-check failing is a VM bug, exit status 3
+- **Every reachable instance is verified before the first instruction.** A
+  verifier failure never happens mid-run, so a file `verse check` passes never
+  stops with V9902
+  ([14 §14.6](../../../../docs/architecture/bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
+- **Capabilities are checked before the first instruction.** The `CALLS`
+  capability assertion exists only in debug builds of `verse` and is never an
+  exit status
   ([14 §14.9](../../../../docs/architecture/bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check)).
 - **A `.vsb` bundle is rejected** on a compiler version or pointer width
   mismatch ([14 §14.1](../../../../docs/architecture/bytecode-and-vm.md#141-role)).

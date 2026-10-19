@@ -16,3 +16,4 @@ were accepted on 2026-10-18.
 | [0008](0008-tiered-execution.md) | Bytecode VM first, Cranelift second, LLVM for release | accepted (2026-10-18) |
 | [0009](0009-cargo-disk-budget.md) | Cargo disk budget | accepted (2026-10-19) |
 | [0010](0010-import-cycles-are-an-error.md) | Import cycles are an error | accepted (2026-10-19) |
+| [0011](0011-verify-before-first-statement.md) | Verify every reachable instance before the first statement | accepted (2026-10-19) |

@@ -378,9 +378,10 @@ principle 1). It differs only in *when* work happens:
   or transitively, before running anything. Packages and the standard library are checked
   against their `verse.api`, with cached results ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)).
   Modules that are not imported are never opened.
-- Instantiation and bytecode generation are lazy, per function, at first call
-  ([02 §2.6](compiler-architecture.md#26-monomorphization)), so start-up
-  cost scales with what runs.
+- Every reachable instance is monomorphized and verified before the first
+  statement. Bytecode generation is lazy, per function, at first call
+  ([02 §2.6](compiler-architecture.md#26-monomorphization)), so its cost
+  scales with what runs.
 - Because imports have no side effects and constants are lazy (spec §12.4),
   loading lazily cannot change behaviour.
 - Capabilities are still checked: `verse --deny net app.vs` refuses a program

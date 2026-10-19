@@ -111,12 +111,13 @@ reachability for free
 Code bloat is held down by identical code folding, and a trait name used as a
 type gives one shared body.
 
-**Script mode.** Code is instantiated lazily at first call. A cheap
-reachability pre-pass runs first on generic MIR with type arguments
-substituted. It builds no bytecode, runs no optimizer pass, and caches per
-module the `caps(...)` and `mayyield` of each instance key. V18 and V19 check a
-lazily built instance against those facts
-([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir)).
+**Script mode.** Before the first statement, the reachability pre-pass
+monomorphizes every reachable instance and verifies it with the mono rules,
+exactly as a compiled build does. It builds no bytecode, runs no optimizer
+pass, and caches its result per module. Only bytecode generation waits for the
+first call, so a verifier failure never happens mid-run
+([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir),
+[ADR-0011](../../../../docs/decisions/0011-verify-before-first-statement.md)).
 
 **Optimizer.** Fourteen mono MIR passes run in order: `verify`,
 `simplify-cfg`, `inline`, `sroa`, `const-prop` and `fold`, `move-elim`,

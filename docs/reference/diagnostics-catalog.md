@@ -446,7 +446,7 @@ These are the others, so a script can tell the causes apart.
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
 | 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1) |
-| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused. A verifier failure (V9902) is always found before the program starts, when running a file as in `build` |
 | 70 | a deadlock (R0008) |
 | 101 | a panic (16.6) |
 
@@ -454,3 +454,15 @@ A `V99xx` message always ends with "this is a bug in Verse, not in your program"
 and the `explain:` line (16.4), so the cause is clear even when the status is
 all a script sees. An `exit(code)` that the program calls itself is never
 changed.
+
+**A checked file starts.** `verse check` makes every check that running a file
+makes before its first statement, except loading plugin libraries
+([19 §19.2.3](cli-and-manifest.md#1923-building-and-checking)). After
+`verse check` exits 0 on a file, running that file with the same sources,
+`verse.lock`, compiler and target never exits 2 and never stops with V9902.
+Two inputs exist only when the program runs, and either can still stop it
+before it starts, with status 2: a capability refused by `--deny` or
+`[run] deny`, and a plugin library that is missing, fails to build or lacks a
+symbol (V1007 to V1009, V1011). After a passing check, status 3 means a bug in
+code generation (V9901 from a backend) or a trap inside the runtime
+([ADR-0011](../decisions/0011-verify-before-first-statement.md)).

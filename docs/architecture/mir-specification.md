@@ -319,10 +319,11 @@ mode and may not change behavior.
 every optimizer pass in debug builds and CI. It is written independently of the
 passes ([10 §10.6](testing-and-verification.md)). A failure is an internal
 compiler error, `V9902` ([16 §16.2](../reference/diagnostics-catalog.md#162-families)), whose label reads "rule {rule} failed in
-`{function}`" and whose primary span is the span of the offending line. In
-script mode a failure at the first call of an instance stops the run with that
-diagnostic before the instance executes, and the exit status is 3, a compiler
-bug ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)), when running a file as in `build`. Rule ids `V1`..`V24` are **not** diagnostic
+`{function}`" and whose primary span is the span of the offending line.
+Running a file and `verse check` verify every reachable instance before the
+program's first statement ([13.6](#136-generic-mir-and-mono-mir)), so a failure
+stops them there with exit status 3, a compiler bug
+([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)), as in `build`. Rule ids `V1`..`V24` are **not** diagnostic
 codes (those are `V` plus four digits, [02 §2.8](compiler-architecture.md#28-diagnostics)).
 Rules V3 to V9 re-derive what the ownership pass decided; they are a safety net
 and the oracle for the soundness fuzzer ([10 §10.4](testing-and-verification.md)).
@@ -354,7 +355,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V16 | `spawn` operands and the value of `yield send` are `move` of an owned value or `copy` of a `Copy` value; no borrow, no `mut` | tasks own their arguments (spec §11.1) | `spawn f(move _3)` with `_3 = ref mut _1` |
 | V17 | A `Task<T>` local is never the operand of `drop`; on every path it is consumed by `yield wait`, `yield join` (whose unwind edges hand the child to the runtime) or `intrinsic task.abandon` in a cleanup block. A `Task` inside another value (a list, a record, a tuple, an enum payload) is dropped with that value: a type that contains a `Task` has the `cleanup` fact, and its drop is a terminator `drop` whose glue **cancels and then joins** each `Task` part that was not waited, so the drop may yield (V18) | structured lifetimes (spec §11.3) | `drop _3` with `_3: Task<Int>` |
 | V18 | `yield` may appear in normal and `cleanup` blocks. A function containing a `yield`, a call to a `mayyield` function, or a terminator `drop` of a type whose `cleanup` may yield carries `mayyield`; in generic MIR a terminator `drop` of an unknown type counts as `mayyield` | `task-lower` finds every switch point, including a blocking `Cleanup` | `yield recv(...)` in a function without `mayyield` |
-| V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees (in script mode, those the pre-pass of [13.6](#136-generic-mir-and-mono-mir) computed for the callee instance) | exact capability check before run | `call sys net.connect(...)` with `caps(fs)` |
+| V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees | exact capability check before run | `call sys net.connect(...)` with `caps(fs)` |
 | V20 | Every statement and terminator has a span inside a known file and a non-empty `dbg`; every `binding` and `param` has a name and a mode word; event words exist in `events.toml` | debugger and diagnostics speak the same words | a `drop` line with no `;` clause |
 | V21 | Generic only: an operation on a value of type `T` must be licensed by a bound of the function: trait calls need the trait bound, `copy` of `T` needs `Copy`, field projection needs `has.field` | generics are checked once, at the definition (spec §10.6) | `_2 = copy _1` with `_1: T` and bound `Copyable` |
 | V22 | Mono only: no type parameter or `trait` callee remains; every `call` target exists as an instance; `layout` exists for every type used; instance keys are unique | backends can lower without resolving anything | `call <T as Show>::show(...)` in `mir mono` |
@@ -390,14 +391,16 @@ or rewriting a `drop` of a type with no glue, is the optimizer's job, so
 that monomorphization stays a pure substitution and its output is predictable in
 golden tests.
 
-**Facts in script mode.** Running a file instantiates code lazily
-([02 §2.6](compiler-architecture.md#26-monomorphization)), so a callee is not
-yet compiled when its caller is. The reachability pre-pass computes, per
-instance key, the exact `caps(...)` and `mayyield` from the generic MIR with the
-type arguments substituted, and caches them per module. V19 and V18 are checked
-on a lazily built instance against those facts. Tier 0 never runs `task-lower`,
-so it needs `mayyield` only for the verifier; the capability check needs `caps`
-before the first instruction.
+**Script mode.** Running a file monomorphizes every reachable instance in the
+reachability pre-pass of
+[02 §2.6](compiler-architecture.md#26-monomorphization), before the first
+statement, and verifies each one with the mono rules of the table above. Each
+instance gets its `caps(...)` and `mayyield` from step (5), as in a compiled
+build, so the verifier sees the same facts in both modes. Only bytecode
+generation waits for the first call
+([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)). Tier 0
+never runs `task-lower`, so it needs `mayyield` only for the verifier; the
+capability check needs `caps` before the first instruction.
 
 ## 13.7 Debug info and source spans
 

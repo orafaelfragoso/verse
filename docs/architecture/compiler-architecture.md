@@ -147,17 +147,23 @@ Spec §4.2 requires "specialized code for each concrete type used".
   merged by the linker (identical code folding). A trait name used as a type
   (spec §10.3) is the user-visible escape hatch for compile-time-sensitive
   code: it is one shared body instead of one copy per type.
-- **Script mode** instantiates **code** lazily at first call, so bytecode
-  generation and optimization scale with what runs. Before tier 0
-  starts, running a file performs a cheap whole-program **reachability pre-pass**
-  from the entry statements: it walks the generic MIR with type arguments
-  substituted (resolving trait calls and vtable slots), builds no bytecode and
-  runs no optimizer pass, and caches its result per module. The **capability
-  check** runs right after it, exactly as it runs after full reachability in a
-  compiled build, so a missing or denied capability fails with the same V09xx
-  diagnostic in every tier before the first instruction. Only the cost of the
-  pre-pass scales with what is reachable; instances are still compiled lazily
-  ([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-instantiation)).
+- **Script mode** verifies eagerly and generates **bytecode** lazily at first
+  call, so bytecode generation and optimization scale with what runs
+  ([ADR-0011](../decisions/0011-verify-before-first-statement.md)). Before
+  tier 0 starts, running a file performs a whole-program **reachability
+  pre-pass** from the entry statements. It monomorphizes every reachable
+  instance (resolving trait calls and vtable slots) and verifies each one with
+  the mono rules of [13 §13.6](mir-specification.md#136-generic-mir-and-mono-mir).
+  It builds no bytecode, runs no optimizer pass, and caches its result per
+  module (2.7). A verifier failure (V9902) stops the run there, before the
+  first statement. The **capability check** runs right after it, exactly as it
+  runs after full reachability in a compiled build, so a missing or denied
+  capability fails with the same V09xx diagnostic in every tier before the
+  first instruction. `verse check` runs the same pre-pass and the same check,
+  so a file it passes does not stop for either reason when it runs
+  ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)). Only
+  the pre-pass scales with what is reachable; protos are still built lazily
+  ([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
 
 ## 2.7 Incremental and parallel compilation
 
@@ -167,8 +173,8 @@ Spec §4.2 requires "specialized code for each concrete type used".
 - **Unit of parallelism** is the function body for inference, ownership and MIR
   build; the module for parsing and resolution; the instance for optimization
   and code generation.
-- **Persistent cache.** `.verse/cache/` stores parsed modules, signatures and
-  object code keyed by `blake3(source, compiler version, flags, verse.api of
+- **Persistent cache.** `.verse/cache/` stores parsed modules, signatures, the
+  verified instances of the script-mode pre-pass (2.6) and object code keyed by `blake3(source, compiler version, flags, verse.api of
   imports)`. `verse x.vs` on an unchanged script skips straight to execution.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,

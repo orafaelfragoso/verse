@@ -112,6 +112,9 @@ row is a compiler bug reported as V9902
 2 source errors or a capability check failed before start; 3 a bug in
 Verse; 70 a deadlock (R0008); 101 a panic
 ([16 §16.6.1](../../../../docs/reference/diagnostics-catalog.md#1661-exit-statuses)).
+After `verse check` exits 0 on a file, running it never exits 2 and never
+stops with V9902, except for the run-only inputs 16.6.1 names: a `--deny` and
+a plugin library.
 
 ## Rules that must hold
 
