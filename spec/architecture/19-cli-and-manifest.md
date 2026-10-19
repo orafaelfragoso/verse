@@ -16,9 +16,9 @@ Related documents: [06](06-stdlib-and-shaking.md) (reachability, size report,
 (cache), [04 §4.3](04-backends-and-targets.md#43-what-a-target-is) (target
 files), [20](20-first-party-packages.md) (the first-party packages), and
 [16-diagnostics-catalog.md](16-diagnostics-catalog.md),
-[17-mcp-tool-schemas.md](17-mcp-tool-schemas.md) (§17.9 covers the package
-manager) and [18-plugin-interface.md](18-plugin-interface.md), all
-Michelangelo's.
+[17-mcp-tool-schemas.md](17-mcp-tool-schemas.md) ([§17.8](17-mcp-tool-schemas.md#178-package-manager-tools)
+covers the package manager), and the plugin interface, which is in
+[07](07-plugins.md) until `18-plugin-interface.md` lands; all Michelangelo's.
 
 ## 19.1 Summary
 
@@ -64,7 +64,7 @@ Every command takes `--json` and then prints records, not prose, so an LLM
 driving `verse` and a person at a terminal see the same facts (consistent
 with [08](08-debugging-and-mcp.md)). The shapes follow the rules and shared
 types of [17-mcp-tool-schemas.md](17-mcp-tool-schemas.md) (17.1, 17.2), and
-17 applies them to the package manager in §17.9 (P19-12, agreed).
+17 applies them to the package manager in [§17.8](17-mcp-tool-schemas.md#178-package-manager-tools) (P19-12, agreed).
 
 ## 19.3 `verse.toml`
 
@@ -307,8 +307,7 @@ other change bumps the patch), as in Cargo (Decision).
 invisible to a diff. The computed bump is a minimum; the author can always
 choose a larger one. The registry shows both "declared" and "computed".
 
-**Message** (style of spec §16.2; codes assigned in
-[16-diagnostics-catalog.md](16-diagnostics-catalog.md)):
+**Message** **V0803** (wording as in [16-diagnostics-catalog.md](16-diagnostics-catalog.md#v08xx-packages-and-api)):
 
 ```
 error: version 1.4.0 is too small for these changes; publish as 2.0.0
@@ -558,10 +557,12 @@ std.net.get is included because:
   colors.fetch_palette calls std.net.get
 ```
 
-The two openers are fixed wording (review-6 R6-3): "is selected because" for a
-package and "is included because" for an item, a capability or a file; each
-answer is a **chain**. They are the `why_package` and `why_item` templates
-of `vocab/events.toml` (Michelangelo).
+The openers are fixed wording (review-6 R6-3), taken from
+[`vocab/events.toml`](vocab/events.toml): `why.package` ("… is selected
+because:"), `why.item` ("… is included because:"), `why.capability` ("this
+program reaches `…` because:") and `why.file` ("… was written by …"). Each
+answer is a **chain**. The MCP tools are `why_package`, `why_item` and
+`why_capability` (17 §17.8).
 
 Ambiguity is impossible by construction: package names never contain dots
 (§19.4), items always do, capabilities are a closed list, and paths contain
@@ -586,7 +587,11 @@ compile-time evaluation, Q10), so reading and type-checking a dependency is
 safe by construction. Running its tests is not, and `verse test` runs only
 the root's tests unless `--deps` is given.
 
-**Messages** (codes assigned in [16-diagnostics-catalog.md](16-diagnostics-catalog.md)):
+**Messages.** Codes and wording are those of
+[16-diagnostics-catalog.md](16-diagnostics-catalog.md#v08xx-packages-and-api);
+each block is labelled with its code.
+
+**V0805**
 
 ```
 error: `charts` lists plugins, but only the root project may
@@ -595,19 +600,23 @@ error: `charts` lists plugins, but only the root project may
 14 | [plugins]
    | ^^^^^^^^^ a dependency cannot run code while your project builds
    |
-help: if you need its generator, add it to your own verse.toml under [plugins]
+help: add the plugin to your own verse.toml under [plugins]
 ```
+
+**V0806**
 
 ```
 error: `colors` 1.5.1 does not match its checksum
   --> verse.lock:9:12
    |
  9 | checksum = "blake3:9f2c…"
-   |            ^^^^^^^^^^^^^^ the archive from mirror.example hashes to blake3:41ab…
+   |            ^^^^^^^^^^^^^^ the archive hashes to `blake3:41ab…`
    |
-help: remove the file from the cache and try again: verse lock --refetch colors
-help: if the mirror is wrong, it is not trusted: the lock is still correct
+help: verse lock --refetch colors
+help: a mirror is not trusted, so the lock is still correct
 ```
+
+**V0901**
 
 ```
 error: this program reaches the `net` capability, which verse.toml does not grant
@@ -616,9 +625,11 @@ error: this program reaches the `net` capability, which verse.toml does not gran
 22 |     palette = fetch_palette("warm")?
    |               ^^^^^^^^^^^^^ `colors.fetch_palette` calls `std.net.get`
    |
-help: add "net" to [capabilities] grant in verse.toml
+help: add "net" to [capabilities] grant
 help: or see the whole chain: verse why net
 ```
+
+**V0804**
 
 ```
 error: version 2.3 of `shapes` does not exist
@@ -629,6 +640,23 @@ error: version 2.3 of `shapes` does not exist
    |
 help: shapes = "2.1"
 ```
+
+**Other codes from 16 used by this document**
+
+| Code | Message (16) | Where here |
+|------|--------------|------------|
+| V0801 | `{key}` is not a key of `[{section}]` | §19.3 (unknown keys are errors) |
+| V0802 | the package name `{name}` cannot be imported | §19.4 |
+| V0807 | `verse.lock` is out of date | §19.2 (`--locked`), §19.6 |
+| V0808 | `{pkg}` needs {T}, which `{other}` does not provide | §19.7 (two majors) |
+| V0809 | a path dependency cannot be published | §19.10 |
+| V0810, V0811 | `verse.api` changed / differs from the source | §19.5, spec §16.4 |
+| V0812 | `{name}` is not a valid license | §19.3 `license` |
+| V0813 | a yanked version cannot be chosen | §19.7 step 5, §19.8 |
+| V0904 | `{pkg}` reaches `{cap}`, which it does not declare | §19.3 `[library] capabilities` |
+| V0905 | this package uses {n} KB, but its size budget is {m} KB | §19.3 `size_budget` |
+| V0906 | `{module}` has different public items on `{target}` | §19.3 `[targets.<t>.files]` |
+| V0907 | the file `{f}` for target `{t}` does not exist | §19.3 `[targets.<t>.files]` |
 
 ## 19.13 Implementation notes
 
@@ -661,7 +689,7 @@ All agreed by Michelangelo in `reviews/review-6.md` (R6-3).
 | P19-9 | Package names are `[a-z][a-z0-9_]*` | spec §16.3 | agreed and applied (R8-1) |
 | P19-10 | Minimal version selection, with lock entries as extra minimums | spec §16.3 ("a single version per major") | agreed |
 | P19-11 | Libraries commit `verse.lock` too (used for their own tests, ignored by dependents) | spec §16.3 says "committed for applications" | agreed |
-| P19-12 | MCP tools for the package manager (`lock`, `why` for packages, `api_diff`, `update` preview) with schemas in 17, and their diagnostic codes in 16 | 16, 17 (Michelangelo) | agreed; Michelangelo writes 17 §17.9 and the 16 codes |
+| P19-12 | MCP tools for the package manager (`lock`, `why` for packages, `api_diff`, `update` preview) with schemas in 17, and their diagnostic codes in 16 | 16, 17 (Michelangelo) | agreed; 17 §17.8 and the V08xx codes of 16 |
 
 ## 19.15 Conflicts with other documents
 

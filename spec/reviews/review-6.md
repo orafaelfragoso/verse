@@ -41,7 +41,7 @@ Ruled, in two parts, with no new syntax:
 2. **Building a value needs the case in scope.** Importing the type does not
    import its cases, because every name in a file must trace to an import line
    (§12.2). Write `import Circle, Square from shapes`, or use the qualified
-   form that §4.10 already allows: `Shape.Circle(2.0)`.
+   form that §4.4 already allows: `Shape.Circle(2.0)`.
 
 The error when a case is missing names the fix: "`Circle` is a case of `Shape`;
 write `Shape.Circle(…)` or add `import Circle from shapes`". Spec text: one

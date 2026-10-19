@@ -169,6 +169,4 @@ heap and a 64-bit `Int`.
 - `Int` stays 64-bit (spec §4.1). The optimizer uses range analysis to lower to
   32-bit operations where it can prove values fit, and sized types
   (`std.num.Int32`) are the explicit tool for hot code.
-- Interrupt handlers are written in Verse as ordinary functions registered
-  through the `gpio` or `clock` capability. They run on the cooperative
-  executor's context and may not block.
+- **Interrupts only wake tasks.** No Verse code runs in interrupt context. The platform layer owns a tiny handler, written once in the runtime and not in Verse, that records the event (a pin change, a timer tick, a received byte) and marks the waiting task ready. The task then runs on the cooperative executor like any other, so ordinary rules (ownership, `Cleanup`, panics) hold in it. A program waits for an interrupt through the `gpio`, `uart` or `clock` capability, never by registering a function ([20](20-first-party-packages.md), P20-5).
