@@ -36,9 +36,9 @@ extend that table.
 | `verse add pkg[@req]` | adds a dependency at the newest release (or `req`), resolves, updates the lock | toml, lock, index | toml, lock | yes (cached) |
 | `verse add --dev pkg` | the same, into `[dev-dependencies]` | | | |
 | `verse remove pkg` | removes it; the lock drops what nothing else needs | toml, lock | toml, lock | no |
-| `verse update [pkg…]` | raises locked versions to the newest allowed by `verse.toml` (21 §21.8); shows each change and each capability change | toml, lock, index | lock | yes |
-| `verse lock` | resolves and writes `verse.lock` without building; `--check` fails if the lock is stale (for CI) | toml, lock, index | lock | yes, unless `--offline` |
-| `verse vendor` | copies every locked package into `vendor/` and records it in the lock (21 §21.9) | lock | `vendor/`, lock | yes, unless cached |
+| `verse update [pkg…]` | raises locked versions to the newest allowed by `verse.toml` (21 §21.8); shows each change and each capability change; `--exclude pkg` leaves `pkg` at its locked version | toml, lock, index | lock | yes |
+| `verse lock` | resolves and writes `verse.lock` without building; `--check` fails if the lock is stale (for CI); `--refetch pkg` fetches `pkg` again after a checksum or API mismatch (V0806, V0824) | toml, lock, index | lock | yes, unless `--offline` |
+| `verse vendor` | copies every locked package into `vendor/` and records it in the lock (21 §21.9); `--restore pkg` puts back the locked copy of an edited package (V0829) | lock | `vendor/`, lock | yes, unless cached |
 | `verse publish` | checks, computes the required bump, packs and uploads (21 §21.6, §21.9) | everything | registry | yes |
 | `verse yank pkg@ver` | marks a published version yanked (21 §21.9); `--undo` reverses | — | registry | yes |
 | `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the `verse generate` entry that wrote it (spec §16.6); this document adds package names and capabilities (§19.4) | build graph, lock | — | no |
@@ -47,6 +47,18 @@ extend that table.
 | `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
 | `verse api diff [ver]` | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
 | `verse debug [app.vs] [--port n]` | the debug adapter: serves the Debug Adapter Protocol on standard input and output, or on a local port ([08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) | sources, recordings | — | no |
+| `verse test [path]` | runs `test` blocks and doc tests (spec §14); `--filter "name"` selects tests, `--watch` reruns on change. In a workspace only the root's tests run unless `--deps` is given ([21 §21.13](../architecture/packages.md#2113-supply-chain-security)) | sources, toml, lock | - | only if resolving |
+| `verse fmt [path]` | formats code in the one canonical style (spec §16.1); `--check` changes nothing and fails on unformatted code (for CI) | sources | sources | no |
+| `verse check` | type-checks without running (§19.2.3) | sources, toml, lock | - | only if resolving |
+| `verse build [file.vs]` | builds the package, or one file, for the selected profile and target: an executable, a WebAssembly module or a bytecode bundle (§19.2.3) | sources, toml, lock | build output | only if resolving |
+| `verse doc` | generates an HTML site from doc comments (spec §14.3) | sources | HTML | no |
+| `verse repl` | an interactive prompt; it runs in tier 0 ([14 §14.1](../architecture/bytecode-and-vm.md#141-role)) | - | - | no |
+| `verse lsp` | the language server for editors, with inline hints for inferred types ([08 §8.8](../architecture/debugging.md#88-verse-extensions)) | sources | - | no |
+| `verse explain <code>` | prints the long form of a diagnostic ([16 §16.5](diagnostics-catalog.md#165-verse-explain)) | - | - | no |
+| `verse record redact <file>` | removes chosen capability results from a recording; a replay then reports a divergence at the first removed result it needed ([08 §8.9](../architecture/debugging.md#89-safety), [14 §14.10](../architecture/bytecode-and-vm.md#1410-record-and-replay)) | the recording | the recording | no |
+| `verse bench` | runs the benchmarks in `bench/`, stores the results as JSON and compares them with the committed baseline ([09 §9.2](../architecture/performance.md#92-benchmark-suite)) | `bench/` | results | no |
+| `verse difftest` | runs each program of the conformance suite in tier 0, Cranelift, LLVM and Wasm, with the optimizer on and off and recording on and off, and reports the first differing observable ([10 §10.3](../architecture/testing-and-verification.md#103-differential-testing), [14 §14.12](../architecture/bytecode-and-vm.md#1412-differential-testing-contract)) | the suite | report | no |
+| `verse dump mir` | prints the MIR text format, including the `layout` lines, for golden tests ([13 §13.2](../architecture/mir-specification.md#132-textual-format), [15 §15.12](../architecture/target-and-abi.md#1512-conformance-and-tests)) | sources | - | no |
 | `verse app.vs`, `verse .`, `build`, `check`, `test` | read the lock; resolve only if it is missing or stale (and say so) | toml, lock | lock (only if stale) | only if resolving |
 
 Global flags, accepted by every command that may touch the network:
@@ -101,6 +113,8 @@ Here `--deny net` is for `verse`, and `args` is `["--top", "3", "poem.txt"]`.
 | `--debug` | compile for a debugger and accept `attach` from `verse debug` ([14](../architecture/bytecode-and-vm.md), [08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) |
 | `--leak-check` | report leaked `Shared` cycles at exit ([05](../architecture/runtime.md)) |
 | `--max-memory <size>` | cap the heap; running out is a panic ([05 §5.2](../architecture/runtime.md#52-memory)) |
+| `--max-stack <size>` | cap a task's stack in the VM; a task that cannot grow panics with `stack_overflow` (R0004). Open: the default ([14 §14.3](../architecture/bytecode-and-vm.md#143-value-representation-and-call-records)) |
+| `--seed <n>` | seeded scheduler mode: scheduling is deterministic without a recording, so a failing concurrent run can be repeated ([08 §8.5](../architecture/debugging.md#85-deterministic-record-and-replay), policy in [14 §14.7](../architecture/bytecode-and-vm.md#147-tasks-scheduler-and-seed)) |
 
 `[run]` in `verse.toml` sets defaults for these flags (§19.3).
 
@@ -126,6 +140,33 @@ A build verifier failure is status 3, not 1. A package-manager error (a stale
 lock under `--locked`, a failed resolution) is not covered by the spec or by
 16 §16.6.1; this document assumes a non-zero status and fixes no number
 (Assumption).
+
+### 19.2.3 Building and checking
+
+`verse check` takes `--target <name>`: it checks that everything the program
+can reach is available on that target, without generating code
+([06 §6.8](../architecture/stdlib-and-shaking.md#68-per-target-constraints)).
+After a compiler failure (V9901), `verse check --report` writes a file to send
+with the bug report.
+
+| `verse build` flag | Effect |
+|--------------------|--------|
+| `--release` | build with `[profile.release]` (LLVM, §19.3) |
+| `--profile <name>` | build with `[profile.<name>]` (§19.3) |
+| `--target <name>` | build for a target file other than `[targets] default` (§19.3) |
+| `--size-report` | also list every included item with its size and why it is included; `--size-report=json` prints records ([06 §6.6](../architecture/stdlib-and-shaking.md#66-verse-build---size-report)) |
+| `--no-heap` | fail if any reachable function allocates ([05 §5.7](../architecture/runtime.md#57-embedded-profile)) |
+| `--record` | the built program logs its nondeterministic inputs, so the VM can replay the run; setting `VERSE_RECORD=file` when the program runs does the same ([08 §8.2](../architecture/debugging.md#82-architecture)) |
+| `--verify-reproducible` | build twice in clean directories and compare the bytes (for CI; [21 §21.10](../architecture/packages.md#2110-reproducible-builds-and-caching)) |
+
+Compiler flags change what the compiler reports or how it optimizes, never
+what a program means:
+
+| Flag | Effect |
+|------|--------|
+| `--no-opt-pass=NAME` | turn off one optimizer pass, so a miscompile can be isolated ([03 §3.4](../architecture/ir-and-passes.md#34-pass-list)) |
+| `--timings` | record the time and memory of every pass, as JSON for tools ([09 §9.5](../architecture/performance.md#95-compile-time-budget-discipline)) |
+| `--explain-ownership` | show the `V0511` note on how chain ownership works, which is never printed by default ([16 §16.4](diagnostics-catalog.md#164-how-a-code-is-shown)) |
 
 ## 19.3 `verse.toml`
 
