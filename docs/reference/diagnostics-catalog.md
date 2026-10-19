@@ -375,20 +375,45 @@ panic: index 7 is out of range, the list has 3 items
   --> src/main.vs:12:11
 12 |     print(nums[7])
    |           ^^^^^^^ this index
-  in main
+  in main at src/main.vs:12
 explain: R0002 (run `verse explain R0002`)
 ```
 
 The first line is the message; the rest is the position, the label, and the
-stack, one function per line. With `VERSE_PANIC=json` or a debugger attached
-the same facts are one record (05 §5.4); the message is the same.
+stack, one call per line, innermost first: `in {function} at {file}:{line}`.
+Every build prints the stack, `debug = false` included (15 §15.7.1). With
+`VERSE_PANIC=json` or a debugger attached the same facts are one record
+(05 §5.4); the message is the same.
+
+**Folded stack lines.** When a block of 1 to 8 stack lines repeats right after
+itself, the block is printed three times and the rest of the repetitions
+become one line: `[the call above repeats {r} more times]` for one line,
+`[the {k} calls above repeat {r} more times]` for a block of `k`. When `r` is
+1, the line ends `1 more time]`. A block that
+occurs three times or fewer is printed in full. The shortest repeating block
+is folded first. The JSON record's `stack` folds the same way:
+the block's entries appear three times, followed by `{"repeats": r, "calls": k}`.
+The VM and every compiled tier fold the same list into the same bytes:
+
+```
+panic: recursion is too deep in task t0: 10000 calls in progress, the limit, in `sum_to`
+  --> sum.vs:4:9
+ 4 |     n + sum_to(n - 1)
+   |         ^^^^^^^^^^^^^ this call
+  in sum_to at sum.vs:4
+  in sum_to at sum.vs:4
+  in sum_to at sum.vs:4
+  [the call above repeats 9997 more times]
+  in <script> at sum.vs:6
+explain: R0004 (run `verse explain R0004`)
+```
 
 | Code | Message | Label | Spec |
 |------|---------|-------|------|
 | R0001 | `{a} {op} {b}` overflows `{T}` | the result does not fit | spec §3.8 |
 | R0002 | index {i} is out of range, the {what} has {n} {unit} | this index | spec §9 |
 | R0003 | cannot divide {a} by zero (second form for `%`: "cannot take the remainder of {a} by zero") | this divisor is 0 | spec §8.5 |
-| R0004 | recursion is too deep in task {n} | this call made the stack full | 05 §5.3 |
+| R0004 | recursion is too deep in task {n}: {limit} calls in progress, the limit, in `{f}` (second form, when the stack fills first: "task {n} ran out of stack in `{f}`") | this call (second form: "this call made the stack full") | 05 §5.3, 15 §15.6.4 |
 | R0005 | `{x}` is none, and the program expected a value | `{msg}` | spec §8.5 |
 | R0006 | assertion failed: `{expr}` | this expression is false | spec §8.5 |
 | R0007 | the program ran out of memory | {size} requested here | 05 §5.2 |
@@ -409,7 +434,7 @@ same placeholders from them).
 | `overflow OP TYPE` | R0001 | `a`, `op`, `b`, `T` (for a unary operation `b` is absent and the message reads "`{op}{a}` overflows `{T}`") |
 | `index_oob` | R0002 | `i`, `n`, `what`, `unit` |
 | `div_zero` | R0003 | `a`, and `op` (`/` or `%`) |
-| `stack_overflow` | R0004 | `n` (the task) |
+| `stack_overflow` | R0004 | `n` (the task), `f` (the function called), `limit` (`--max-calls`; absent in the second form) |
 | `expect_none` | R0005 | `x`, `msg` (absent when the program gave none) |
 | `assert` | R0006 | `expr` |
 | `out_of_memory` | R0007 | `size` |
@@ -421,14 +446,16 @@ same placeholders from them).
 A panic kind with no row here is a bug in the compiler, and the build's
 verifier reports it as V9902. `what` is `list` or `text`; `unit` is `items` or
 `characters`. R0008, R0009 and R0013 are not MIR panic kinds: the runtime raises them
-(`exit` is 15 §15.8). A stack overflow found by the guard page, not by the prologue check, prints the same R0004 text.
+(`exit` is 15 §15.8). A full stack found by the guard page, not by the prologue check, prints the second form of R0004.
 
 Rules for panic wording:
 
 1. The first line is one sentence of at most 15 words, with no word from the
    "don't say" table (08 §8.7).
 2. A panic never shows an address, a stage name or a tier. It shows the same
-   text on the VM, the native tiers, Wasm and a microcontroller.
+   text on the VM, the native tiers, Wasm and a microcontroller, except the
+   second form of R0004, which only a compiled tier prints
+   ([15 §15.6.4](../architecture/target-and-abi.md#1564-stack-bounds-and-overflow)).
 3. `R0005` shows the program's own message when `.expect(msg)` gave one, and
    the default text otherwise.
 4. A panic in a spawned task prints as above, and its waiter then sees

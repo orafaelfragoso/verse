@@ -84,10 +84,16 @@ single-worker seeded mode. The multi-core scheduler runs only when no seed or
 recording is requested
 ([14 §14.7](../../../../docs/architecture/bytecode-and-vm.md#147-tasks-scheduler-and-seed)).
 
-**Stack overflow.** The prologue of each non-leaf function compares the stack
-pointer with `stack_limit` in the TCB, set `headroom` above the real end, so
-`Cleanup` runs in the reserve. The guard page is only a backstop: it prints
-R0004 and exits with 101, running no cleanup
+**Deep recursion.** Each task counts the calls of `recursive` functions it has
+in progress. The call past `--max-calls` (10,000 on every target) panics with
+R0004, at the same call in the VM and in native code unless a native stack
+fills first (it can on `cooperative` targets, small Wasm shadow stacks, and
+hosted targets with frames over about 830 bytes). The stack is the
+backstop: the prologue of each non-leaf function compares the stack pointer
+with `stack_limit` in the TCB, set `headroom` above the real end, so `Cleanup`
+runs in the reserve, and a full stack prints the second form of R0004. The
+guard page is the last backstop: it prints that second form and exits with
+101, running no cleanup
 ([15 §15.6.4](../../../../docs/architecture/target-and-abi.md#1564-stack-bounds-and-overflow)).
 
 **Panics.** `rt_panic(kind, site, a, b)` builds the panic record, prints the
@@ -99,7 +105,8 @@ Unwinding is `native`, `wasm-eh`, `status-code` or `abort` per target
 
 **Collections.** The runtime implements the primitives: the `Text` header,
 growth, hashing with SipHash-1-3, UTF-8 validation. The rest of the
-collections API is written in Verse, so it is monomorphized and inlined
+collections API is written in Verse, so it is monomorphized and inlined,
+except an instance that is `recursive`
 ([05 §5.5](../../../../docs/architecture/runtime.md#55-strings-and-collections)).
 
 **Capabilities.** All platform access goes through `sys` capabilities. Each

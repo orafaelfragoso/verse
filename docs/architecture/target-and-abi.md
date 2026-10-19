@@ -56,7 +56,7 @@ Nothing here is implemented and no number is measured.
 | **Scalar kind** | `Int`, `Float`, `Bool`, `Char`, the sized numerics, `Float32`, and every pointer. A scalar is passed and returned as one value of its own width, even when that is wider than a word (`Int` on a 32-bit target) |
 | **ZST** | a type of size 0 (`Nothing`, an empty tuple, a record with no fields, a closure with no captures) |
 | **Niche** | a bit pattern of a field that no valid value of the field uses, usable to encode the cases of an enclosing enum ([15.3.4](#1534-enums-option-and-fallible-types)) |
-| **TCB** | the *task control block* of `verse-rt`: per task state such as the unwind state, the cancel flag, the stack limit. Reached through the thread-local task pointer (stackful targets) or one global (single-threaded targets) |
+| **TCB** | the *task control block* of `verse-rt`: per task state such as the unwind state, the cancel flag, the stack limit, the call count. Reached through the thread-local task pointer (stackful targets) or one global (single-threaded targets) |
 | **Platform layer** | one of `std-os`, `std-wasi`, `std-web`, `std-embedded` ([05 §5.1](runtime.md#51-feature-slices)): the allocator, the entry point and the `sys-*` capabilities of a target |
 | **Target file** | the TOML data of [15.9](#159-the-versetarget-description-file), a `verse.target` |
 | **Verse-cc** | the internal call convention of [15.4](#154-the-verse-call-convention) |
@@ -341,7 +341,7 @@ A task slot holds the task cell of the table above (state, result slot for
   run on the one shared stack of `[memory] stack`, as with a heap.
 - On a `stackful` target, a stack of `[tasks] max_stack` bytes. A static
   stack cannot grow and has no guard page, so the prologue check (15.6.4) is
-  its only overflow check. Overflow panics with `stack_overflow` (R0004).
+  its only stack check. A full stack panics with the second form of R0004.
 
 ### 15.3.8 Worked layout examples (64-bit)
 
@@ -425,11 +425,11 @@ mode:
 5. **Order** is the MIR order: `_1`, `_2`, ... after the hidden result pointer.
    A Pair of two words occupies two consecutive argument positions.
 6. **Hidden parameters.** None in 0.1 for a function that cannot yield. The
-   task, the unwind state and the stack limit are reached through the TCB, not
-   through a register. A may-yield function on a state-machine target is not
+   task, the unwind state, the stack limit and the call count are reached
+   through the TCB, not through a register. A may-yield function on a state-machine target is not
    lowered with Verse-cc at all ([15.6.2](#1562-resumable-functions-state-machine-and-cooperative-targets)).
 7. **No tail calls.** The spec promises none (14.6); a backend may not turn a
-   call into a jump, so a deep recursion reaches the stack check of
+   call into a jump, so a deep recursion reaches the call limit of
    [15.6.4](#1564-stack-bounds-and-overflow).
 8. **Results of unwinding calls.** A call that can unwind has a normal return
    and, on targets that use native or Wasm exceptions, nothing else. On
@@ -675,7 +675,8 @@ the strategies need from the ABI. The scheduler policy is 14 §14.7.
 - The unwinder must stop at the trampoline: the trampoline frame is the last
   frame of the stack and its call-frame information marks the return address
   undefined.
-- The TCB holds the stack bounds (`stack_lo`, `stack_limit`), the unwind state
+- The TCB holds the stack bounds (`stack_lo`, `stack_limit`), the call count
+  and its limit (15.6.4), the unwind state
   ([15.7.1](#1571-the-panic-record-and-the-unwind-state)), `cancel_requested`,
   and `cancel_mask`.
 
@@ -732,28 +733,64 @@ Nothing in this document applies beyond the unwinding and exit rules.
 
 ### 15.6.4 Stack bounds and overflow
 
-A guard page fault cannot run cleanup, because the cleanup blocks need
-stack that is exhausted, and a signal handler cannot unwind arbitrary frames
-safely. So **every compiled target uses an explicit check**:
+Deep recursion stops at a **call limit**, one number on every tier and every
+target ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). The stack
+reservation is a backstop behind it, and on some targets it fills first
+(the reservation, below).
 
-- The prologue of a function that is not a leaf compares the stack pointer
+- **The call count.** Each task counts the calls of `recursive` functions
+  (13.3) it has in progress, in its TCB. A call that would go past the limit
+  panics with the first form of R0004 ([16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)),
+  "recursion is too deep in task {n}: {limit} calls in progress, the limit, in
+  `{f}`". The limit is `--max-calls`, 10,000 by default on every target; `verse
+  build` writes the value of `[run] max_calls` into the executable
+  ([19](../reference/cli-and-manifest.md#1921-running-a-file)). Only a
+  `recursive` function counts, because every other call chain has a depth that
+  the call graph fixes. No backend inlines a `recursive` function, so the count
+  is the same at every `opt` level.
+- **Unwinding keeps the count.** A frame that unwinding leaves keeps its call
+  in the count, on every mechanism of 15.7.2 and in the VM. The task ends when
+  its unwinding reaches the catch point (15.7.5), so nothing reads the count
+  after that.
+- **The unwinding reserve.** Once a task starts to unwind, its calls left
+  grow by 100, a chosen constant. Its only purpose is the cleanup code that
+  unwinding runs: that code can make calls after a first-form R0004.
+- **The prologue** of a function that is not a leaf compares the stack pointer
   (minus the frame size) with `stack_limit` in the TCB and, if it is below,
-  branches to a cold block that executes `panic stack_overflow`. The limit is
-  set `headroom` above the real end of the stack (assumption: 4 KiB on small
-  targets, 16 KiB on large ones, tuned in M2) so that cleanup blocks and the panic path run
-  in the reserve. Cost target: at most 3 instructions per call.
+  branches to a cold block that panics with the second form of R0004, "task
+  {n} ran out of stack in `{f}`". The TCB holds the task's **calls left**,
+  the limit less the count. The prologue of a `recursive` function first takes
+  one call from it and branches to the cold block of the first form when none
+  was left; its normal return gives the call back. The
+  stack limit is set `headroom` above the real end of the stack (assumption:
+  4 KiB on small targets, 16 KiB on large ones, tuned in M2) so that cleanup
+  blocks and the panic path run in the reserve. Cost target, measured in M2
+  on x86-64 and AArch64: at most 3 instructions per call for the stack check,
+  and in a `recursive` function at most 4 more in the prologue and 3 on the
+  return path.
+- **The reservation** is `[tasks] max_stack` (15.9.2). On a hosted stackful
+  target it holds 10,000 calls of frames under about 830 bytes: 8 MiB less
+  the 16 KiB headroom is 837 bytes per call, and 832 bytes with 16-byte frame
+  alignment. There the call limit fires first in ordinary code, and every tier
+  prints the same R0004. That does not hold on a `cooperative` target, whose
+  one shared stack is 4 KiB on Cortex-M (15.9.3), less than 1 byte per call, or
+  on a small Wasm shadow stack, such as the 512 KiB of
+  `wasm32-unknown-unknown`, 52 bytes per call. There, and with larger frames
+  on a hosted target, the stack fills first and the task prints the second
+  form of R0004. The VM has no reservation and never prints the second form,
+  so the text and the stack lines may differ between tiers (14.12).
 - The **guard page** stays as a backstop for code that does not check (a runtime
-  function, foreign code). A fault there prints the R0004 text of
-  [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), "recursion is too
-  deep in task N", exactly like the prologue check, and **aborts** with status
-  101, running no cleanup. Every stack-overflow path prints R0004; none has its
-  own wording.
-- On Wasm the check is against `__verse_stack_limit` and the shadow stack; the
+  function, foreign code). A fault there prints the second form of R0004
+  exactly like the prologue check, and **aborts** with status 101, running no
+  cleanup. Every path that stops deep calls prints R0004; none has its own
+  wording.
+- On Wasm the stack check is against `__verse_stack_limit` and the shadow stack; the
   engine's own call-stack limit is outside Verse's control and, when it fires
   first, traps the instance with a host-defined status. Each recursive function
   gets a minimum shadow frame, so the Verse check usually fires first.
-- Tier 0 checks `frame_slots` against the segment (14.3) and reports the same
-  panic (R0004). The depth at which it fires may differ between tiers (14.12).
+- Tier 0 counts at each call of a `recursive` proto, against the same limit
+  (14.3). Its stack segments come from the heap, so it has no reservation to
+  fill; a segment it cannot allocate is `out_of_memory` (R0007).
 
 ## 15.7 Unwinding and abort ABI
 
@@ -792,11 +829,41 @@ struct PanicRecord {            // allocated by verse-rt; layout private, shown 
   Wording comes from `events.toml`, never from the ABI.
 - **Cancellation** has state `cancel`, no record, and **prints nothing**
   (spec §11.5). It is raised only at a `yield` ([13.4](mir-specification.md#134-statements-and-terminators)).
-- The **user-level call list** of the record is built from the unwinder's frames
-  and the debug map (13.7), so it requires the debug map: in a `debug = false`
-  build the report has the message and span and **no stack**; the structured
-  record carries `stack = null`, and differential tests compare the stack only
-  with debug on.
+- The **user-level call list** of the record is built in **every build**
+  ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). `rt_panic`
+  walks the task's stack and maps each call site through the **trace map**,
+  the part of the debug map (13.7) that the list needs: the user-level name of
+  each function, the span of each call site, and the parent spans of inlined
+  calls. A `debug = false` build keeps the trace map and drops the rest of the
+  debug map. The trace map costs at most 4 bytes per call site and per parent
+  span of an inlined call, 4 bytes per function for its frame size on Wasm and
+  `status-code` targets, and one copy of each function and file name
+  (assumption, measured in M7). Every target keeps it, including
+  `std-embedded`.
+- **The walk.** On a target whose file sets `unwind = "native"`, the walk
+  reads the unwind tables, and an `abort`-profile build for that target keeps
+  them (assumption: `.eh_frame` and `.eh_frame_hdr` together are at most 10%
+  of `.text`, measured in M7). Wasm targets, and targets whose file sets
+  `status-code` or `abort`, cannot walk their stack that way, so each function
+  that makes calls keeps one **site word** in its frame (on Wasm, in its
+  shadow frame) and stores the id of the call site there before each call;
+  the walk steps from frame to frame by the frame sizes in the trace map. The
+  store costs 3 Wasm instructions (`local.get` of the shadow frame pointer,
+  `i32.const`, `i32.store`), plus a shadow frame in a function that has none
+  otherwise, and 2 Thumb-2 instructions (`mov`, `str`) on Cortex-M
+  (assumption, measured in M3 for Wasm and M7 for Cortex-M).
+- **The first frame.** A panic raised in a prologue (15.6.4) belongs to the
+  call that entered it. The walk drops the frame whose prologue fired and
+  takes the span and the call site of the panic from the caller's call site,
+  through the return address or the caller's site word. The VM panics at the
+  `CALL`, before it pushes the call record (14.3), so both tiers print the
+  same stack lines. The report is printed,
+  folded as in [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics),
+  while the walk runs, so building it needs no heap and no memory that grows
+  with the depth. When another task can receive the panic as a `TaskPanicked`
+  (spec §11.2), the runtime also keeps the folded stack lines as `Text` for
+  `trace()`. That text is the only stored copy of the call list. **Open:** what
+  `trace()` returns in a `--no-heap` build, which cannot build `Text`.
 
 ### 15.7.2 The three mechanisms
 
@@ -928,7 +995,7 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 | `1` | a top-level `?` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 |
 | `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or when running a file, and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement: the program did not start | [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses), [14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) |
 | `3` | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused (`unreachable`, an internal runtime error, a VM `TRAP`) (15.7.6). A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule | 16 §16.6.1, 14.4, 14.6 |
-| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the R0004 text (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 |
+| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the second form of R0004 (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 |
 | `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](debugging.md#87-vocabulary-and-wording), stop reason `deadlocked`) | 14.7, 14.12 and 16 §16.6.1 |
 | `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) |
 | host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 |
@@ -1064,7 +1131,7 @@ with `K`, `M`, `G` suffixes (powers of 1024) or integers (bytes).
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `max_stack` | size | `"8M"` | the most stack one task may use; `--max-stack` overrides it (19). Stacks grow as they are used (VM segments, 14.3; pages committed on first touch on a stackful target, where this is the address space reserved per task), so the cap costs nothing until used. On a `cooperative` or `state-machine` target the tasks run on one shared stack, and the target file sets its own value, at most `[memory] stack`. On a `--no-heap` build a stackful target reserves this much static memory per task slot (15.3.7) |
+| `max_stack` | size | `"8M"` | the stack reserved per task on a compiled target, the backstop behind the call limit of 15.6.4. Pages are committed on first touch on a stackful target, where this is the address space reserved per task, so the reservation costs nothing until used. The VM has no reservation (14.3). On a `cooperative` or `state-machine` target the tasks run on one shared stack, and the target file sets its own value, at most `[memory] stack`. On a `--no-heap` build a stackful target reserves this much static memory per task slot (15.3.7) |
 | `workers` | `"cores"` \| integer | `"cores"` | stackful with `threads = true`; ignored otherwise |
 
 **`[exit]`**
@@ -1458,7 +1525,7 @@ This section fixes what they mean at the ABI level.
   not a yield point. On a state-machine target it blocks the single thread
   until it returns. The stack of a stackful task must hold the foreign
   function's frames within the target file's `[tasks] max_stack`
-  ([15.6.1](#1561-stackful-targets)); the guard page turns an overflow there into R0004.
+  ([15.6.1](#1561-stackful-targets)); the guard page turns an overflow there into the second form of R0004.
 - **Script mode.** The VM calls through a stub generated per signature by
   `verse-ffi`, which moves VM registers into C-ABI arguments and back. The stub
   follows the same mapping, so a call means the same in every tier.
@@ -1491,3 +1558,8 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
 6. **Target files.** Every shipped target file is loaded, validated and
    round-tripped by the schema of 15.9.2; every example in this document is a
    test fixture.
+7. **Call limit.** A program that recurses past `--max-calls`, and one whose
+   cleanup code makes calls during that unwinding (the reserve of 15.6.4),
+   run on every tier and every profile; the suite compares the R0004 text and
+   the folded stack lines byte for byte (14.12). A program with large frames on a small reservation runs
+   on each compiled tier and must print the second form of R0004 (15.6.4).

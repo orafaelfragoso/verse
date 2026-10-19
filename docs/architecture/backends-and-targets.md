@@ -55,7 +55,12 @@ compiler with a different last stage, so they cannot drift apart semantically.
   optimizer for release builds.
 - **No cross-backend divergence in semantics.** Overflow checks, bounds checks
   and panics are already in MIR as explicit control flow, so neither backend
-  can quietly choose a different policy.
+  can quietly choose a different policy. Neither lowering inlines a
+  `recursive` function ([13 §13.3](mir-specification.md#133-types-and-layout-facts)):
+  the LLVM lowering marks it `noinline`, and the `Inline` callback the
+  Cranelift lowering passes to `Context::inline` returns `KeepCall` for every
+  call to one. So the call limit counts the same calls as in the VM
+  ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)).
 - **Hot-function JIT** (Tier 0 to Tier 1 while a file runs) is deferred past
   the first stable release. It needs the call-count and type feedback that
   Verse mostly does not need, because the program is statically typed.

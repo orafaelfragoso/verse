@@ -202,13 +202,18 @@ attached:
   "at": {"file": "scores.vs", "line": 18, "column": 14},
   "task": "main",
   "values": [{"name": "scores", "summary": "[10, 20, 30]"}, {"name": "i", "value": 7}],
-  "stack": [{"function": "best", "line": 18}, {"function": "<script>", "line": 40}],
+  "stack": [{"function": "best", "file": "scores.vs", "line": 18}, {"function": "<script>", "file": "scores.vs", "line": 40}],
   "last_events": ["..."]
 }
 ```
 
 Humans see it rendered as text. `VERSE_PANIC=json` prints the JSON to standard
-error, so a CI system can read it with no tooling.
+error, so a CI system can read it with no tooling. Every build fills `stack`,
+and repeated calls in it are folded as
+[16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics) says.
+`values` and `last_events` come from the `debug` runtime slice
+([05 §5.1](runtime.md#51-feature-slices)), so a build without it prints them
+as empty lists.
 
 In a debug session, a panic stops with `reason: "exception"`, and
 `exceptionInfo` returns the same report:

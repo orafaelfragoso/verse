@@ -114,7 +114,7 @@ Here `--deny net` is for `verse`, and `args` is `["--top", "3", "poem.txt"]`.
 | `--debug` | compile for a debugger and accept `attach` from `verse debug` ([14](../architecture/bytecode-and-vm.md), [08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) |
 | `--leak-check` | report leaked `Shared` cycles at exit ([05](../architecture/runtime.md)) |
 | `--max-memory <size>` | cap the heap; running out is a panic ([05 §5.2](../architecture/runtime.md#52-memory)) |
-| `--max-stack <size>` | cap each task's stack; a task that cannot grow panics with `stack_overflow` (R0004). The default is the target file's `[tasks] max_stack`, 8 MiB per task on hosted targets. Stacks grow as they are used, so the cap costs nothing until a task needs it ([14 §14.3](../architecture/bytecode-and-vm.md#143-value-representation-and-call-records), [15 §15.9.2](../architecture/target-and-abi.md#1592-schema)) |
+| `--max-calls <n>` | the call limit: the most calls of recursive functions one task may have in progress; the next one panics with R0004. The default is 10,000 on every target, the same in the VM and in native code ([14 §14.3](../architecture/bytecode-and-vm.md#143-value-representation-and-call-records), [15 §15.6.4](../architecture/target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | `--seed <n>` | seeded scheduler mode: scheduling is deterministic without a recording, so a failing concurrent run can be repeated ([08 §8.5](../architecture/debugging.md#85-deterministic-record-and-replay), policy in [14 §14.7](../architecture/bytecode-and-vm.md#147-tasks-scheduler-and-seed)) |
 
 `[run]` in `verse.toml` sets defaults for these flags (§19.3).
@@ -378,7 +378,7 @@ The hash of the resolved target file is part of every cache key (21 §21.10).
 |-----|------|-----|---------|------|---------|
 | `backend` | `auto` \| `bytecode` \| `cranelift` \| `llvm` | `cranelift` | `llvm` | `cranelift` | tier ([04](../architecture/backends-and-targets.md)); `auto` lets the target file decide |
 | `opt` | `0`–`3`, `"size"` | `0` | `3` | `1` | optimizer level (03 §3.4) |
-| `debug` | bool | `true` | `false` | `true` | Verse debug map and DWARF ([08](../architecture/debugging.md)) |
+| `debug` | bool | `true` | `false` | `true` | Verse debug map and DWARF ([08](../architecture/debugging.md)); with `false` the build keeps the trace map, so a panic still prints its stack ([15 §15.7.1](../architecture/target-and-abi.md#1571-the-panic-record-and-the-unwind-state)) |
 | `unwind` | `target` \| `abort` | `target` | `target` | `target` | `abort` only when no `Cleanup` value is live at any panic site; otherwise the build fails |
 | `size_report` | bool | `false` | `false` | `false` | as `--size-report` |
 
@@ -397,6 +397,7 @@ Command-line flags win. `[run]` applies when a file or the package runs
 |---------|-----|------|---------|
 | `[run]` | `deny` | list of capabilities | `[]` |
 | `[run]` | `max_memory` | size | none ([05 §5.2](../architecture/runtime.md#52-memory)) |
+| `[run]` | `max_calls` | integer | `10000`. `verse build` writes it into the executable, so a built program stops at the call a run of the file stops at, unless its stack fills first ([15 §15.6.4](../architecture/target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | `[run]` | `native_after` | integer | `2`: the run of an unchanged script that also builds it natively in the background; later runs use that build ([04 §4.1](../architecture/backends-and-targets.md#41-tiers)) |
 | `[build]` | `out` | path | `.verse/out/<target>/<profile>/` |
 | `[build]` | `artifact` | `executable` \| `library` \| `wasm-component` \| `bytecode` | `executable` ([04 §4.4](../architecture/backends-and-targets.md#44-linking-and-artifacts)) |

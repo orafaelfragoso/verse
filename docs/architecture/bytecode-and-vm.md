@@ -56,11 +56,21 @@ live range (V9).
 **Task stacks** are chains of **segments** that are never reallocated or moved.
 A call checks that the callee's `frame_slots` fit in the current segment and
 else allocates the next one. Initial segment: 1 KiB (assumption). Segments are
-allocated only when needed, so the cap costs nothing until a task uses it. A
-task that cannot grow (limit `--max-stack`, by default the target's `[tasks]
-max_stack`, 8 MiB per task on hosted targets) panics with
-`stack_overflow` (R0004, "recursion is too deep in task N", [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics);
-[05 §5.3](runtime.md#53-tasks-and-scheduling)); the VM supplies the fact `n`.
+allocated from the heap only when needed, and a segment that cannot be
+allocated is `out_of_memory` (R0007). The VM has no stack reservation.
+
+**The call limit.** Each task counts its call records whose proto is
+`recursive` (13.3). A `CALL` that would take the count past `--max-calls`
+(10,000 by default) panics with `stack_overflow`, the first form of R0004
+("recursion is too deep in task {n}: {limit} calls in progress, the limit, in
+`{f}`", [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics);
+[15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)), and the VM
+supplies the facts `n`, `f` and `limit`. The panic fires before the `CALL`
+pushes the callee's call record, so the stack lines start at the caller.
+`RET` takes the call back; unwinding pops call records and keeps their calls
+in the count, with the reserve of 15 §15.6.4. Compiled code counts the same
+calls, so a compiled task whose stack does not fill first stops at the same
+call ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
 
 **Frame layout** of one call, from the base: `[ return place | parameters | named
 locals | temporaries ]`, where the return place is MIR `_0` and the parameters
@@ -163,8 +173,9 @@ Verification is eager and bytecode generation is lazy
   [13.6](mir-specification.md#136-generic-mir-and-mono-mir). It builds no
   bytecode, runs no optimizer pass, and caches each verified instance
   ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)).
-  It yields the verified mono instances with their `caps` and `mayyield`, and the
-  capability check of [14.9](#149-sys-capability-calls-and-the-capability-check)
+  It yields the verified mono instances with their `caps`, `mayyield` and
+  `recursive`, and the capability check of
+  [14.9](#149-sys-capability-calls-and-the-capability-check)
   runs on it. A verifier failure stops the run here, before the first
   statement ([13.5](mir-specification.md#135-verifier-rules)).
 - **Direct calls** use a **function table**: `CALL a f` indexes it. An entry is
@@ -423,17 +434,19 @@ capability fakes:
 
 | Observable | Detail |
 |------------|--------|
-| standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too: they come from the user-level call list below |
+| standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too, folded as 16.6 says: they come from the user-level call list below, which every build has (15 §15.7.1). The one exception is the R0004 text and its stack lines when a compiled task fills its stack before the call limit (May differ) |
 | exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule and can report V9902 at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
-| panic record | `kind`, facts, span, task, and the **user-level** call list (inlined calls reconstructed from spans, 13.7); which panic comes first; the secondary panics of a failed `Cleanup` (R0009) |
+| panic record | `kind`, facts, span, task, and the **user-level** call list as the walk prints it in the structured record's `stack` (`VERSE_PANIC=json`, folded as 16.6 says; inlined calls reconstructed from spans, 13.7), since no tier stores the list (15 §15.7.1); which panic comes first; the secondary panics of a failed `Cleanup` (R0009); the R0004 exception of the row above applies here too |
+| call limit | the call at which the first form of R0004 fires, on every tier that reaches the limit before its stack fills: the count of calls of `recursive` functions is the same on every tier ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | order of `Cleanup` and drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |
 | capability calls | capability, operation and arguments, in order |
 | `Float` results | bit for bit: IEEE 754 binary64, no fast-math, no implicit fused multiply-add; every NaN is the canonical quiet NaN `0x7FF8000000000000` wherever bits can be seen (`to_bits`, hashing, byte serialization, `Show`). A hash of a float, where one exists, treats `-0.0` as `0.0` (they compare equal); this binds only internal hashing and a library wrapper such as `OrderedFloat`, because `Float` is not `Hash` (spec §9.4); `to_bits` keeps the sign of zero; `Show` prints `NaN` for every NaN and `-0.0` for negative zero |
 | collection order | `Map` and `Set` iteration is insertion order; `Text` indexing by characters |
 
-**May differ**: timing; addresses; memory use; the depth at which
-`stack_overflow` fires; the allocation that hits `--max-memory`; the payload and
+**May differ**: timing; addresses; memory use; whether a compiled task stops
+at the call limit or at a full stack (first or second form of R0004,
+15 §15.6.4), and with it the panic text and stack lines; the allocation that hits `--max-memory`; the payload and
 sign of a NaN while it is only computed with, never exposed; the order of unsynchronised output between tasks when no
 seed is given.
 

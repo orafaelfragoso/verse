@@ -61,7 +61,9 @@ Rules:
 1. **Monomorphization and inlining.** Unannotated generics are specialized, so
    `fn double(n)` over `Int` is just a multiply. Iterator chains inline into
    loops because the collection API is written in Verse ([05](runtime.md),
-   section 5.5).
+   section 5.5), except an instance that is `recursive`
+   ([13 §13.3](mir-specification.md#133-types-and-layout-facts),
+   [ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
 2. **No garbage collector.** No pauses, no write barriers, no tracing.
    Deterministic frees map to `free` calls the allocator handles in a few
    nanoseconds.
