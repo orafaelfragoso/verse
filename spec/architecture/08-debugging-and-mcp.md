@@ -220,9 +220,18 @@ Fields added to the value record: `rendered` (text, optional) and
 - **Seeded scheduler mode**: `--seed N` makes scheduling deterministic without
   a recording, so a failing concurrent test can be re-run.
 - **Size**: a recording is proportional to the number of nondeterministic
-  events, not to run time. Target: under 100 bytes per event, compressed
-  with zstd. Long-running programs use a **ring buffer**: only the last N
+  events, not to run time. Target: under 100 bytes per event record, before
+  compression, then compressed with zstd. A capability result larger than 64
+  bytes is kept in a separate blob block that the event refers to, and is not
+  counted in the 100 bytes (14 §14.10). Long-running programs use a **ring buffer**: only the last N
   events plus periodic snapshots are kept, enough to explain a crash.
+- **A step** is one MIR statement or terminator, counted in tier 0 on
+  unoptimized mono MIR (12 Q19). A fused VM instruction counts the MIR items it
+  fuses. Steps exist only in the VM: a recording is indexed by event ordinal, so a
+  compiled tier needs no step counter, and a replay always runs at optimization
+  level 0 so that step numbers mean the same for every recording. `debug_goto`
+  with a `step` therefore works on recordings replayed in the VM, and `event_id`
+  works everywhere.
 - **Time travel in the VM** uses snapshots at intervals and re-execution forward
   from the nearest snapshot to reach any step (the approach of rr and
   Pernosco, scaled down). Backward step cost is bounded by the snapshot

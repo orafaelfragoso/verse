@@ -190,7 +190,7 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V0801 | error | `{key}` is not a key of `[{section}]` | unknown keys are errors | did you mean `{near}`? | 19 §19.3 |
 | V0802 | error | the package name `{name}` cannot be imported | a name uses letters, digits and `_`, starting with a letter | write `{suggested}` | 19 §19.4 |
 | V0803 | error | version {have} is too small for these changes; publish as {need} | {change summary} | set `version = "{need}"`, or keep the old signature and add a new function | 19 §19.5 |
-| V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 19 §19.7 |
+| V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 19 §19.12 |
 | V0805 | error | `{pkg}` lists plugins, but only the root project may | a dependency cannot run code while your project builds | add the plugin to your own `verse.toml` under `[plugins]` | 07 §7.5 |
 | V0806 | error | `{pkg}` {ver} does not match its checksum | the archive hashes to `{got}` | `verse lock --refetch {pkg}` | 19 §19.12 |
 | V0807 | error | `verse.lock` is out of date | `{pkg}` asks for {req}, the lock has {have} | run `verse lock` (not allowed with `--locked`) | 19 §19.6 |
@@ -213,13 +213,13 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V0824 | error | `{pkg}` {ver} has a different API from the one in your lock | the lock says `{a}`, the package says `{b}` | `verse lock --refetch {pkg}`; if it persists, the version was republished | 19 §19.6, §19.12 |
 | V0825 | error | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | two major versions of `{pkg}` are in this build | update `{other}`, or pin one version of `{pkg}` | 19 §19.7 |
 | V0826 | warning | `{pkg}` {ver}, in your lock, was yanked: {reason} | | `verse update {pkg}` to move to {near} | 19 §19.8 |
-| V0827 | warning | updating `{pkg}` adds the `{cap}` capability | {ver_old} did not reach `{cap}`; {ver_new} does | grant it in `[capabilities]`, or stay on {ver_old} | 19 §19.6 |
-| V0828 | error | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | | run `verse vendor` while connected, or remove `--offline` | 19 §19.9 |
-| V0829 | error | `{file}` in `vendor/` was edited | it does not match the lock's checksum for `{pkg}` | `verse vendor --restore {pkg}`, or copy the package into your own source | 19 §19.9 |
+| V0827 | warning | updating `{pkg}` adds the `{cap}` capability | {ver_old} did not reach `{cap}`; {ver_new} does | grant it in `[capabilities]`, or stay on {ver_old} | 19 §19.7 |
+| V0828 | error | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | | run `verse vendor` while connected, or remove `--offline` | 19 §19.8 |
+| V0829 | error | `{file}` in `vendor/` was edited | it does not match the lock's checksum for `{pkg}` | `verse vendor --restore {pkg}`, or copy the package into your own source | 19 §19.8 |
 | V0830 | error | `branch` is not accepted | a branch changes without a new version | use `tag = "…"` or `rev = "…"` | 19 §19.3 |
 | V0831 | error | `{req}` has no upper bound | any new major version would be accepted | write `"{near}"`, which means {range} | 19 §19.3 |
-| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a plugin that is not deterministic | 19 §19.13 |
-| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, or used before by another owner} | choose another name | 19 §19.4 |
+| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a plugin that is not deterministic | 19 §19.9 |
+| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, or named like a capability such as `net`} | choose another name | 19 §19.4 |
 
 ### V09xx Capabilities and targets
 
@@ -250,7 +250,7 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | Code | Sev | Message | Label | Help |
 |------|-----|---------|-------|------|
 | V9901 | error | the compiler failed in {stage}; this is a bug in Verse, not in your program | | run `verse check --report` and send the file |
-| V9902 | error | the verifier found a broken rule in {stage} | | as above |
+| V9902 | error | the verifier found a broken rule in {stage} | rule {rule} failed in `{function}` | as above |
 
 ## 16.4 Plugin diagnostics
 
@@ -323,7 +323,7 @@ fixed here, so the bytecode VM and every compiled tier print identical words;
 the differential tests ([10](10-testing-and-verification.md)) compare them.
 Codes are `R` and four digits and follow rules 1 and 2 of 16.1. `verse explain R0002` works like it does for a `V` code. A panic is
 printed at the moment it happens, to standard error, and the main program
-then exits with status 101 (spec §8.5).
+then exits with status 101 (spec §8.5). R0008 is the exception: a deadlock exits with status 70 (12 Q17), so scripts can tell it from a failed `?` and from a panic.
 
 ```
 panic: index 7 is out of range, the list has 3 items
@@ -341,12 +341,37 @@ the same facts are one record (05 §5.4); the message is the same.
 | Code | Message | Label | Spec |
 |------|---------|-------|------|
 | R0001 | `{a} {op} {b}` overflows `{T}` | the result does not fit | spec §3.8 |
-| R0002 | index {i} is out of range, the list has {n} items | this index | spec §9 |
-| R0003 | cannot divide {a} by zero | this divisor is 0 | spec §8.5 |
+| R0002 | index {i} is out of range, the {what} has {n} {unit} | this index | spec §9 |
+| R0003 | cannot divide {a} by zero (second form for `%`: "cannot take the remainder of {a} by zero") | this divisor is 0 | spec §8.5 |
 | R0004 | recursion is too deep in task {n} | this call made the stack full | 05 §5.3 |
 | R0005 | `{x}` is none, and the program expected a value | `{msg}` | spec §8.5 |
 | R0006 | assertion failed: `{expr}` | this expression is false | spec §8.5 |
 | R0007 | the program ran out of memory | {size} requested here | 05 §5.2 |
+| R0008 | every task is waiting and none can continue | {task}: waiting for {what} (one label per task) | spec §11, 12 Q17 |
+| R0009 | the cleanup of `{x}` panicked while the task was stopping | the first panic was {first} | 12 Q13 |
+| R0010 | the range {from}..{to} is out of range, the {what} has {n} {unit} | this range | spec §9.3 |
+| R0011 | the exponent {n} is negative, and an `Int` power needs 0 or more | this exponent | spec §3.8 |
+
+**From MIR panic kind to code** (13 §13.2 names the kinds; the operands a kind
+carries are the facts below, and the debugger and the compiled tiers fill the
+same placeholders from them).
+
+| MIR panic kind | Code | Facts (placeholders) |
+|----------------|------|----------------------|
+| `overflow OP TYPE` | R0001 | `a`, `op`, `b`, `T` (for a unary operation `b` is absent and the message reads "`{op}{a}` overflows `{T}`") |
+| `index_oob` | R0002 | `i`, `n`, `what`, `unit` |
+| `div_zero` | R0003 | `a`, and `op` (`/` or `%`) |
+| `stack_overflow` | R0004 | `n` (the task) |
+| `expect_none` | R0005 | `x`, `msg` (absent when the program gave none) |
+| `assert` | R0006 | `expr` |
+| `out_of_memory` | R0007 | `size` |
+| `slice_oob` | R0010 | `from`, `to`, `n`, `what`, `unit` |
+| `neg_exponent` | R0011 | `n` |
+
+A panic kind with no row here is a bug in the compiler, and the build's
+verifier reports it as V9902. `what` is `list` or `text`; `unit` is `items` or
+`characters`. R0008 and R0009 are not MIR panic kinds: the runtime raises them
+(12 Q17, Q13).
 
 Rules for panic wording:
 

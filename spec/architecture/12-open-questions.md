@@ -235,8 +235,7 @@ panic is printed at once like any panic and is attached to `TaskPanicked`
 (`trace()` shows both). A panic in a cleanup that runs during cancellation is
 reported the same way. In MIR terms, cleanup blocks stay `nounwind` for the
 verifier ([13.5](13-mir-specification.md#135-verifier-rules), V15); the runtime
-handles the second panic. (13.10 M9 and 14.8 currently say "abort the process";
-they follow this answer once it is ruled.)
+handles the second panic. (13.10 M9 and 14.8 already follow this answer.)
 
 **Status:** open.
 
@@ -319,7 +318,7 @@ from a panic (101). The report is the debugger's `deadlocked` stop in text:
 each blocked task and what it waits for ([08 §8.7](08-debugging-and-mcp.md#87-vocabulary-and-wording-owned-by-michelangelo)). Detection is "no runnable task,
 no pending completion, no timer", which every tier's scheduler can compute.
 Programs waiting on external input (a socket, stdin, a timer) are not
-deadlocked. (14.7 and P14-7 currently say status 1; they follow this answer.)
+deadlocked. (14.7 and P14-7 already follow this answer.)
 
 **Status:** open.
 

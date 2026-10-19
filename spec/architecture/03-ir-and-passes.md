@@ -40,7 +40,7 @@ backends that want it (Cranelift and LLVM build SSA themselves).
 ### Core definitions
 
 This section is the overview. The exact grammar, printed form, every
-operand and the verifier rules V1 to V23 are in
+operand and the verifier rules V1 to V24 are in
 [13](13-mir-specification.md), which is the detailed source; if the two
 differ, 13 wins and this file is corrected.
 
@@ -54,7 +54,7 @@ Operand = Move(Place) | Copy(Place) | Const       // ownership made explicit
 Stmt =                                             // every Stmt has a span and a debug name
   | Assign(Place, Rvalue)
   | StorageLive(Local) | StorageDead(Local)
-  | Drop(Place, flag: Option<DropFlag>)         // run Cleanup and free
+  | Drop(Place, flag: Option<DropFlag>)         // only for a type with no Cleanup: free
   | SetFlag(DropFlag, bool)
   | SetDiscriminant(Place, Variant)
   | Intrinsic(IntrinsicOp, [Operand])            // backend-visible primitives
@@ -64,7 +64,8 @@ Rvalue =
   | BorrowShared(Place) | BorrowMut(Place)        // second-class, see invariant 4
   | Binary(op, Operand, Operand)                  // wrapping ops only
   | CheckedBinary(op, Operand, Operand)           // returns (value, overflowed)
-  | Cast(kind, Operand, Type)
+  | Cast(kind, Operand, Type)                     // cannot fail
+  | CheckedCast(kind, Operand, Type)              // returns (value, failed)
   | Aggregate(Kind, [Operand]) | Len(Place) | Discriminant(Place)
 
 Terminator =
@@ -72,9 +73,11 @@ Terminator =
   | Call(Callee, [Operand], dest: Place, next: Block, unwind: Unwind)
   | CallDyn(vtable_slot, [Operand], dest, next, unwind)
   | Return(propagated: bool) | Unreachable | ResumeUnwind
-  | Panic(PanicKind, [Value], unwind: Unwind)    // structured kind, not a message
+  | DropT(Place, flag: Option<DropFlag>, next: Block, unwind: Unwind)
+                                                  // a type with Cleanup (or unknown, in generic MIR)
+  | Panic(PanicKind, [Fact], unwind: Unwind)     // structured kind and named facts, not a message
   | Yield(YieldKind, [Operand], dest: Place, resume: Block, unwind: Unwind)
-                                                  // scheduler point: send, recv, wait, sleep, lock, sys, pause
+                                                  // scheduler point: send, recv, wait, join, sleep, lock, sys, pause
   | Spawn(Callee, [Operand], dest: Place, next: Block, unwind: Unwind)
                                                   // arguments already moved
 Unwind = Cleanup(Block) | Continue | None
@@ -94,11 +97,14 @@ Notes on the shape (details and examples in [13](13-mir-specification.md)):
   nothing to clean up in this function; `Unwind::None` means the call cannot
   unwind.
 - **Drop flags** are written with `SetFlag`.
+- **Two drop forms.** `Drop` (statement) cannot unwind or yield and is only for
+  types whose drop glue runs no user code. `DropT` (the printed `drop p, next bbN,
+  unwind u` of [13.4](13-mir-specification.md#134-statements-and-terminators)) is for types with `Cleanup`, which may block or panic.
 
 ### Invariants (checked by the verifier)
 
 The seven invariants below are the summary; [13.5](13-mir-specification.md#135-verifier-rules)
-numbers the full rule set (V1 to V23) with a rejected example for each.
+numbers the full rule set (V1 to V24) with a rejected example for each.
 
 1. Every `Place` is typed and every operand matches the expected type.
 2. A `Move(p)` is followed on every path by no read of `p` before it is
@@ -114,7 +120,7 @@ numbers the full rule set (V1 to V23) with a rejected example for each.
 5. Every `Call`, `Spawn`, `Yield` or `Panic` that can unwind names a cleanup
    block (or `Continue` when nothing needs cleanup), and cleanup blocks drop in
    reverse declaration order and end in `ResumeUnwind`.
-6. `CheckedBinary` is followed by a `Switch` to a `Panic(Overflow)` block, so
+6. `CheckedBinary` and `CheckedCast` are followed by a `Switch` to a `Panic(Overflow)` block, so
    no backend decides overflow policy on its own.
 7. In **mono** MIR no type contains a type parameter, and every callee is a
    concrete function or an intrinsic or a `dyn` slot.
