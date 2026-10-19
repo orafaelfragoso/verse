@@ -110,12 +110,12 @@ milestone titles are `M<n>: <Name>`.
 | Milestone | Roadmap stage |
 |-----------|---------------|
 | `M0: Foundations` | repo layout, CI, lexer, CST, parser, `verse fmt` skeleton, diagnostics framework, harnesses |
-| `M1: Script core` | resolution, HIR, inference, ownership, MIR, mono, bytecode VM, minimal debug adapter |
+| `M1: Script core` | resolution, HIR, inference, ownership, MIR, mono, bytecode VM, diagnostics JSON, minimal debug adapter |
 | `M2: Native` | Cranelift for x86-64 and AArch64, linking, reachability, `--size-report`, the native cache |
 | `M3: WebAssembly` | Wasm emitter, `std-wasi` and `std-web`, state-machine task lowering prototype |
 | `M4: Tasks` | scheduler, channels, `Shared`, `Guarded`, cancellation |
 | `M5: Standard library core` | the core modules, package manager, `verse.lock`, `verse.api`, Windows |
-| `M6: Tooling` | language server, `verse doc`, `verse test --watch`, diagnostics JSON, record and replay |
+| `M6: Tooling` | language server, `verse doc`, `verse test --watch`, record and replay |
 | `M7: Release and embedded` | LLVM, release profile, Cortex-M, ESP32, `--no-heap`, RISC-V |
 | `M8: Plugins and generators` | `extern`, `[plugins]`, `verse-ffi`, `verse bind`, `verse generate` |
 | `M9: Domain libraries` | finance, ML, web and GUI, IoT packages |

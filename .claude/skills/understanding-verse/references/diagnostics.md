@@ -168,10 +168,4 @@ Verse; 70 a deadlock (R0008); 101 a panic
    ([CONTRIBUTING](../../../../CONTRIBUTING.md#commit-format)).
 5. Run `tools/docs/check.sh`.
 
-## Where the docs are silent or disagree
-
-- The [roadmap](../../../../docs/roadmap.md#11-roadmap) lists structured
-  diagnostics JSON under M6, while its sequencing principle 5 says
-  diagnostics JSON exists from M1.
-
 If the code and the docs disagree, the docs win until a `spec` pull request changes them.
