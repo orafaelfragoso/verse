@@ -140,7 +140,7 @@ scalar, or a constant), a text, or a word.
 | MIR type | Meaning | Notes |
 |----------|---------|-------|
 | `Int`, `Float`, `Bool`, `Char`, `Nothing` | scalars (spec §4.1) | `Int` is 64-bit on every target; `Float` is IEEE 754 binary64 |
-| `Int8`..`UInt64`, `Float32` | sized numerics of `std.num` | same ops, own checked-overflow ranges |
+| `Int8`..`UInt64`, `Float32` | sized numerics of `math` | same ops, own checked-overflow ranges |
 | `Text`, `Bytes`, `List<T>`, `Map<K,V>`, `Set<T>` | runtime types with primitives in `verse-rt` | opaque to MIR; handled by intrinsics, calls and `len` (see below) |
 | `Pointer` | an opaque foreign address (spec §12.6) | a scalar of pointer width; `Pointer?` uses null as its niche |
 | `Slice<T>` | a view of a range of a list or of bytes: `(ptr, len)` | only as `&Slice<T>`, produced by `call intrinsic slice(...)`; V7 applies |
@@ -193,7 +193,7 @@ explicit `.copy()` of spec §4.3 is an ordinary `call`.
 |-----------|----------|-----------|------------|
 | `p = op` | operand | store; `move` leaves the source uninitialised, `copy` does not | V1 V4 V9 |
 | `p = ref q` / `ref mut q` | place | shared or exclusive borrow of `q`; a pointer to `q` that cannot be stored (03 `BorrowShared`/`BorrowMut`) | V7 V8 V9 |
-| `p = wadd(a,b)` etc. | two scalars | wrapping integer, bit, comparison, IEEE float ops; no fused multiply-add. `ult`, `ule`, `ugt`, `uge` compare two `Int` read as unsigned (a negative value is a huge one; used for bounds, V12). `shl`, `shr` mask the count to 0..63; the 0.1 surface has no shift operator, so they come from `std.num` only (assumption) | V1 |
+| `p = wadd(a,b)` etc. | two scalars | wrapping integer, bit, comparison, IEEE float ops; no fused multiply-add. `ult`, `ule`, `ugt`, `uge` compare two `Int` read as unsigned (a negative value is a huge one; used for bounds, V12). `shl`, `shr` mask the count to 0..63; the 0.1 surface has no shift operator, so they come from `math` only (assumption) | V1 |
 | `p = checked_add(a,b)` etc. | two scalars | result is `(T, Bool)`: value and overflowed. `checked_div`/`checked_rem` overflow only for `MIN / -1`; division by zero is V11's job; `checked_pow` with a negative exponent is V11's job | V10 V11 |
 | `p = aggregate K(ops)` | operands | build tuple, record, enum case, empty list, closure; operands are moved or copied in | V1 V4 V7 |
 | `p = len(q)`, `discriminant(q)` | place | read-only queries, `Int` result | V4 V13 |
@@ -532,7 +532,7 @@ later pass, not monomorphization, turns `move _1` into `copy`
 ### Example 3: `?`, `with`, an exclusive borrow and a cleanup block
 
 ```verse
-import create from std.fs
+import create from fs
 
 fn save(path: Text, line: Text): Nothing | Error
     with create(path)? as mut target
@@ -550,7 +550,7 @@ fn save(_1, _2) -> Nothing | Error caps(fs) @3:1-5:33 {
   temps _7: &Text, _8: &mut File, _9: Nothing | Error, _10: Int
 bb0:
   _3 = ref (*_1)                                  ; borrowed "path" -> "create" @4:17-4:21
-  call std.fs.create(move _3) -> _4, next bb1, unwind continue ; called "create" @4:10-4:22
+  call fs.create(move _3) -> _4, next bb1, unwind continue ; called "create" @4:10-4:22
 bb1:
   _5 = discriminant(_4)                           ; <?> @4:10-4:23
   switch copy _5 [0 -> bb2] otherwise bb8         ; <?> @4:10-4:23
@@ -595,7 +595,7 @@ bound yet (V6 passes).
 ### Example 4: tasks and channels
 
 ```verse
-import Channel, Sender, Closed from std.task
+import Channel, Sender, Closed from task
 
 fn square_one(id: Int, take out: Sender<Int>): Nothing | Closed
     out.send(id * id)?

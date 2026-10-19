@@ -139,7 +139,7 @@ fn read_text(path: Text): Text | Error      # signatures only
 fn parse_port(text: Text): Int | ParseError
 ```
 
-`ParseError` is defined in `std.num`; it is the error type of `Text.to_int()`,
+`ParseError` is in the prelude (§15.1); it is the error type of `Text.to_int()`,
 which returns `Int | ParseError` (and of `Text.to_float()`, which returns
 `Float | ParseError`).
 
@@ -188,8 +188,8 @@ Postfix `?` means **"stop early: if this is an error or missing, return it from
 the current function; otherwise give me the value."**
 
 ```verse
-import std.json
-import read_text from std.fs
+import json
+import read_text from fs
 
 fn load_settings(path: Text): Settings | Error
     text = read_text(path)?
@@ -271,8 +271,8 @@ it prints `error: missing value at file.vs:LINE` and exits with status 1.
 ### 8.4 Handling errors
 
 ```verse
-import std.fs
-import read_text from std.fs
+import fs
+import read_text from fs
 
 # Fallback value
 notes = read_text("notes.txt") otherwise ""

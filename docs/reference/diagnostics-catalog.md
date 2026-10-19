@@ -79,7 +79,7 @@ lines, rule. `{…}` is filled by the compiler. Examples show the label and the
 | V0105 | error | a raw text must start on its own line | the opening `"""` ends its line, but this one is followed by text | move the text to the next line | §3.7 |
 | V0106 | error | this interpolation is nested too deeply | text inside `{…}` inside `{…}` | bind the inner text to a name first | §3.7 |
 | V0107 | error | `{text}` is not a number | cannot read this as {Int or Float} | write digits, with `_` between groups | §3.7 |
-| V0108 | error | the number {text} does not fit in `Int` | the largest `Int` is 9,223,372,036,854,775,807 | use a `Float`, or a sized type from `std.num` | §4.1 |
+| V0108 | error | the number {text} does not fit in `Int` | the largest `Int` is 9,223,372,036,854,775,807 | use a `Float`, or a sized type from `math` | §4.1 |
 | V0109 | error | this file is not valid UTF-8 | the first bad byte is here | save the file as UTF-8 | §3.1 |
 
 ### V02xx Syntax
@@ -209,10 +209,11 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0830 | error | `branch` is not accepted | a branch changes without a new version | use `tag = "…"` or `rev = "…"` | 19 §19.3 |
 | V0831 | error | `{req}` has no upper bound | any new major version would be accepted | write `"{near}"`, which means {range} | 19 §19.3 |
 | V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a generator that is not deterministic | 21 §21.10 |
-| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, or named like a capability such as `net`} | choose another name | 21 §21.3 |
+| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, named like a capability such as `clock`, or named like a standard library module such as `json`} | choose another name | 21 §21.3 |
 | V0834 | error | `{pkg}` declares a plugin with `{key}`, which only the root project may use | a dependency cannot build or ship native code | declare the plugin in your own `verse.toml` | 07 §7.2 |
 | V0835 | error | `{name}` is both a module of this package and a dependency | declared here; `{path}` is also a module of this package | rename the module | 21 §21.4 |
 | V0836 | error | no module or package is named `{name}` | not in `src/`, `verse.toml` or the standard library | `verse add {name}`, if it is a package | 21 §21.4 |
+| V0837 | error | `{name}` is the name of a standard library module | {what: a module of this program, a dependency, or this package} uses it | choose another name; standard library names are reserved | 21 §21.4 |
 
 ### V09xx Capabilities and targets
 
@@ -239,7 +240,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
 | V1001 | retired | | | | |
-| V1002 | error | `{T}` cannot cross a foreign call | allowed types: {list} | pass `text.bytes()` for text | §12.6, 07 §7.4 |
+| V1002 | error | `{T}` cannot cross a foreign call | allowed types: {list} | pass the text's `.bytes()` | §12.6, 07 §7.4 |
 | V1003 | error | `{f}` needs a written signature | every parameter and the result need types | annotate them | §12.6 |
 | V1004 | retired | | | | |
 | V1005 | error | `{target}` cannot link foreign code | {reason} | build for a native target | 07 §7.8 |

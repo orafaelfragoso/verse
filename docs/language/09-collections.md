@@ -258,7 +258,7 @@ variants; field order for records). Comparing values of different types is a
 compile-time error, with one convenience: a `T` may be compared with a `T?`
 (so `counts["the"] == 3` works on a map lookup). `Float` equality follows IEEE 754 (`nan != nan`), so `Float`
 implements `Eq` only partially and cannot be a map key or set element; use
-`std.num.OrderedFloat` if needed.
+`math.OrderedFloat` if needed.
 
 ---
 

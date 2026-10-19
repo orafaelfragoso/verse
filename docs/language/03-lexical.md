@@ -567,14 +567,14 @@ Entry-file top-level bindings follow the script-local rules of §12.4.
 Names from outside the function are not locals. A local may **hide a prelude
 name** silently (`input = lines[0]`, `error = e.message()`) and may hide a
 module constant or an imported name (`time = elapsed.seconds()` after
-`import std.time`). Hiding an imported name
+`import time`). Hiding an imported name
 **warns** only when the same function also uses that import — an actual
-collision ("`fs` hides the import `std.fs`, which this function also uses").
+collision ("`fs` hides the import `fs`, which this function also uses").
 The same holds one level up: a file-level import hides a prelude name of the
-same spelling, so after `import info, error from std.log` the name `error`
-means `std.log`'s function in that file, and the prelude `error` is not
+same spelling, so after `import info, error from log` the name `error`
+means `log`'s function in that file, and the prelude `error` is not
 reachable there (there is no qualifier for prelude names; import
-`std.log` as a module, `log.error(…)`, to keep both). Because this changes a
+`log` as a module, `log.error(…)`, to keep both). Because this changes a
 name for the whole file, it **warns on the import line**: "`error` hides the
 prelude `error`".
 Names bound by `with … as` follow the same rule as other bindings: on a lock

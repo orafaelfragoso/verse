@@ -72,7 +72,7 @@ alike:
 ```verse
 ## Geometry helpers for 2-D drawings.     ← module doc (blank line follows)
 
-import std.math
+import math
 
 ## The distance between two points.       ← documents `distance`
 export fn distance(a: Point, b: Point): Float

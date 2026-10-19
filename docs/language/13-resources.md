@@ -21,7 +21,7 @@ ends. It acquires the resource, binds it to a name for the indented block, and
 cleans it up when the block ends:
 
 ```verse
-import open from std.fs
+import open from fs
 
 with open("log.txt")? as file
     for line in file.lines()
@@ -58,7 +58,7 @@ type implements `Cleanup`, so a fallible acquisition needs an explicit `?`,
 exactly as anywhere else:
 
 ```verse
-import open from std.fs
+import open from fs
 
 with open("log.txt")? as file          # `?` propagates a failed open
     ...
@@ -87,7 +87,7 @@ Several resources can be acquired in one `with`, separated by commas. They are
 cleaned up in reverse order of acquisition.
 
 ```verse
-import open, create from std.fs
+import open, create from fs
 
 with open("input.txt")? as source, create("output.txt")? as mut target
     for line in source.lines()
@@ -97,8 +97,8 @@ with open("input.txt")? as source, create("output.txt")? as mut target
 ### 13.4 Custom resources
 
 ```verse
-import std.fs
-import std.random
+import fs
+import random
 
 type TempDir
     path: Text

@@ -36,7 +36,7 @@ starts interpolation in normal text.
 
 **Decision:** Core types `Int` (64-bit, overflow-checked), `Float` (64-bit),
 `Bool`, `Char`, `Text`, `Bytes`, and `Nothing`. Sized and arbitrary-precision
-types live in `std.num`. No implicit conversions; `Int / Int` truncates toward
+types live in `math`. No implicit conversions; `Int / Int` truncates toward
 zero; division by zero and overflow panic.
 
 **Why:** Most programs need one integer type and one floating type; fewer
@@ -302,7 +302,7 @@ initializers must be infallible; in the entry file, a top-level binding is an
 ordinary statement. `verse test` never runs entry-file statements. Everything
 — including record fields — is hidden unless marked `export`. No wildcard
 imports; `import x as y from m` renames, and every import line starts with
-`import` (`import get, post from std.net`). Implementations
+`import` (`import get, post from http`). Implementations
 (`impl Trait for Type`) live with the trait or the type.
 
 **Why:** Importing a module or running its tests should never print, connect,
@@ -347,7 +347,7 @@ caller, so it must not be able to fail.
   other function. There is no capability gate, no `with` block and no `unsafe`
   marker, because Verse cannot see what foreign code does and a marker would
   promise a check that does not exist. Declaring the library is the opt-in.
-  Only plain data crosses, and `Text` crosses as `text.bytes()`, so the
+  Only plain data crosses, and `Text` crosses as its `.bytes()`, so the
   conversion stays visible.
 - **Reserved for 0.2: a fixed-size mutable byte buffer.** `Bytes` is
   immutable and `List<Int>` allocates, so bulk I/O on boards without a heap
@@ -357,8 +357,8 @@ caller, so it must not be able to fail.
 
 ### 18.16 Standard library and tooling
 
-**Decision:** A compact, consistently named standard library (`std.fs`,
-`std.net`, `std.text`, `std.time`, `std.json`, `std.task`, …) and a single
+**Decision:** A compact, consistently named standard library of top-level
+modules (`fs`, `net`, `http`, `text`, `time`, `json`, `task`, …) and a single
 `verse` tool with a zero-configuration formatter, built-in test runner, doc
 generator and package manager with a lock file and no install scripts.
 

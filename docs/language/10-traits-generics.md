@@ -79,8 +79,8 @@ Calls through a trait type are dispatched at run time.
 | `Copyable` | the `.copy()` method, with no arguments (a duplicate) or with field arguments on records (a duplicate with changes, §4.3) | yes, structurally, for every type whose parts are all `Copyable`; **absent** for `Task<T>`, for types that implement `Cleanup`, and for anything that contains them by value (a record field, variant, tuple or collection element); cannot be implemented by hand in 0.1. The handles `Shared<T>`, `Guarded<T>`, `Sender<T>`, `Weak<Shared<T>>` and `Weak<Guarded<T>>` are always `Copyable`, whatever `T` is — including resources, as in `Guarded<File>` — because their `.copy()` copies the handle (a new reference to the same shared value) and never duplicates the value inside (§11.4); `Receiver<T>` is not `Copyable` in 0.1 (single consumer) |
 | `Index<K, V>` | `x[k]` reads (§9.3) | lists, maps, text and slices; cannot be implemented by hand in 0.1 |
 | `Error` | `message(self)`, `cause(self)` | no |
-| `Add`, `Sub`, `Mul`, `Div`, `Rem` | `+`, `-`, `*`, `/`, `%` | `Int`, `Float`, `std.num` types; `Add` also for `Text` and `List` (concatenation) |
-| `Neg` | unary `-` | `Int`, `Float`, `std.num` types |
+| `Add`, `Sub`, `Mul`, `Div`, `Rem` | `+`, `-`, `*`, `/`, `%` | `Int`, `Float`, `math` types; `Add` also for `Text` and `List` (concatenation) |
+| `Neg` | unary `-` | `Int`, `Float`, `math` types |
 
 **`Copyable` is deliberately closed in 0.1.** It cannot be implemented by
 hand, and a type that implements `Cleanup` is deliberately **not**
@@ -90,7 +90,7 @@ type that does need duplication offers an explicit method with its own name
 and its own meaning, such as `duplicate()` (for example, reopening the same
 file), so the call site says what really happens.
 
-The arithmetic traits are how numeric types in `std.num` (such as `Decimal`
+The arithmetic traits are how numeric types in `math` (such as `Decimal`
 and `BigInt`) and user types like vectors or money get operators. They are the
 only operator overloading Verse allows (§18.5); there is no way to define new
 operators or to overload `and`, `or`, `not`, `otherwise`, `==` (which comes

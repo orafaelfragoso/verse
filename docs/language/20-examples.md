@@ -12,7 +12,7 @@ tests below read no files, touch no network, and never call `exit`.
 ##
 ## Usage: verse wordcount.vs [--top N] FILE...
 
-import std.fs
+import fs
 
 type Options
     top: Int = 10
@@ -106,9 +106,9 @@ $ verse wordcount.vs --top 3 poem.txt
 ##
 ## Usage: verse fetch.vs [URL...]
 
-import get from std.net
-import TaskPanicked from std.task
-import std.time
+import get from http
+import TaskPanicked from task
+import time
 
 type Report
     url: Text
@@ -182,7 +182,7 @@ request.
 ```verse
 ## shapes — areas and perimeters with variants, records, traits and generics.
 
-import std.math
+import math
 
 type Shape = Circle(radius: Float) | Square(side: Float) | Rect(width: Float, height: Float)
 

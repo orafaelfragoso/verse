@@ -112,7 +112,7 @@ error that names the type and lists these (V1002).
 | `Char` | `uint32_t` | a Unicode scalar value; any other value is a panic (R0012) |
 | `Pointer` | any `T *` that is never null | opaque: Verse can store it, pass it and compare it, never read through it except with the methods below |
 | `Pointer?` | any `T *` that may be null | null is `none` |
-| `Bytes`, a byte view (`text.bytes()`) | `const uint8_t *` | a parameter only; a zero byte follows the last byte, so a C string function can read it |
+| `Bytes`, a byte view (`"…".bytes()`) | `const uint8_t *` | a parameter only; a zero byte follows the last byte, so a C string function can read it |
 | a `Copy` record of the types above | a `struct` with the same fields in the same order | by value, with the target's C layout |
 | `Nothing` | `void` | a result only |
 

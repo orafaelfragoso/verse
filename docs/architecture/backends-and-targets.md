@@ -131,7 +131,7 @@ uart = true
    ([05](runtime.md), section 5.6) for that target.
 
 If `[capabilities]` lacks one the program uses, the build fails with a plain
-message: "this program calls `std.net.get`, which `thumbv7em-none-eabihf`
+message: "this program calls `http.get`, which `thumbv7em-none-eabihf`
 cannot provide" (V0902). The **capability check** that reports it runs right
 after reachability ([02 §2.2](compiler-architecture.md#22-stage-contracts)), and in script mode before tier 0 starts.
 

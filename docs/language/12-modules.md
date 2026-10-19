@@ -18,19 +18,19 @@ my_app/
 ### 12.2 Importing
 
 ```verse
-import std.fs                       # use as fs.read_text(...)
-import std.json as js               # use as js.parse(...)
+import fs                           # use as fs.read_text(...)
+import json as js                   # use as js.parse(...)
 import geometry.vectors             # use as vectors.add(...)
-import get, post from std.net       # use get(...) and post(...) directly
+import get, post from http          # use get(...) and post(...) directly
 import Shape, area from shapes
-import parse as parse_json, stringify from std.json   # rename one item
+import parse as parse_json, stringify from json   # rename one item
 ```
 
 `import a.b.c` binds the last segment (`c`) as a name; `import a.b.c as d`
 binds it as `d`. `import x, y from M` binds individual items, and
 `import x as y from M` binds the item `x` under the name `y` (useful when two
 modules export the same name); `as` can follow any name in the list, as in
-`import parse as parse_json, stringify from std.json`. The line always starts
+`import parse as parse_json, stringify from json`. The line always starts
 with `import`, so every import reads the same way: what you get first, where
 it comes from last. Whether a line imports a module or items is decided by
 the trailing `from M` on the same logical line: `import a as b` imports the
@@ -42,8 +42,20 @@ on one line, or put a long item list in parentheses, which may span lines:
 import (
     open, read_text, write_text,
     create as create_file,
-) from std.fs
+) from fs
 ```
+
+**Where a module comes from.** The first segment of a module path names one
+of three things: a module of this program (`geometry`, §12.1), a dependency in
+`verse.toml` (§16.3), or a standard library module (`json`, `http`, §15.2).
+There is no prefix for the standard library. The three sets never overlap.
+Giving a module of the program, a dependency or the package itself a standard
+library name is a compile error, and the registry refuses such a package at
+publish. So `import json` always means the standard library's `json`.
+
+The names are reserved only as module paths. A local may still be called
+`text` or `json`, and if the file imports that module, the local hides it
+under the rules of §3.9.
 
 A renamed item keeps its kind: a type must be
 renamed to an uppercase-first name, a value to a lowercase one (§3.5). Wildcard imports do not exist; every name in a file can
@@ -277,7 +289,7 @@ status = sqlite3_open("app.db".bytes(), mut db)
 - **Only plain data crosses.** Parameters and results are numbers
   (`Int`, `Float`, `Int8` … `UInt64`, `Float32`), `Bool`, `Char`,
   `Pointer`, `Pointer?`, `Bytes` and byte views (parameters only), and `Copy`
-  records made only of these. `Text` does not cross: write `text.bytes()`.
+  records made only of these. `Text` does not cross: call `.bytes()` on it.
   Collections, other optionals, variants, trait types, function values, `Task`
   and `Cleanup` types do not cross.
 - **Ownership words keep their meaning.** A plain parameter is borrowed for the

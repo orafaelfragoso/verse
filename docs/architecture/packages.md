@@ -71,7 +71,8 @@ segment:
 | Rule | Why |
 |------|-----|
 | `[a-z][a-z0-9_]*`, at most 64 characters | a lowercase value identifier (spec §3.5); no hyphens, which cannot appear in `import … from name` |
-| not a keyword, not `std`, `verse`, `prelude`, `generated`, `vendor` | they already mean something |
+| not a keyword, not `verse`, `prelude`, `generated`, `vendor` | they already mean something |
+| not a standard library module name (`fs`, `json`, `http`, …, spec §15.2) | `import json` always means the standard library (spec §12.2) |
 | not a prelude name (`print`, `args`, …) | an import of it would hide the prelude name (spec §3.9) |
 | reserved first-party names: `finance`, `ml`, `web`, `gui`, `iot` (Fact: P6-1, spec §16.3) | published only by the Verse project |
 | no name that differs from an existing one only by `_` or by one of `0`/`o`, `1`/`l` | confusable names are a supply-chain attack (registry rule, Decision) |
@@ -116,9 +117,12 @@ The first segment of a module path says where the module lives. In
 | a dependency | `[dependencies]`, and also `[dev-dependencies]` in `test` blocks and doc tests | the one in `verse.lock` |
 | the standard library | the toolchain | the toolchain's |
 
-The three sets of names never overlap. Standard-library names are reserved
-(§21.3), and a dependency that has the name of a top-level module of the
-package is an error (V0835). So the order of the rows never decides anything,
+There is no prefix for the standard library: `import json`, never a
+qualified form. The three sets of names never overlap. A module of the
+package, a dependency, or the package itself with a standard library name is
+an error (V0837), and the registry refuses such a name at publish (§21.3,
+V0833). A dependency that has the name of a top-level module of the package
+is an error (V0835). So the order of the rows never decides anything,
 and a reader who sees `colors` knows where it comes from by looking at
 `src/` and `verse.toml`. A first segment that is none of the three is an
 error that suggests `verse add` (V0836).
@@ -556,7 +560,7 @@ error: this program reaches the `net` capability, which verse.toml does not gran
   --> src/report.vs:22:5
    |
 22 |     palette = fetch_palette("warm")?
-   |               ^^^^^^^^^^^^^ `colors.fetch_palette` calls `std.net.get`
+   |               ^^^^^^^^^^^^^ `colors.fetch_palette` calls `http.get`
    |
 help: add "net" to [capabilities] grant
 help: or see the whole chain: verse why net

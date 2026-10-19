@@ -6,7 +6,7 @@ people, greets them, and summarizes some facts.
 ```verse
 ## A small tour of Verse.
 
-import read_text from std.fs
+import read_text from fs
 
 type Person
     name: Text

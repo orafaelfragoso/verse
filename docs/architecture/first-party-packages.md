@@ -16,7 +16,7 @@ compiler privileges and no syntax.
 
 | Rule | Source |
 |------|--------|
-| **One obvious name.** No second spelling of a `std` idea: `finance` uses `std.num.Decimal`, `web` builds on `std.net.serve`, every package uses `std.time` for dates and durations | 06 §6.2, P6-1 |
+| **One obvious name.** No second spelling of a standard library idea: `finance` uses `math.Decimal`, `web` builds on `http.serve`, every package uses `time` for dates and durations | 06 §6.2, P6-1 |
 | **No stored references.** Values are owned; borrows are second-class (spec §5.3, §9.3). Long-lived structures refer to parts by `Int` index (the arena pattern of spec §4.10) or by `Shared`/`Guarded` handles (spec §11.4) | spec |
 | **Failure in the type.** Anything that can fail returns `T \| Error` or a named error type (spec §8, §15) | spec |
 | **Resources are `Cleanup` values** used with `with` (spec §13): files, devices, windows, pins | spec |
@@ -27,7 +27,7 @@ compiler privileges and no syntax.
 How to read the signature tables: each row is `fn name(params): Return`, as
 it would appear in `verse.api`. Examples are valid Verse 0.1 apart from the
 package names themselves, which do not exist yet. Where an example uses a
-`std` function whose exact signature the spec does not give, the comment
+standard library function whose exact signature the spec does not give, the comment
 says *assumed*.
 
 ## 20.2 `finance`
@@ -36,14 +36,14 @@ says *assumed*.
 calendars, and time series of values over dates.
 
 **Capabilities:** none. Every function is pure; "today" is passed in by the
-caller (from `std.time`), which keeps finance code testable and replayable
+caller (from `time`), which keeps finance code testable and replayable
 (Decision). **Targets:** all, including `--no-heap` for `Money` and rounding
-(Assumption: `std.num.Decimal` is fixed-size; calendars and series allocate).
+(Assumption: `math.Decimal` is fixed-size; calendars and series allocate).
 
 ### Types (sketch)
 
 ```verse
-import Decimal from std.num
+import Decimal from math
 
 export type Money
     export amount: Decimal
@@ -76,7 +76,7 @@ and needs no `.copy()`.
 | `fn allocate(self, parts: List<Int>): List<Money>` | splits by ratio so the parts sum exactly to the whole (largest-remainder) |
 | `fn convert(self, to: Text, rate: Decimal): Money` | conversion only with an explicit rate; no hidden rate source |
 | `fn Rate.annual(percent: Decimal): Rate` | |
-| `fn accrue(self, principal: Money, from: Date, to: Date, basis: DayCount): Money` | `Rate` method; `Date` from `std.time` |
+| `fn accrue(self, principal: Money, from: Date, to: Date, basis: DayCount): Money` | `Rate` method; `Date` from `time` |
 | `fn Calendar.named(name: Text): Calendar \| Error` | `"TARGET"`, `"NYSE"`, … from bundled holiday data |
 | `fn is_business_day(self, day: Date): Bool` | |
 | `fn add_business_days(self, day: Date, count: Int): Date` | |
@@ -90,7 +90,7 @@ and needs no `.copy()`.
 
 ```verse
 import Money, Calendar from finance
-import Date from std.time
+import Date from time
 
 prices = [Money.parse("19.99", currency: "EUR")?, Money.parse("5.01", currency: "EUR")?]
 mut total = Money.zero("EUR")
@@ -98,7 +98,7 @@ for price in prices
     total = total.add(price)?
 print(total.round())                              # 25.00 EUR
 
-invoiced = Date.parse("2026-10-16")?              # assumed std.time constructor
+invoiced = Date.parse("2026-10-16")?              # assumed time constructor
 target = Calendar.named("TARGET")?
 print(target.add_business_days(invoiced, 30))
 ```
@@ -221,9 +221,9 @@ and the `fs` slice. Autodiff code is reached only from `Tape` methods.
 ## 20.4 `web`
 
 **Purpose.** Routing, middleware, typed request helpers and templates **on
-top of `std.net.serve`** (Fact: P6-1). `web` has no server loop of its own.
+top of `http.serve`** (Fact: P6-1). `web` has no server loop of its own.
 
-**Capabilities:** `net` (through `std.net`), `fs` only if static files are
+**Capabilities:** `net` (through `http`), `fs` only if static files are
 served, `clock` only if a time-based middleware is reached. **Targets:** OS
 targets and WASI with sockets; not the browser target (it serves nothing),
 not microcontrollers without a network stack (06 §6.8).
@@ -231,14 +231,14 @@ not microcontrollers without a network stack (06 §6.8).
 ### Types (sketch)
 
 ```verse
-import Request, Response from std.net
+import Request, Response from http
 
 alias Handler = fn(Request): Response | Error              # as spec §4.8
 alias Route = fn(Request, Params): Response | Error
 alias Middleware = fn(Request, Handler): Response | Error
 ```
 
-`Request` and `Response(status, headers, body)` are `std.net`'s types (spec
+`Request` and `Response(status, headers, body)` are `http`'s types (spec
 §15.2); `web` adds no second request type.
 
 ### Functions (sketch)
@@ -259,7 +259,7 @@ alias Middleware = fn(Request, Handler): Response | Error
 ### Example
 
 ```verse
-import serve, Request, Response from std.net
+import serve, Request, Response from http
 import Router, Params, json, text_response from web
 
 type User
@@ -295,7 +295,7 @@ The project lists it under `[generate]`
 ### Shaking and ownership
 
 - A program reaches only the routing table, the routes it registers, and the
-  `std.net` code `serve` reaches. Unused helpers and the template generator's
+  `http` and `net` code `serve` reaches. Unused helpers and the template generator's
   runtime support are absent.
 - Each request is handled in its own task (Assumption about `serve`). The
   handler's captured router is shared read-only across tasks, so
@@ -406,13 +406,13 @@ boards (04 §4.2); Linux boards through `std-os` where the target file grants
 ### Types (sketch)
 
 ```verse
-import Instant from std.time
+import Instant from time
 
 type Level = High | Low
 
 type Edge
     export rising: Bool               # false for a falling edge
-    export at: Instant                # std.time.Instant
+    export at: Instant                # time.Instant
 ```
 
 `Board`, `Pin`, `I2c`, `Spi` and `Uart` are opaque `Cleanup` resources: when
@@ -437,8 +437,8 @@ disabled).
 
 ```verse
 import Board, Edge from iot
-import Receiver from std.task
-import sleep from std.time
+import Receiver from task
+import sleep from time
 
 fn watch(take edges: Receiver<Edge>)
     for edge in edges
@@ -490,7 +490,7 @@ applies to this program.
 | P20-3 | `ml` model loading: a `generator` that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | spec §16.6, 06 | agreed; the generated file is visible and committed like any generator output (spec §16.6); file format chosen in M9 |
 | P20-4 | `gui` uses the message model (Elm architecture); long work runs as tasks whose results return as messages | `gui` API, spec §11 | agreed |
 | P20-5 | `iot` interrupts only wake tasks; no user code runs in interrupt context | 05 §5.7 | agreed |
-| P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in `std`, since `iot` and `std.net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in `std`; channel sizing still open |
+| P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in the standard library, since `iot` and `net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in the standard library; channel sizing still open |
 | P20-7 | `web` templates are generated code from a first-party generator package, not a run-time template language | spec §16.6, §1.4 | agreed |
 | P20-8 | `web` routes receive shared state through `Router.with_state(Guarded<T>)` | `web` API | agreed |
 
@@ -500,5 +500,5 @@ applies to this program.
    "through the `gpio` or `timer` capability", but neither [05 §5.1](runtime.md#51-feature-slices)
    nor §5.6 has a `timer` capability or slice. This document uses `clock` for
    timers.
-2. The spec gives `std.net.serve` and `Response.body` no signatures (§15.2),
+2. The spec gives `http.serve` and `Response.body` no signatures (§15.2),
    so every `web` example depends on an assumed `serve(port:, handler:)`.

@@ -14,7 +14,7 @@ the ones the reachability analysis asks for ([06](stdlib-and-shaking.md)).
 | `unwind` | landing pads and cleanup running on panic and cancellation | no | `core` |
 | `tasks` | scheduler, `Task`, the `Sender` and `Receiver` made by `Channel.new<T>()`, `Shared`, `Guarded`, timers | scheduler primitives only | `core` |
 | `sys-stdio` | `print`, `input`, error reports of a failed top-level `?` | yes, per target | `core` |
-| `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-env` | the platform capabilities of `std.time`, `std.random`, `std.fs`, `std.net`, `std.process`, `std.env` | yes, per target | `core` |
+| `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-os`, `sys-env` | the platform capabilities of `time`, `random`, `fs`, `net` and `http`, `process`, `os`, `env` | yes, per target | `core` |
 | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | microcontroller peripherals | board | `core` |
 | `debug` | trace events, record and replay hooks, panic reports | no | `core` |
 | `sys-surface`, `sys-gpu` | windows, input and drawing; GPU compute (capabilities `surface` and `gpu`, [06](stdlib-and-shaking.md) P6-6) | yes, per target | `core` |
@@ -153,7 +153,7 @@ a debugger is attached ([08](debugging.md)).
 ## 5.6 The `sys` capability interface
 
 All platform access goes through one small interface of **capabilities**.
-`std.fs` calls `sys.fs.*`, never an OS function directly. A target provides the
+`fs` calls `sys.fs.*`, never an OS function directly. A target provides the
 capabilities it can.
 
 This is a description of the interface, not Verse code.
@@ -163,8 +163,9 @@ capability fs      { open, read, write, close, stat, list, remove, ... }
 capability net     { connect, listen, accept, send, recv, resolve, tls_* }
 capability clock   { monotonic_now, wall_now, sleep_until }
 capability random  { fill_bytes }
-capability stdio   { write_stdout, write_stderr, read_stdin_line }
+capability stdio   { write_stdout, write_stderr, read_stdin, read_stdin_line }
 capability process { spawn, wait, exit }
+capability os      { signal, pid, user, group, chmod, syscall }
 capability env     { get, vars, args }
 capability gpio    { configure, read, write, interrupt }
 ...
@@ -196,5 +197,5 @@ heap and a 64-bit `Int`.
   `List`, `Map`, `Set`, `Text` building and `Shared` do not.
 - `Int` stays 64-bit (spec §4.1). The optimizer uses range analysis to lower to
   32-bit operations where it can prove values fit, and sized types
-  (`std.num.Int32`) are the explicit tool for hot code.
+  (`math.Int32`) are the explicit tool for hot code.
 - **Interrupts only wake tasks.** No Verse code runs in interrupt context. The platform layer owns a tiny handler, written once in the runtime and not in Verse, that records the event (a pin change, a timer tick, a received byte) and marks the waiting task ready. The task then runs on the cooperative executor like any other, so ordinary rules (ownership, `Cleanup`, panics) hold in it. A program waits for an interrupt through the `gpio`, `uart` or `clock` capability, never by registering a function ([20](first-party-packages.md), P20-5).

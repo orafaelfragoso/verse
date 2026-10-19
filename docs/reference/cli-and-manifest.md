@@ -372,7 +372,7 @@ capabilities are Proposal P19-8:
 
 | Argument | Example | Answer |
 |----------|---------|--------|
-| an item (dotted path) | `verse why std.net.get` | the edge chain from a root (06 §6.6) |
+| an item (dotted path) | `verse why http.get` | the edge chain from a root (06 §6.6) |
 | a package | `verse why colors` | the dependency chain that requires the selected version, and the largest minimum that chose it (21 §21.8) |
 | a file path (contains `/` or ends in `.vs`) | `verse why generated/items/item.vs` | the `[generate]` entry that wrote it (spec §16.6) |
 | a capability | `verse why net` | the chain to the first `sys.net` use (06 §6.6) |
@@ -384,10 +384,10 @@ colors 1.5.1 is selected because:
   charts 2.0.0 asks for >= 1.4.0
   your verse.toml asks for >= 1.2.0
 
-$ verse why std.net.get
-std.net.get is included because:
+$ verse why http.get
+http.get is included because:
   src/report.vs:22 calls colors.fetch_palette
-  colors.fetch_palette calls std.net.get
+  colors.fetch_palette calls http.get
 ```
 
 The openers are fixed wording, taken from
@@ -430,6 +430,7 @@ registry (V0833, 21 §21.3).
 | V0834 | `{pkg}` declares a plugin with `{key}`, which only the root project may use | 21 §21.13 (message), §19.3 `[plugins]` |
 | V0835 | `{name}` is both a module of this package and a dependency | 21 §21.4 |
 | V0836 | no module or package is named `{name}` | 21 §21.4 |
+| V0837 | `{name}` is the name of a standard library module | 21 §21.4 |
 | V0901 | this program reaches the `{cap}` capability, which verse.toml does not grant | 21 §21.13 (message), §19.3 `[capabilities]` |
 | V0904 | `{pkg}` reaches `{cap}`, which it does not declare | §19.3 `[library] capabilities` |
 | V0905 | this package uses {n} KB, but its size budget is {m} KB | §19.3 `size_budget` |

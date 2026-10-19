@@ -84,7 +84,7 @@ targets of the same width produce the same layout.
 | L3 | Every size is a multiple of its alignment. A type's alignment is the maximum of its fields' | decision |
 | L4 | **Record and tuple fields** are placed in order of descending alignment, ties in declaration order, with no padding between fields except what alignment needs. ZST fields take no space. A record's `size` is rounded up to its alignment. Field names and indexes in MIR never change (13.3) | decision (03 §3.5 says "the order that minimizes padding"; this fixes the algorithm) |
 | L5 | An **enum case** is laid out as a record whose first field is the tag, pinned at offset 0 ([15.3.4](#1534-enums-option-and-fallible-types)), so small payloads pack after the tag | decision |
-| L6 | Layout is **not observable** from Verse: there is no `repr`, no `size_of`, no way to read bytes of a value except through `std.num` conversions and `Bytes` | fact (03 §3.5) |
+| L6 | Layout is **not observable** from Verse: there is no `repr`, no `size_of`, no way to read bytes of a value except through `math` conversions and `Bytes` | fact (03 §3.5) |
 | L7 | The maximum size of a value is `2^(8W-1) - 1` bytes. A larger type is a compile error that names the type | assumption |
 | L8 | Drop flags are MIR locals (`dN`, [13.2](mir-specification.md#132-textual-format)); they are **never** stored inside a value. A value has no hidden word for ownership state | decision |
 | L9 | Any change to these rules, to a header word or to a niche value increments the MIR `rev` ([13.9](mir-specification.md#139-versioning-policy)) and regenerates golden files in the same commit | decision |
@@ -217,8 +217,8 @@ recursive field has the internal type `Box<T>`, one non-null word that owns a
 heap allocation of `size_of(T)` bytes, freed by the drop glue. `Box<T>` is not
 nameable from Verse.
 
-**`Error`** in `A | Error` is the `std` error type; its layout is defined by
-`std`, and this document assumes it is a boxed trait object `(data ptr, vtable
+**`Error`** in `A | Error` is the standard library's error type; its layout is defined by
+the standard library, and this document assumes it is a boxed trait object `(data ptr, vtable
 ptr)` with a non-null niche, so that `Nothing | Error` is 16 bytes with no tag
 (assumption, P15-9).
 
@@ -273,7 +273,7 @@ it**: the trait adds no field. What it adds is the `cleanup` fact in its
   A task blocked inside a cleanup counts as blocked for deadlock detection
   (15.8.1); only `exit(code)` ignores it.
 - **Platform handles.** `File`, `Socket`, `Process`, and so on are
-  records in `std` whose first field is a handle `Int`: a file descriptor on
+  records in the standard library whose first field is a handle `Int`: a file descriptor on
   Unix, a `HANDLE` widened to 64 bits on Windows, a WASI `fd` widened, an index
   into the glue's handle table on `std-web`, a peripheral id on `std-embedded`.
   A handle has no meaning in a different process or after a replay without
@@ -1063,6 +1063,7 @@ net     = true
 clock   = true
 random  = "os"
 process = true
+os      = true
 env     = true
 gpio    = false
 surface = false          # becomes true when sys-surface ships (M9)
@@ -1322,10 +1323,10 @@ task is parked, returns to the host, and is re-entered through `verse_wake`
 
 | Layer | Providers (slices) in 0.1, planned | Not provided |
 |-------|------------------------------------|--------------|
-| `std-os` | `sys-stdio`, `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-env`, `debug`; later `sys-surface`, `sys-gpu`; on a Linux board `sys-gpio`, `sys-i2c`, `sys-spi`, `sys-uart` through device files when the target file grants them (20) | none |
-| `std-wasi` | `sys-stdio`, `sys-clock`, `sys-random`, `sys-fs` (preopened), `sys-env`, `sys-process` (exit only), `debug`; `sys-net` on p2 only | `surface`, `gpu`, a device bus |
-| `std-web` | `sys-stdio` (console), `sys-clock`, `sys-random`, `sys-env` (arguments), `sys-process` (exit only), `debug`; later `sys-surface` (canvas, M9) and `sys-gpu` (WebGPU) | `fs`, `net` listening, `process` spawn |
-| `std-embedded` | `sys-clock`, `sys-random` (hardware or seeded), `sys-stdio` over a UART or semihosting, `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi`, `debug` | `fs`, `process`, usually `net` |
+| `std-os` | `sys-stdio`, `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-os`, `sys-env`, `debug`; later `sys-surface`, `sys-gpu`; on a Linux board `sys-gpio`, `sys-i2c`, `sys-spi`, `sys-uart` through device files when the target file grants them (20) | none |
+| `std-wasi` | `sys-stdio`, `sys-clock`, `sys-random`, `sys-fs` (preopened), `sys-env`, `sys-process` (exit only), `debug`; `sys-net` on p2 only | `os`, `surface`, `gpu`, a device bus |
+| `std-web` | `sys-stdio` (console), `sys-clock`, `sys-random`, `sys-env` (arguments), `sys-process` (exit only), `debug`; later `sys-surface` (canvas, M9) and `sys-gpu` (WebGPU) | `fs`, `net` listening, `process` spawn, `os` |
+| `std-embedded` | `sys-clock`, `sys-random` (hardware or seeded), `sys-stdio` over a UART or semihosting, `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi`, `debug` | `fs`, `process`, `os`, usually `net` |
 
 ### 15.10.3 The capability table
 
@@ -1343,6 +1344,7 @@ reaches the provider and the documentation.
 | `clock` | `true` (`monotonic_now`, `wall_now`) | `true` | `true` | `"monotonic"` (no wall clock) or `true` with an RTC |
 | `random` | `"os"` | `"os"` | `"os"` (`crypto.getRandomValues`) | `"hardware"` or `"seeded"` (documented as deterministic) |
 | `process` | `true` (spawn, wait, exit) | `"exit-only"` | `"exit-only"` | `"exit-only"` (halt or reset, 15.8.2) |
+| `os` | `true` (signals, ids, users, permissions, system calls) | - | - | - |
 | `env` | `true` | `true` | `"args-only"` | `"empty"` |
 | `gpio`, `uart`, `i2c`, `spi` | `true` on a Linux board, through device files | - | - | `true` per board |
 | `surface` | per OS, when `sys-surface` ships (M9) | - | `"canvas"` (M9) | - |
@@ -1461,7 +1463,7 @@ this document's.
 | P15-6 | Fold into the affected documents: the layout algorithm L4 and L5, the fixed layout of the `checked_*` tuple, by-value shared borrows of small `Copy` values | 03 §3.5, 13.3, 13.6, 04 §4.5 | Adopt as written |
 | P15-7 | A 12-byte 32-bit `Text` header with 10 inline bytes (assumption); big-endian targets (s390x via Cranelift) are out | 03 §3.5, 14.1 | Accept for M7; revisit with measurements |
 | P15-8 | Closure representation: how a lambda that only borrows its captures is lowered, given V7 forbids a borrow in `aggregate closure` | 13.2, 13.5, spec §5 (captures) | 13 chooses: lambda lifting into extra borrowed parameters, or an explicit non-escaping closure form |
-| P15-9 | The vtable layout `[drop_glue, size, align, slots...]`, owned `dyn` as a heap box, and the layout of `Error` as a boxed trait object | 03 §3.5, `std` | Accept; `std` confirms `Error` |
+| P15-9 | The vtable layout `[drop_glue, size, align, slots...]`, owned `dyn` as a heap box, and the layout of `Error` as a boxed trait object | 03 §3.5, standard library | Accept; the standard library confirms `Error` |
 | P15-10 | File names and lookup: `targets/<name>.toml` (toolchain), `targets/<name>.target`, `verse.target`, `host`, and `inherits` | 04 §4.3, 19 §19.3 | Accept 15.9.1; 19 adds `verse.target` to its file list and cache keys |
 | P15-11 | Schema extensions to 04 §4.3 (15.9.2) and diagnostics for target-file errors | 04 §4.3, 16 | **Codes closed**: V0911 to V0915, one per row of 15.9.4. Still open: fold the schema into 04 §4.3 |
 | P15-12 | Custom capabilities and providers for custom targets and boards (a CAN bus); a browser `net` client through `fetch` | 05 §5.6, 06 §6.5, 20 | Not in 0.1. A board driver can be called through a plugin, outside the capability system (07 §7.1); a custom capability needs a slice supplied by a package |
@@ -1471,7 +1473,7 @@ this document's.
 | P15-16 | Exit status of an internal error or trap (`unreachable`, VM bug) | 14.4 `TRAP`, 15.7.6, 16 §16.6.1 | **Closed** (ruling): status 3 where the runtime is the cause; a host trap Verse cannot control stays host-defined |
 | P15-17 | The `stack` of a panic record needs the debug map; a `debug = false` build has none | 05 §5.4, 14.12 | Print message and span only; the structured record carries `stack = null`; differential tests compare it only with debug on |
 | P15-18 | Targets not in 04 §4.2: ARM32 Linux, i686, RISC-V 32 Linux, big-endian | 04 §4.2 | Out of 0.1; each is a target file plus, for stackful targets, a context-switch row |
-| P15-19 | Foreign calls: stack, blocking, the `Text` form, symbols and linking | 15.11, 07 | **Closed**: on the task's stack, not a yield point, `Text` as `text.bytes()` with a trailing zero byte, C names, linking per `[plugins]` (15.11, 07 §7.4 to §7.6) |
+| P15-19 | Foreign calls: stack, blocking, the `Text` form, symbols and linking | 15.11, 07 | **Closed**: on the task's stack, not a yield point, `Text` as its `.bytes()` with a trailing zero byte, C names, linking per `[plugins]` (15.11, 07 §7.4 to §7.6) |
 | P15-20 | Mixed-mode execution (a later hot-function JIT) needs adapters between the VM window and Verse-cc | 04 §4.1, 14 | Specify with the JIT; none in 0.1 |
 | P15-21 | Cranelift unwind information on Windows (x64 and ARM64) | 04 §4.1, 15.5.2 | Verify in M5; LLVM is the fallback |
 | P15-22 | The float ABI of binary64 on an FPU with single precision only (`fpv4-sp-d16`) | 15.5 | Verify in M7 that `verse-rt` and generated code agree; both are built with the same target ABI string |

@@ -13,9 +13,9 @@ manager.
 | `verse check` | type-check without running; fast feedback for editors |
 | `verse build` | build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle |
 | `verse build --size-report` | build, and list every included item with its size and why it was included |
-| `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`std.net.get`), the chain of uses from the program's entry statements; for a file path (`generated/items/item.vs`), the `verse generate` entry that wrote it |
-| `verse --deny <capability> file.vs` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
-| `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `std.fs` on a browser WebAssembly target, for example) |
+| `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`http.get`), the chain of uses from the program's entry statements; for a file path (`generated/items/item.vs`), the `verse generate` entry that wrote it |
+| `verse --deny <capability> file.vs` | run, refusing a system capability named after its standard library module (`net`, `fs`, `process`, `os`, …); a program that can reach it fails before it starts |
+| `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `fs` on a browser WebAssembly target, for example) |
 | `verse generate [name]` | run the generators listed in `verse.toml` (§16.6) |
 | `verse bind <header.h>` | write a `.vs` file with an `extern` block for a C header (§12.6) |
 | `verse doc` | generate HTML documentation from doc comments |
@@ -117,9 +117,10 @@ Native libraries that a package calls through `extern` (§12.6) are declared
 under `[plugins.<name>]`. A published package may only name a system library
 there; building it still runs no code.
 
-Domain libraries are first-party optional packages, not part of `std`:
-`finance`, `ml`, `web`, `gui` and `iot` are added with `verse add` like any
-other package. `std.net.serve` remains in `std`.
+Domain libraries are first-party optional packages, not part of the standard
+library: `finance`, `ml`, `web`, `gui` and `iot` are added with `verse add`
+like any other package. HTTP serving remains `http.serve`, in the standard
+library; `web` builds on it.
 
 ### 16.4 Interface files (`verse.api`)
 

@@ -281,7 +281,7 @@ native-code strategies. Observable behaviour is the same as the others.)
   [14.6](#146-calls-and-lazy-instantiation) found reachable) and `granted` (what the host target provides
   minus `--deny` flags). If `required` is not a subset, nothing runs; the
   message names the first call chain, in the shape of 04 §4.3: "this program
-  calls `std.net.get`, which this run does not allow" (V09xx). Exit status 2:
+  calls `http.get`, which this run does not allow" (V09xx). Exit status 2:
   an error before the program starts ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
 - **Run-time re-check.** `CALLS` tests the capability bit of the proto in
   debug builds only; a failure is a VM bug report (exit status 3), never a user panic.

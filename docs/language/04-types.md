@@ -13,7 +13,7 @@
 | `Nothing` | the type of "no useful value" | (result of `print`) |
 
 Sized numeric types (`Int8` … `Int64`, `UInt8` … `UInt64`, `Float32`) and
-arbitrary-precision `BigInt` and `Decimal` are provided by `std.num` for code
+arbitrary-precision `BigInt` and `Decimal` are provided by `math` for code
 that needs them.
 
 `Text` is indexed by *characters*, not bytes: `"héllo".len()` is `5`. Because

@@ -17,7 +17,7 @@ return `Text | FetchError | Error`, which normalizes to `Text | Error`
 what `.wait()` later reports.
 
 ```verse
-import get from std.net
+import get from http
 
 fn fetch(url)
     response = get("https://{url}")?
@@ -75,7 +75,7 @@ block of work, give it a name with `fn` and spawn the call.
 ### 11.2 Working with many tasks
 
 ```verse
-import wait_all, wait_any from std.task
+import wait_all, wait_any from task
 
 tasks = urls.map(url -> spawn fetch(url.copy()))       # `url` is a borrow: copy it
 pages = wait_all(tasks)                  # takes the tasks; List<Text | Error>, in order
@@ -100,12 +100,12 @@ purpose.
 **Panics in tasks.** If a task panics, the panic message and stack trace are
 **printed to standard error immediately, at the moment of the panic** —
 whether or not anyone handles it later. The waiter then receives a value of
-the named error type `TaskPanicked` (from `std.task`, implementing `Error`,
+the named error type `TaskPanicked` (from the `task` module, implementing `Error`,
 with `message()` and `trace()`), which `match` can tell apart from ordinary
 errors:
 
 ```verse
-import TaskPanicked from std.task
+import TaskPanicked from task
 
 match task.wait()
     page: Text -> show(page)
@@ -145,7 +145,7 @@ standard error and counts for the exit status, as above.
 
 A task owns what it was given (§11.1), so two tasks can never touch the same
 value by accident, and data races are impossible. Sharing is **opt-in** and
-always goes through one of these handle types from `std.task`:
+always goes through one of these handle types from the `task` module:
 
 | Handle | Meaning | Copying the handle |
 |--------|---------|--------------------|
@@ -182,7 +182,7 @@ annotation instead of written: `(tx, rx): (Sender<Int>, Receiver<Int>) =
 Channel.new(capacity: 10)`.
 
 ```verse
-import Channel, wait_all from std.task
+import Channel, wait_all from task
 
 fn worker(id, out)
     out.send(id * id)?                   # `Closed` if the receiver is gone
@@ -202,7 +202,7 @@ Waiting for the producers before consuming can deadlock once the channel is
 full, so always consume while the producers run, and wait for them afterwards.
 `send` is fallible: discarding its result is the usual compile-time error for
 an unhandled fallible value (§8.4). `Closed` is a named error type in
-`std.task`, like `Timeout`.
+the `task` module, like `Timeout`.
 
 A `Receiver` given to another task moves, like any non-copyable value:
 `spawn consume(rx)`.
@@ -222,7 +222,7 @@ model — is wrapped once in `Shared<T>` and handed to as many tasks as needed
 without copying the data:
 
 ```verse
-import Shared from std.task
+import Shared from task
 
 dictionary = Shared(load_words("words.txt"))
 
@@ -239,7 +239,7 @@ b = spawn check(chapter_two, dictionary)              # last use: the handle mov
 inside a `with` block that holds its lock:
 
 ```verse
-import Guarded, wait_all from std.task
+import Guarded, wait_all from task
 
 hits = Guarded(0)
 
@@ -280,7 +280,7 @@ ordinary code, its `with` blocks close their resources in reverse order, and
 nothing — not `otherwise`, not `match`, not `?` — can intercept it. So
 `get(url) otherwise "x"` cannot swallow a cancellation and keep going. Unlike a
 panic, a cancellation prints nothing. The *waiter* sees the outcome as a
-`Cancelled` error (from `std.task`) returned by `.wait()`, which it may handle
+`Cancelled` error (from the `task` module) returned by `.wait()`, which it may handle
 normally.
 
 Cancellation is **masked while a `cleanup` runs** (§13.1): a cancel request that
@@ -292,7 +292,7 @@ operations keep simple signatures:
 
 | Operation | Signature |
 |-----------|-----------|
-| `std.time.sleep(d)` | `sleep(duration: Duration)` — returns `Nothing`; pauses only the current task |
+| `time.sleep(d)` | `sleep(duration: Duration)` — returns `Nothing`; pauses only the current task |
 | `rx.recv()` | `recv(self): T?` |
 | `task.wait()` | `wait(take self): T \| Error` (a cancelled *child* shows up here as `Cancelled`) |
 

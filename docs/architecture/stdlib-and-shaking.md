@@ -38,16 +38,16 @@ the spec or from a ruling),
 | Tier | What | Examples | Ships with | How a program gets it | Status |
 |------|------|----------|------------|-----------------------|--------|
 | Prelude | names available without import (spec §15.1) | `print`, `input`, `args`, `env`, `exit`, `error`, built-in types and traits | the toolchain | always visible; still shaken like everything else | Fact |
-| `std` | general-purpose modules (spec §15.2) | `std.fs`, `std.net`, `std.text`, `std.time`, `std.json`, `std.task`, `std.math`, `std.num`, `std.random`, `std.process`, `std.env`, `std.cli`, `std.log` | the toolchain, versioned with it | `import std.fs`, `import get from std.net` | Fact |
-| First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals: `finance`, `ml`, `web`, `gui`, `iot` (P6-1) | the package registry, installed on demand | `verse add finance`, then `import … from finance` | Fact: they are packages, not `std` |
+| Standard library | general-purpose top-level modules (spec §15.2) | `fs`, `io`, `net`, `http`, `text`, `time`, `json`, `task`, `math`, `random`, `process`, `os`, `env`, `cli`, `log` | the toolchain, versioned with it | `import fs`, `import get from http` | Fact |
+| First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals: `finance`, `ml`, `web`, `gui`, `iot` (P6-1) | the package registry, installed on demand | `verse add finance`, then `import … from finance` | Fact: they are packages, not the standard library |
 | Third-party packages | anything published to the registry, git or path | `colors`, `http_extra` (spec §16.3 examples) | the registry | `verse add colors`, then `import red, bold from colors` | Fact |
 
 Notes:
 
-- **`std` stays small and portable.** Every `std` module is written in Verse
+- **The standard library stays small and portable.** Every module is written in Verse
   over `sys` capabilities ([05 §5.6](runtime.md#56-the-sys-capability-interface)),
-  so it is portable wherever its capabilities exist. A `std` module whose
-  capability a target lacks (for example `std.fs` on a Cortex-M board) still
+  so it is portable wherever its capabilities exist. A module whose
+  capability a target lacks (for example `fs` on a Cortex-M board) still
   type-checks; using it on that target is a build error (§6.8).
 - **First-party packages are ordinary packages.** They are versioned, locked
   in `verse.lock`, checked against their `verse.api` (spec §16.3, §16.4), and
@@ -55,8 +55,8 @@ Notes:
   no special syntax. They may release on their own schedule; each release
   states the range of toolchain versions it supports (Proposal P6-2).
 - **One obvious name per idea.** The first-party packages must not offer a
-  second spelling of something `std` already has. For example, HTTP serving
-  is `std.net.serve` (spec §15.2); a web package builds routing and templates
+  second spelling of something the standard library already has. For example, HTTP serving
+  is `http.serve` (spec §15.2); a web package builds routing and templates
   *on top of* it and does not ship its own server loop (Proposal P6-1).
 
 ## 6.3 Importing is the opt-in
@@ -67,8 +67,8 @@ declaration or an import, no wildcard imports) and §15.1 (file access is not
 in the prelude).
 
 ```verse
-import read_text from std.fs
-import parse, Json from std.json
+import read_text from fs
+import parse, Json from json
 
 fn load_config(path: Text): Json | Error
     text = read_text(path)?
@@ -80,7 +80,7 @@ print(config)
 
 This program reaches `read_text`, `parse` and whatever they call, `Show` for
 `Json` (because `print` formats it), and the `fs` and `stdio` capabilities.
-It reaches nothing else from `std.fs` or `std.json`.
+It reaches nothing else from `fs` or `json`.
 
 Two facts from the spec make "import costs nothing" safe:
 
@@ -198,13 +198,14 @@ directly, outside this table ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 | Capability | Typical source in the library | Runtime slice ([05 §5.1](runtime.md#51-feature-slices)) | Example target without it |
 |------------|-------------------------------|----------------------------|---------------------------|
-| `stdio` | `print`, `input` (prelude), error reports of a failed top-level `?` | `sys-stdio` (named `sys-stdout` in 05's prose; see §6.13) | a headless board without UART console |
-| `fs` | `std.fs` | `sys-fs` | `wasm32-unknown-unknown`, Cortex-M |
-| `net` | `std.net` | `sys-net` | Cortex-M without a network stack |
-| `clock` | `std.time` | `sys-clock` | none planned |
-| `random` | `std.random` | `sys-random` | none planned (hardware or seeded) |
-| `process` | `std.process`, `exit` | `sys-process` | browser, microcontrollers |
-| `env` | `std.env`, `env`, `args` | `sys-env` | microcontrollers (empty `args`) |
+| `stdio` | `print`, `input` (prelude), `io`, error reports of a failed top-level `?` | `sys-stdio` (named `sys-stdout` in 05's prose; see §6.13) | a headless board without UART console |
+| `fs` | `fs` | `sys-fs` | `wasm32-unknown-unknown`, Cortex-M |
+| `net` | `net`, `http` | `sys-net` | Cortex-M without a network stack |
+| `clock` | `time` | `sys-clock` | none planned |
+| `random` | `random` | `sys-random` | none planned (hardware or seeded) |
+| `process` | `process`, `exit` | `sys-process` | browser, microcontrollers |
+| `os` | `os` | `sys-os` | WASI, browser, microcontrollers |
+| `env` | `env`, the prelude `env`, `args` | `sys-env` | microcontrollers (empty `args`) |
 | `gpio`, `uart`, `i2c`, `spi` | IoT packages | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | desktop targets |
 | `surface` (windows, input, drawing) | GUI package | *none in 05 yet* (Proposal P6-6) | servers, microcontrollers |
 | `gpu` (compute) | ML package | *none in 05 yet* (Proposal P6-6) | most targets |
@@ -215,7 +216,7 @@ Non-capability slices are selected by MIR facts rather than by capabilities:
 |-------|---------------|
 | `core` | always (allocator, panic machinery, `Text`, `List`, `Map`, `Set` primitives) |
 | `unwind` | a reachable unwind edge runs a drop (a `Cleanup` call or a heap free) *and* the target's unwind strategy needs runtime support (`native`); with `status-code` the cleanup paths are ordinary code (Assumption, see [05 §5.4](runtime.md#54-panics-and-unwinding)) |
-| `tasks` | a `Spawn` terminator or a `std.task` primitive is reachable |
+| `tasks` | a `Spawn` terminator or a `task` primitive is reachable |
 | `debug` | debug builds, running a file, or an attached debugger ([08](debugging.md)) |
 
 Each target file declares which capabilities it provides
@@ -284,12 +285,12 @@ syntax: explicit type arguments on free functions are a compile error
 
 ### Worked example 2: a small web server
 
-The `std.net` names come from spec §15.2. The exact signatures of `serve`
+The `http` names come from spec §15.2. The exact signatures of `serve`
 and `Request` are not in the spec yet, so the field `path` and the arguments
 of `serve` below are **assumed** for illustration.
 
 ```verse
-import serve, Request, Response from std.net
+import serve, Request, Response from http
 
 fn handle(request: Request): Response
     match request.path
@@ -306,33 +307,33 @@ roots    1   server.vs: entry statements
 
 ITEM                                   KIND       SIZE  WHY
 server.vs: entry statements            root        <n>  root
-std.net.serve                          function    <n>  call      server.vs:8
+http.serve                             function    <n>  call      server.vs:8
 handle                                 function    <n>  fn-value  server.vs:8 (passed as handler)
-std.net.Listener.accept                function    <n>  call      std.net.serve
-std.net.parse_request                  function    <n>  call      std.net.serve
-std.net.write_response                 function    <n>  call      std.net.serve
-Map<Text, Text> (headers)              layout        -  layout    std.net.parse_request
-drop Request                           drop        <n>  drop      std.net.serve
+net.TcpListener.accept                 function    <n>  call      http.serve
+http.parse_request                     function    <n>  call      http.serve
+http.write_response                    function    <n>  call      http.serve
+Map<Text, Text> (headers)              layout        -  layout    http.parse_request
+drop Request                           drop        <n>  drop      http.serve
 Cleanup for TcpStream                  impl        <n>  cleanup   drop TcpStream
 …                                      …             …  …
-sys.net.accept                         intrinsic     -  intrinsic std.net.Listener.accept
-spawn per connection                   function    <n>  spawn     std.net.serve
+sys.net.accept                         intrinsic     -  intrinsic net.TcpListener.accept
+spawn per connection                   function    <n>  spawn     http.serve
 
 RUNTIME
 core                                   slice       <n>  always
-tasks                                  slice       <n>  spawn     std.net.serve
-unwind                                 slice       <n>  drop on unwind edge in std.net.serve
+tasks                                  slice       <n>  spawn     http.serve
+unwind                                 slice       <n>  drop on unwind edge in http.serve
 sys-net                                slice       <n>  capability net <- sys.net.accept
 sys-stdio                              slice       <n>  capability stdio <- error report of a failed top-level `?` (spec §12.5)
 
 CAPABILITIES  net, stdio
 
 EXCLUDED
-std.net.get, post, put, delete   imported module members not reached
+http.get, post, put, delete      imported module members not reached
 sys-fs                           no fs intrinsic reachable
 ```
 
-The internal names under `std.net` (`Listener.accept`, `parse_request`,
+The internal names (`TcpListener.accept` in `net`, `parse_request` in `http`,
 `spawn per connection`) are placeholders for whatever the library's
 implementation uses; the shape of the report is the point.
 
@@ -343,8 +344,8 @@ $ verse why sys-net --target x86_64-unknown-linux-gnu
 sys-net  is a runtime slice
   <- capability net
   <- sys.net.accept                 intrinsic
-  <- std.net.Listener.accept        std/net/tcp.vs
-  <- std.net.serve                  std/net/server.vs
+  <- net.TcpListener.accept         std/net/tcp.vs
+  <- http.serve                     std/http/server.vs
   <- server.vs:8                    serve(port: 8080, handler: handle)?
   <- root: entry statements of server.vs
 ```
@@ -371,7 +372,7 @@ The chain is the stored reason of each node, followed back to a root
 principle 1). It differs only in *when* work happens:
 
 - The front end checks the entry file and every module it imports, directly
-  or transitively, before running anything. Packages and `std` are checked
+  or transitively, before running anything. Packages and the standard library are checked
   against their `verse.api`, with cached results ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)).
   Modules that are not imported are never opened.
 - Instantiation and bytecode generation are lazy, per function, at first call
@@ -390,12 +391,12 @@ After reachability, the build checks the result against the target:
 
 | Check | Source of the rule | Failure message (wording to be approved) |
 |-------|--------------------|------------------------------------------|
-| Every needed capability is provided | target file `[capabilities]` ([04 §4.3](backends-and-targets.md#43-what-a-target-is)) | "this program calls `std.net.get`, which `thumbv7em-none-eabihf` cannot provide" followed by the why chain |
+| Every needed capability is provided | target file `[capabilities]` ([04 §4.3](backends-and-targets.md#43-what-a-target-is)) | "this program calls `http.get`, which `thumbv7em-none-eabihf` cannot provide" followed by the why chain |
 | No heap use under `--no-heap` | [05 §5.7](runtime.md#57-embedded-profile): no reachable allocation intrinsic | "`--no-heap`: `List.push` allocates, reached from `blink.vs:12`" |
 | No threads where the target has none | target `tasks` and `atomics` | spawning still works on cooperative targets; only true thread requirements fail |
 | Library availability | the package's per-target table (§6.9) | "`gui` is not available for `riscv32imc-unknown-none-elf`" |
 
-The check runs on the *reachable* set, so importing `std.net` in a library
+The check runs on the *reachable* set, so importing `http` in a library
 used on a board is fine as long as the board build never reaches it.
 `verse check --target T` runs the same check without code generation
 (Proposal P6-5).
@@ -433,7 +434,7 @@ unavailable  = []                   # for example ["thumbv7em-none-eabihf"] for 
 Using such a package, with assumed names:
 
 ```verse
-import Decimal from std.num
+import Decimal from math
 import Money from finance
 
 fn total(prices: List<Money>): Money | Error
@@ -482,7 +483,7 @@ These touch the spec (§12, §15, §16) or package naming, and all seven are acc
 
 | # | Proposal | Touches | Recommendation |
 |---|----------|---------|----------------|
-| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a `std` module (HTTP serving stays `std.net.serve`; `web` adds routing and templates on top). 07's example uses `gui` | spec §15 (a short paragraph listing first-party packages), 07 | ruled |
+| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a standard library module (HTTP serving stays `http.serve`; `web` adds routing and templates on top). 07's example uses `gui` | spec §15 (a short paragraph listing first-party packages), 07 | ruled |
 | P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
 | P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
 | P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are already planned (01, 11 M2, 08 `size_report`) |
@@ -508,6 +509,6 @@ Each item is **fixed** in the named file.
 4. [02 §2.6](compiler-architecture.md#26-monomorphization) and ADR-0004
    speak of `dyn Trait`; the spec has no `dyn` keyword (trait names used as
    types, §10.3). 02 §2.6 also uses `UInt64`, which is not a spec type name
-   (sized integers live in `std.num`, names unspecified).
+   (sized integers live in `math`, names unspecified).
 5. [03 §3.2](ir-and-passes.md#32-hir-the-desugared-core) writes the
    `with` form as `with x = e as y`; the spec form is `with e as y` (§13).

@@ -18,46 +18,64 @@ file-level import may hide one (an import warns); see §3.9.
 | `env(name): Text?` | read an environment variable |
 | `exit(code: Int)` | end the program immediately with a status code from 0 to 255; it flushes standard output and error but runs no `Cleanup` (§12.5) |
 | `error(message, cause: none): Error` | build a simple error |
-| Types | `Int`, `Float`, `Bool`, `Char`, `Text`, `Bytes`, `Nothing`, `List`, `Map`, `Set`, `Range`, `Task` |
+| Types | `Int`, `Float`, `Bool`, `Char`, `Text`, `Bytes`, `Nothing`, `List`, `Map`, `Set`, `Range`, `Task`, `ParseError` |
 | Traits | `Show`, `Eq`, `Order`, `Hash`, `Iterable`, `Index`, `Default`, `Cleanup`, `Copy`, `Copyable`, `Error`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` |
 
 `Error` is a trait, not a type. Written where a type is expected, as in
 `T | Error`, a trait name means "any type that implements it" (§8.2, §10.3),
 which is why `Error` appears in return types throughout this spec.
 
+`ParseError` is the error returned by `Text.to_int()` (`Int | ParseError`)
+and `Text.to_float()` (`Float | ParseError`). It is in the prelude because
+those methods are.
+
+`print` and `input` are the everyday way to use standard output and input.
+The `io` module has the streams themselves, for writing to standard error,
+reading bytes, and buffering.
+
 File access is **not** in the prelude: there is exactly one name for each idea,
-and it lives in `std.fs` — `open(path): File | Error` (read),
+and it lives in `fs` — `open(path): File | Error` (read),
 `create(path): File | Error` (write), and `read_text(path): Text | Error`
-(whole file at once). Import them with `import open, read_text from std.fs`.
+(whole file at once). Import them with `import open, read_text from fs`.
 
 ### 15.2 Core modules
 
+Standard library modules are top-level: `import json`, `import get from http`.
+Their names are reserved. A package, a dependency or a module of your own
+cannot use one (§12.2).
+
 | Module | Purpose | Highlights |
 |--------|---------|------------|
-| `std.fs` | files and directories | `read_text`, `write_text`, `append_text`, `read_bytes`, `exists`, `list_dir`, `walk`, `make_dir`, `remove`, `remove_all`, `open`, `create`, `File` |
-| `std.net` | networking and HTTP | `get`, `post`, `put`, `delete`, `Request`, `Response(status, headers, body)`, `serve`, `TcpStream`, `Url` |
-| `std.text` | text processing | `words`, `lines`, `pad`, `wrap`, `similarity`, `Regex`, `Builder`, Unicode normalization |
-| `std.time` | dates, times and durations | `now()`, `today()`, `sleep(d)`, `Duration` (`5.seconds()`, `200.millis()`, `2.hours()`), `Instant`, `Date`, `DateTime`, time zones, `format` |
-| `std.json` | JSON | `parse(text): Json \| Error`, `stringify(value, pretty: false)`, the `Json` variant type, `ToJson` / `FromJson` traits with automatic implementations for records and variants |
-| `std.task` | concurrency | `Channel` (`Channel.new<T>()` returns a `Sender<T>` and a `Receiver<T>`), `Shared`, `Guarded`, `Weak`, `wait_all`, `wait_any`, and the named error types `Timeout`, `Cancelled`, `TaskPanicked` and `Closed` (returned by `Sender.send` once the channel is closed); `.copy()` on `Sender`, `Shared`, `Guarded` and `Weak` copies the handle, explicitly, also when passing it to `spawn`; `Receiver` is not copyable and moves (§11.4) |
-| `std.math` | mathematics | `pi`, `e`, `sqrt`, `sin`, `cos`, `log`, `clamp` |
-| `std.num` | numeric types | sized integers, `BigInt`, `Decimal`, `OrderedFloat`, parsing, and `ParseError`, the error returned by `Text.to_int()` (`Int \| ParseError`) and `Text.to_float()` (`Float \| ParseError`) |
-| `std.random` | randomness | `int(range)`, `float()`, `choice(list)`, `shuffle(list)`, seeded generators |
-| `std.process` | child processes | `run(cmd, args)`, `Output(status, stdout, stderr)` |
-| `std.env` | environment | `vars()`, `current_dir()`, `home_dir()`, `platform` |
-| `std.cli` | argument parsing | declarative flags from a record type |
-| `std.log` | structured logging | `info`, `warn`, `error`, levels, sinks |
+| `fs` | files and directories | `read_text`, `write_text`, `append_text`, `read_bytes`, `exists`, `list_dir`, `walk`, `make_dir`, `remove`, `remove_all`, `open`, `create`, `File` |
+| `io` | standard streams and byte I/O | `stdin`, `stdout`, `stderr`, `Reader`, `Writer`, `BufReader`, `BufWriter`, `read_line`, `read_all`, `copy` |
+| `net` | networking | `TcpStream`, `TcpListener`, `UdpSocket`, `resolve` (DNS), `Url` |
+| `http` | HTTP client and server | `get`, `post`, `put`, `delete`, `Request`, `Response(status, headers, body)`, `serve` |
+| `text` | text processing | `words`, `lines`, `pad`, `wrap`, `similarity`, `Regex`, `Builder`, Unicode normalization |
+| `time` | dates, times and durations | `now()`, `today()`, `sleep(d)`, `Duration` (`5.seconds()`, `200.millis()`, `2.hours()`), `Instant`, `Date`, `DateTime`, time zones, `format` |
+| `json` | JSON | `parse(text): Json \| Error`, `stringify(value, pretty: false)`, the `Json` variant type, `ToJson` / `FromJson` traits with automatic implementations for records and variants |
+| `task` | concurrency | `Channel` (`Channel.new<T>()` returns a `Sender<T>` and a `Receiver<T>`), `Shared`, `Guarded`, `Weak`, `wait_all`, `wait_any`, and the named error types `Timeout`, `Cancelled`, `TaskPanicked` and `Closed` (returned by `Sender.send` once the channel is closed); `.copy()` on `Sender`, `Shared`, `Guarded` and `Weak` copies the handle, explicitly, also when passing it to `spawn`; `Receiver` is not copyable and moves (§11.4) |
+| `math` | mathematics and numeric types | `pi`, `e`, `sqrt`, `sin`, `cos`, `log`, `clamp`, sized integers, `BigInt`, `Decimal`, `OrderedFloat`, parsing |
+| `random` | randomness | `int(range)`, `float()`, `choice(list)`, `shuffle(list)`, seeded generators |
+| `process` | child processes | `run(cmd, args)`, `Output(status, stdout, stderr)` |
+| `os` | operating system | signals, `pid()`, users and groups, permissions, low-level system calls |
+| `env` | environment | `vars()`, `current_dir()`, `home_dir()`, `platform` |
+| `cli` | argument parsing | declarative flags from a record type |
+| `log` | structured logging | `info`, `warn`, `error`, levels, sinks |
+
+The standard library gives full access to the system. A program reaches
+signals, users, permissions and system calls through `os`, never through a
+plugin.
 
 Domain libraries (`finance`, `ml`, `web`, `gui`, `iot`) ship as optional
-packages, not in `std` (§16.3).
+packages, not in the standard library (§16.3).
 
 A few examples:
 
 ```verse
-import std.fs
-import std.json
-import std.time
-import get from std.net
+import fs
+import json
+import time
+import get from http
 
 started = time.now()
 
