@@ -27,7 +27,7 @@ manager.
 | `verse debug` | the debugger: a Debug Adapter Protocol adapter that editors and other clients start, with time travel on recorded runs |
 | `verse lsp` | language server for editors, including inline hints for inferred types |
 | `verse api update` | regenerate `verse.api`, the committed interface file of exported signatures (§16.4) |
-| `verse api check` | compare inferred exported signatures with `verse.api` (run by every build) |
+| `verse api check` | compare exported signatures with `verse.api` (run by every build) |
 
 The first argument that is not a flag decides what `verse` does. If it ends in
 `.vs` or contains `/`, it is a path to run; any other word is a command, and a
@@ -125,12 +125,13 @@ library; `web` builds on it.
 
 ### 16.4 Interface files (`verse.api`)
 
-`verse.api` is what makes inferred exported signatures safe (§12.3):
+`verse.api` records the exported signatures as their authors wrote them
+(§12.3), so a public API change is a reviewable diff:
 
 | Step | What happens |
 |------|--------------|
-| `verse api update` | infers every exported signature and writes `verse.api`; commit it |
-| `verse build`, `verse check`, `verse test` | re-infer exported signatures; **fail** if any differs from `verse.api`, printing the recorded and the new signature |
+| `verse api update` | writes every exported signature to `verse.api`; commit it |
+| `verse build`, `verse check`, `verse test` | **fail** if an exported item is not written in full (V0418), or if any exported signature differs from `verse.api`, printing the recorded and the new signature |
 | other modules and packages | are checked against `verse.api` only — inference never crosses a module boundary |
 
 So the only way to change a public signature is to change the code *and* run

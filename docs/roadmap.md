@@ -50,7 +50,7 @@ flowchart LR
 
 | Risk | Why it matters | Retired by |
 |------|----------------|------------|
-| Implicit generics with structural constraints make inference or error messages bad | core promise of §4.2 | M1: inference on every spec example, plus 50 adversarial programs |
+| Inference of private functions (implicit generics with trait bounds, parameters typed by their module's calls) makes error messages bad | core promise of §4.2 | M1: inference on every spec example, plus 50 adversarial programs |
 | Ownership error messages are hard to make good | §18.10 requires it | M1: golden diagnostics, review by language owners |
 | Task lowering to state machines is hard and slow | Wasm and embedded depend on it | M3 prototype, M7 hardening |
 | Cranelift lacks 32-bit ARM and RISC-V | embedded needs LLVM | verify in M2; LLVM arrives in M7 |

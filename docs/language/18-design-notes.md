@@ -384,21 +384,26 @@ project is formatted, tested and built the same way.
 
 ### 18.17 Visually optional types
 
-**Decision:** Static typing with annotations optional almost everywhere,
-including parameters and return types. Unannotated parameters become implicit
-generics with exactly the constraints their bodies need (trait and structural);
+**Decision:** Static typing with annotations optional inside a module,
+including parameters and return types. An exported function, record field
+and trait method is written in full. Unannotated private parameters become
+implicit generics with the trait constraints their bodies need, or take the
+one concrete type their module's calls pass when the body reads a field;
 numeric literals default to `Int`/`Float`; recursion requires annotations;
 fallible return types are inferred from `try`; ambiguity is a compile error at
 the exact spot, listing the inferred constraints. Record fields keep
 annotations unless a default implies the type; `mut`/`take` are always
-written. Exported signatures may be inferred only with a committed `verse.api`
-that the build checks, and inference never crosses a module boundary.
+written. A committed `verse.api` records the exported signatures as written,
+and inference never crosses a module boundary.
 
 **Why:** Readers of prose do not want type noise, but programs still deserve a
 compiler that catches mistakes before they run. Implicit generics give the
 brevity of a dynamic language with static checking; the "never guess" rule and
-the exact-spot errors keep inference predictable; and `verse.api` gives
-libraries a stable, reviewable public surface even when the source omits types.
+the exact-spot errors keep inference predictable. A public signature is
+written in full because it is a contract: inferring it would need a notation
+for structural constraints that users cannot write, and `verse.api` would
+record a signature nobody wrote
+([ADR-0018](../decisions/0018-exported-signatures-in-full.md)).
 Editors show inferred types inline, so the information is one glance away.
 
 ### 18.18 Borrowed sugar

@@ -127,13 +127,13 @@ fn first_name(person: Person)
     person.name                  # a copy of the name; the caller's `person` is unchanged
 
 fn age_of(person)
-    person.age                   # a copy, with an inferred `Copy` bound
+    person.age                   # `person` takes its type from the calls in this module
 ```
 
-An unannotated getter such as `age_of` compiles with an inferred `Copy` bound
-on the returned field (§4.2, rule 9). Errors about a function's body appear at
-the definition. The only call-site errors are unmet bounds, written or
-inferred, and they name the bound.
+An unannotated getter such as `age_of` is private: its parameter takes the
+concrete type its module's calls pass (§4.2, rule 1), so the copy is checked
+with that type. Errors about a function's body appear at the definition. The
+only call-site errors are unmet bounds, and they name the bound.
 
 A borrow can never outlive the call that created it, so there is no lifetime
 syntax and no elision rules to learn. A value that is not `Copy`, such as a
@@ -301,7 +301,8 @@ doubled = inputs.map(text -> try text.trim().to_int() * 2)    # List<Int raises 
 
 ### 5.5 Generic functions
 
-Every unannotated parameter is already an implicit generic (§4.2). Explicit
+An unannotated private parameter used only through trait operations is
+already an implicit generic (§4.2). Explicit
 generic parameters name the type so it can be used in several places:
 
 ```verse

@@ -72,15 +72,18 @@ optionals and uniform call syntax into a small core
 ([03 §3.2](../../../../docs/architecture/ir-and-passes.md#32-hir-the-desugared-core)).
 Why: later stages then handle a small language.
 
-**Inference.** Hindley–Milner style unification with trait, callable and
-structural constraints, solved per function and per module
+**Inference.** Hindley–Milner style unification with trait and callable
+constraints, solved per function and per module
 ([02 §2.5](../../../../docs/architecture/compiler-architecture.md#25-type-inference)):
 
-- Unannotated parameters become implicit generics with a constraint set:
-  `Trait(T)`, `Callable(T, args, ret)`, `HasField(T, name, FieldTy)`,
-  `HasMethod(T, name, sig)`.
-- Structural constraints are solved at the call site against a concrete
-  type and never appear in user syntax.
+- Exported items are written in full: parameter types, return type and
+  `raises` clause (V0418).
+- Unannotated parameters of private functions used only through trait
+  operations become implicit generics with `Trait(T)` and
+  `Callable(T, args, ret)` constraints.
+- A parameter whose body reads a field or calls an inherent method takes the
+  one concrete type the calls in its module pass (V0425 if they disagree).
+  There are no structural constraints.
 - Recursion requires annotations, so inference never needs a fix-point
   across a call cycle. Strongly connected components of the call graph are
   checked for an annotated entry.
@@ -90,7 +93,7 @@ structural constraints, solved per function and per module
 - Interned types make type equality integer equality
   ([02 §2.3](../../../../docs/architecture/compiler-architecture.md#23-data-structures)).
 
-**Module boundary.** An exported function's inferred signature is compared
+**Module boundary.** An exported function's written signature is compared
 with `verse.api`. Importers use only `verse.api`, so a module is checked
 without the source of its dependencies
 ([02 §2.5](../../../../docs/architecture/compiler-architecture.md#25-type-inference),
@@ -118,7 +121,7 @@ the unit for resolution
   [§18.9](../../../../docs/language/18-design-notes.md#189-immutability-ownership-no-shadowing)).
 - Inference never crosses a module boundary
   ([§4.2](../../../../docs/language/04-types.md#inference-and-module-boundaries)).
-- `build`, `check` and `test` fail when an inferred exported signature differs
+- `build`, `check` and `test` fail when an exported signature differs
   from `verse.api`
   ([§16.4](../../../../docs/language/16-tooling.md#164-interface-files-verseapi)).
 - When inference cannot decide, it stops at that spot and asks for one
@@ -136,7 +139,7 @@ the unit for resolution
 
 - The ownership pass runs on THIR and trusts that every expression has a
   type ([02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts)).
-  It also writes inferred `Copy` bounds back into the interface record and
+  It infers no bound, so it writes nothing into the interface record or
   `verse.api`
   ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass)).
   See [ownership-checking.md](ownership-checking.md).

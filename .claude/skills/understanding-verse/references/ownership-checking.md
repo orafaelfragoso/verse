@@ -68,8 +68,8 @@ The pass computes six things
    elements along without copying them; the chain end builds the result. The
    pass records the step that collects each chain, and whether its source is
    at its last use.
-5. **Inferred `Copy` bounds** for unannotated getters, written to the
-   function's interface record and to `verse.api` for exports.
+5. **Copies of generic values** need a written `Copy` bound; no bound is
+   inferred.
 6. **Explanations.** Every error carries the move site, the branch
    condition of a move made on one path, the rule number, and the suggested
    fix.
@@ -121,7 +121,7 @@ The analysis is linear-time per function and parallel across functions.
   most important ordering constraint in the pipeline
   ([01 constraint 3](../../../../docs/architecture/requirements.md#constraints-taken-from-the-specification)).
 - Errors appear at the definition. A call site fails only on an unmet
-  written or inferred bound
+  bound
   ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass)).
 - No later use changes what an earlier line means: last use decides only
   whether a copy is compiled as a move
@@ -147,9 +147,9 @@ The analysis is linear-time per function and parallel across functions.
   ([02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts)).
   Moves and flags in generic MIR are decided by this pass
   ([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir)).
-- `verse.api` records inferred `Copy` bounds, so a change here can change a
-  public signature
-  ([ADR-0002](../../../../docs/decisions/0002-ownership-on-generic-code.md)).
+- `verse.api` records exported signatures as written, so this pass never
+  changes a public signature
+  ([ADR-0018](../../../../docs/decisions/0018-exported-signatures-in-full.md)).
 - The debugger shows ownership state and the same explanations
   ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass),
   [08 §8.4](../../../../docs/architecture/debugging.md#values)).

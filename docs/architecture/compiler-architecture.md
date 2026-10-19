@@ -81,7 +81,7 @@ This is the pass with the most unusual contract, so it is specified here.
 **Where it runs.** On THIR of the generic definition, once per function.
 Never again for specializations (spec §4.2 rule 9). Consequence: ownership
 errors are reported at the definition, and a call site can fail only on an
-unmet written or inferred bound (§4.2 rule 9, final paragraph).
+unmet bound (§4.2 rule 9, final paragraph).
 
 **What it computes.**
 
@@ -107,8 +107,9 @@ unmet written or inferred bound (§4.2 rule 9, final paragraph).
    (§9.5). The pass records, for each chain, the step that collects it, and
    whether its source is at its last use, so the elements move instead of
    being counted.
-5. **Inferred `Copy` bounds** for unannotated getters, written to the
-   function's interface record (and to `verse.api` for exports).
+5. **Copies of generic values.** A copy of a value whose type is a type
+   parameter needs a written `Copy` bound; without one it is an error at the
+   definition. No bound is inferred.
 6. **Explanations.** Every ownership error carries a structured explanation:
    the move site, the branch condition of a move made on one path, the rule
    number, and the suggested fix. This is a hard requirement from spec §18.10 ("error
@@ -124,21 +125,27 @@ shared storage are [ADR-0014](../decisions/0014-assignment-copies.md).
 
 ## 2.5 Type inference
 
-Hindley–Milner style unification with trait, callable and structural
-constraints, solved **per function** and **per module**.
+Hindley–Milner style unification with trait and callable constraints,
+solved **per function** and **per module**.
 
-- **Unannotated parameters** become implicit generics with a constraint set
-  (spec §4.2 rule 1). Constraints are `Trait(T)`, `Callable(T, args, ret)`,
-  `HasField(T, name, FieldTy)`, `HasMethod(T, name, sig)`.
-- **Structural constraints** (`HasField`, `HasMethod`) are the unusual part.
-  They are solved at the call site against a concrete type, and they never
-  appear in user syntax (spec: "inferred only").
+- **Exported items are written in full** (spec §4.2 rule 1): parameter types,
+  return type and `raises` clause. A missing one is V0418, reported before
+  inference, so an export's signature is known without its body
+  ([ADR-0018](../decisions/0018-exported-signatures-in-full.md)).
+- **Unannotated parameters of private functions** used only through trait
+  operations become implicit generics with `Trait(T)` and
+  `Callable(T, args, ret)` constraints.
+- **A parameter whose body reads a field or calls an inherent method** is a
+  type variable shared by every call of the function in its module, and the
+  calls fix it to one concrete type. Two calls that pass different types are
+  V0425. There are no structural constraints, so generic MIR needs no
+  `has` bounds (13 §13.2).
 - **Recursion** requires annotations (rule 3), so inference never needs a
   fix-point across a call cycle. Strongly connected components of the call
   graph are checked to ensure every cycle has an annotated entry.
 - **Numeric literals** default after solving: any literal type variable still
   unconstrained becomes `Int` or `Float` (rule 2).
-- **Module boundary.** An exported function's inferred signature is compared
+- **Module boundary.** An exported function's written signature is compared
   with `verse.api`. Importers use only `verse.api` (§16.4), so a module can be
   checked without the source of its dependencies. This is what lets us
   compile packages independently and in parallel.

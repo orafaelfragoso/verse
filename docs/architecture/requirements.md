@@ -20,9 +20,11 @@ refer to the specification.
 1. **Indentation-significant, lossless-tool-friendly syntax** (§3.3, §3.4). The
    lexer produces `INDENT`, `DEDENT`, `NEWLINE`. The formatter and the
    language server need a lossless syntax tree.
-2. **Types are visually optional** (§4.2). Unannotated parameters are implicit
-   generics with inferred trait, callable and structural constraints. Code is
-   specialized per concrete type. Recursion needs annotations (rule 3).
+2. **Types are visually optional inside a module** (§4.2). Exported items are
+   written in full. Unannotated private parameters are implicit generics with
+   inferred trait and callable constraints, or take the concrete type their
+   module's calls pass. Code is specialized per concrete type. Recursion
+   needs annotations (rule 3).
 3. **Ownership is checked once, at the definition** (§4.2 rule 9, §10.6). So the
    ownership check runs on **generic** code, before specialization, and treats
    unannotated types as opaque and non-`Copy`. This is the most important

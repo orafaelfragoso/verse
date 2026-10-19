@@ -168,7 +168,7 @@ promised by `Order` and `Copy` may be used on `T`. That includes the
 an opaque, non-`Copy` type unless it has a `Copy` bound, so a `T` is copied
 only with that bound, and `.copy()` needs `Copyable` (§4.2, rule 9).
 Errors about a function's body appear at the definition. The only call-site
-errors are unmet bounds, written or inferred, and they name the bound. The
+errors are unmet bounds, and they name the bound. The
 compiler specializes generic code for speed;
 this is invisible to the programmer.
 

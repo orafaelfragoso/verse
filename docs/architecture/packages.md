@@ -169,7 +169,7 @@ number below the required bump; it accepts a larger bump.
 | a parameter added without a default, removed, reordered or renamed | major | calls by position or by name break |
 | a parameter added *with* a default | major | the function's type `fn(…): R` changes, so uses as a function value break (spec §4.7); a changed function type is a changed promise |
 | a parameter or return type changed, including a changed `raises` clause or a new or removed `?` in the return type | major | |
-| an inferred bound added or tightened (for example the inferred `Copy` bound of spec §4.2 rule 9) | major | callers that met the old bound may not meet the new one |
+| a bound added or tightened | major | callers that met the old bound may not meet the new one |
 | a bound removed or loosened | minor | every old caller still compiles |
 | a variant added to an exported variant type | major | exhaustive `match` in callers breaks (spec §7) |
 | a field added to an exported record, with a default, after the existing fields | minor | named and positional construction (spec §4.3) still compile |

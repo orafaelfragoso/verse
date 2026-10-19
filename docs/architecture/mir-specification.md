@@ -45,7 +45,7 @@ function  = "fn" , path , [ "<" , targs , ">" ] ,
 targs     = tparam , { "," , tparam }          (* in a `mir generic` file *)
           | type , { "," , type } ;            (* in a `mir mono` file: the instance's type arguments *)
 tparam    = IDENT , [ ":" , bound , { "+" , bound } ] ;
-bound     = path | "has" , "." , IDENT ;       (* inferred structural bound, §4.2 *)
+bound     = path ;                             (* a trait bound, written or inferred from trait operations, §4.2 *)
 decl      = "local" , local , ":" , type , "=" , ( "ret" | "param" | "binding" ) ,
             [ "owned" | "borrowed" | "exclusive" ] , [ "mut" ] ,
             [ STRING ] , [ "@" , span ] , NL
@@ -171,7 +171,7 @@ Facts a pass may query. "Unknown" means the pass must be conservative.
 | `mayyield` | from callees, conservative for trait calls | exact | `task-lower` |
 | `recursive` (the function is on a cycle of the call graph of the instances monomorphization creates. A direct call has an edge to its callee. A call through a function value has an edge to every reachable instance whose function value is created with the signature of the called value's type. A call through a `dyn` slot has an edge to the method of that slot in every reachable impl of its trait. AOT monomorphization and the script-mode pre-pass use this one rule) | absent | exact, computed before the optimizer and never changed by it | the call limit ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)), `inline` |
 | `caps(...)` | from non-trait callees (lower bound) | exact | reachability, capability check |
-| field projection on a type parameter | allowed only with a `has.field` bound | resolved to an offset | V21 |
+| field projection on a type parameter | never: a parameter whose body reads a field has a concrete type (spec §4.2 rule 1) | resolved to an offset | V21 |
 
 Before the `layout` pass runs, mono MIR has sizes but field order is
 declaration order (assumption). `layout` is the only pass that may change
@@ -366,7 +366,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V18 | `yield` appears only in normal blocks (V15). A function containing a `yield` or a call to a `mayyield` function carries `mayyield` | `task-lower` finds every switch point | `yield recv(...)` in a function without `mayyield` |
 | V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees | exact capability check before run | `call sys net.connect(...)` with `caps(fs)` |
 | V20 | Every statement and terminator has a span inside a known file and a non-empty `dbg`; every `binding` and `param` has a name and a mode word; event words exist in `events.toml` | debugger and diagnostics speak the same words | a `drop` line with no `;` clause |
-| V21 | Generic only: an operation on a value of type `T` must be licensed by a bound of the function: trait calls need the trait bound, `copy` of `T` needs `Copy`, field projection needs `has.field` | generics are checked once, at the definition (spec §10.6) | `_2 = copy _1` with `_1: T` and bound `Copyable` |
+| V21 | Generic only: an operation on a value of type `T` must be licensed by a bound of the function: trait calls need the trait bound, `copy` of `T` needs `Copy`; no field projection has a base of type `T` | generics are checked once, at the definition (spec §10.6) | `_2 = copy _1` with `_1: T` and bound `Copyable` |
 | V22 | Mono only: no type parameter or `trait` callee remains; every `call` target exists as an instance; `layout` exists for every type used; instance keys are unique; a function carries `recursive` exactly when it is on a cycle of the call graph of the instances (13.3) | backends can lower without resolving anything, and every tier counts the same calls against the call limit | `call <T as Show>::show(...)` in `mir mono` |
 | V23 | `intrinsic` and `call intrinsic` match the intrinsic's declared signature and effects: an `intrinsic` statement cannot unwind or yield | optimizer may reorder pure intrinsics | an allocating `intrinsic` with `unwind bb3` |
 | V24 | Every `panic` names a kind of the [table in 13.4](#panic-kinds) and gives exactly the facts of that row, with the stated types; operands are `copy` of an initialised scalar or constants | one panic text per kind, filled the same way by every tier (16 §16.6) | `panic index_oob {i: copy _2}` (no `n`, `what`, `unit`) |
@@ -376,7 +376,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | Aspect | Generic MIR | Mono MIR |
 |--------|-------------|----------|
 | Header | `mir generic rev N` | `mir mono rev N` |
-| Types | may contain `T`; unannotated parameters carry inferred bounds, including `has.field` | none contain a parameter |
+| Types | may contain `T`; unannotated parameters carry inferred trait bounds | none contain a parameter |
 | Callees | function, `<T as Trait>::m`, `dyn #n`, intrinsic, sys | function **instance**, `dyn #n`, intrinsic, sys |
 | Drops | `drop` of `T` is a statement; `needs_drop` and `cleanup` unknown | glue resolved; `drop-opt` deletes a drop of a type with no glue, and can delete cleanup blocks |
 | Moves and flags | decided by the ownership pass | identical structure; `monomorphize` never adds or removes a move, drop or panic |

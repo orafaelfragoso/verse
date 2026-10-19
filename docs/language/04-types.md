@@ -50,42 +50,50 @@ fn double(n)                        # numeric; Int unless a caller says otherwis
     n * 2
 ```
 
-Both styles are equally checked. Annotate where it helps a reader — at
-important boundaries, in teaching code, or to narrow a function on purpose —
-and leave the rest to the compiler.
+Both styles are equally checked. An exported function is always spelled
+out, because its signature is the module's contract (rule 1); inside a module,
+annotate where it helps a reader, and leave the rest to the compiler.
 
 #### Inference rules
 
-1. **Unannotated parameters are implicit generics.** Each one gets exactly the
-   constraints its body needs, and nothing more:
-   - trait constraints from operations — interpolation or `print` gives
-     `Show`, `+` gives `Add`, `==` gives `Eq`, `<` gives `Order`, `for` gives
+1. **Exported items are written in full; private ones infer.** An `export`ed
+   function, record field and trait method writes every parameter type, its
+   return type and its `raises` clause (§8.2), so `verse.api` records what the
+   author wrote (§12.3). On an exported function, no return type means
+   `Nothing` and no clause means it cannot fail. Inside a module, an unannotated parameter of a
+   private function or a lambda is inferred:
+   - a parameter used only through **trait operations** is an implicit
+     generic with those trait bounds: interpolation or `print` gives `Show`,
+     `+` gives `Add`, `==` gives `Eq`, `<` gives `Order`, `for` gives
      `Iterable`, indexing `x[i]` gives `Index`, `.copy()` gives `Copyable`,
      calling a trait method gives that trait;
-   - *callable* from calls — `f(x)` on a parameter `f` makes it a function
-     type with matching parameters;
-   - *structural* constraints from field access and inherent method calls —
-     `person.name` gives "has a field `name`", `text.trim()` gives "has a
-     method `trim()`";
+   - a parameter called as `f(x)` is a function type with matching
+     parameters;
+   - a parameter whose body reads a **field** or calls an **inherent method**
+     (`person.name`, `text.trim()`) takes the one concrete type that the
+     calls in its module pass. Calls that pass two different types are an
+     error that asks for an annotation (V0425); there are no structural
+     constraints;
    - a variant pattern (`Circle(r) -> …`) or passing the parameter to an
      annotated parameter fixes or narrows the type.
 
-   Every call site is checked against those constraints at compile time, and
-   the compiler generates specialized code for each concrete type used — but
-   the **ownership check runs once, at the definition** (rule 9), so whether a
+   Every call site is checked against those bounds at compile time, and the
+   compiler generates specialized code for each concrete type used, but the
+   **ownership check runs once, at the definition** (rule 9), so whether a
    body compiles never depends on which types its callers use. So
    `greet(42)`, `greet("Ana")` and `greet(ana)` all work if the argument is
    `Show`, while `greet(some_function)` is a compile error at the call site.
-   Structural constraints are inferred only; they cannot be written by hand in
-   0.1. To narrow a function on purpose, annotate a concrete type
-   (`person: Person`).
+   A generic that is exported, or that a reader should see, is written with
+   explicit trait bounds: `fn largest<T: Order + Copy>(items: List<T>): T?`
+   (§10.5).
 2. **Numeric literals default to `Int` and `Float`.** `fn double(n)` with
    `n * 2` accepts any numeric type; where nothing else decides (for example
    `x = double(3)`), the literal makes it `Int`, and `double(2.5)` is a
    `Float`.
-3. **Recursion needs an annotation.** A function that calls itself, directly or
-   through other functions, must annotate its parameters and return type;
-   otherwise the compiler reports an ambiguity at the recursive call.
+3. **Recursion needs an annotation.** A private function that calls itself,
+   directly or through other functions, must annotate its parameters and
+   return type; otherwise the compiler reports an ambiguity at the recursive
+   call.
 4. **When inference cannot decide, it says so — exactly there.** The error
    names the spot, says which annotation to add, and lists the constraints it
    did infer:
@@ -112,46 +120,40 @@ and leave the rest to the compiler.
    inserts or removes annotations.
 7. **Record fields keep their annotations** unless a default value implies the
    type (`active = true` is a `Bool` field; `tags: List<Text> = []` still needs
-   its annotation because `[]` says nothing about the elements).
+   its annotation because `[]` says nothing about the elements). A field of an
+   exported record is written in full, default or not (rule 1).
 8. **`mut` and `take` are always written.** How a function treats its argument
    (borrow, exclusive `mut` borrow, or `take`) is never inferred (§5.3).
-9. **Ownership is checked once, at the definition.** Inside a generic or
-   unannotated function, every parameter type that is unannotated or generic
-   is treated as an opaque, **non-`Copy`** type, unless a `Copy` bound says
-   otherwise (`<T: Copy>`). One bound is inferred instead of rejected, so that
-   simple getters need no annotation: an unannotated function that returns a
-   field, element or lookup read through a borrowed parameter gets an
-   **inferred `Copy` bound** on the returned type, recorded in `verse.api`
-   like any other inferred constraint:
+9. **Ownership is checked once, at the definition.** Inside a generic
+   function, a parameter type that is generic (a type parameter, or an
+   implicit generic of rule 1) is treated as an opaque, **non-`Copy`** type
+   unless a `Copy` bound says otherwise. A body that copies such a value needs
+   the bound written. A parameter that takes a concrete type from its calls
+   (rule 1) is checked with that type:
 
    ```verse
    fn age_of(person)
-       person.age             # fine: inferred bound "`person.age` is Copy"
+       person.age             # `person` is a `Person` (from the calls in this module); `Int` is `Copy`
 
-   fn first_name(person)
-       person.name            # fine here too: inferred bound "`person.name` is Copy"
-
-   first_name(ana)            # fine: `Text` is `Copy`
-   log_of(service)            # error at the call site: `log_of` needs `File`
-                              #   to be `Copy`, because it returns `service.log`
-                              #   help: take the parameter with `take`
+   fn smaller(a, b)
+       if a < b then a else b # error: `a` is generic here, and returning it copies it
+                              #   help: write `fn smaller<T: Order + Copy>(a: T, b: T): T`
    ```
 
    Errors about a function's body appear at the definition. The only
-   call-site errors are unmet bounds, written or inferred, and they name the
-   bound. Because the check never looks at callers, `verse.api` is enough to
-   check other modules (§12.3).
+   call-site errors are unmet bounds, and they name the bound. Because the
+   check never looks at callers in other modules, `verse.api` is enough to
+   check them (§12.3).
 
 #### Inference and module boundaries
 
-Inference never crosses a module boundary. Exported functions may have
-inferred signatures **only** because every package commits a generated
-interface file, `verse.api`, that records each exported signature as the
-compiler inferred it. Other modules are type-checked against `verse.api`, never
-against another module's body, and the build fails if an inferred exported
-signature drifts from the recorded one until someone runs `verse api update`
-on purpose. A body edit therefore cannot silently change the public API. See
-§12.3 and §16.4.
+Inference never crosses a module boundary. Exported items are written in
+full (rule 1), and every package commits a generated interface file,
+`verse.api`, that records each exported signature as the author wrote it.
+Other modules are type-checked against `verse.api`, never against another
+module's body. A body edit therefore cannot change the public API, and a
+signature edit shows up in review as a diff of `verse.api`. See §12.3 and
+§16.4.
 
 ### 4.3 Record types
 

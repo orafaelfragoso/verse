@@ -169,13 +169,15 @@ Code V0205 is intentionally unassigned: propagation is the prefix word `try`, so
 | V0415 | error | `{x}` is `{T}?` and cannot be used as `{T}` here | the dot looks through an optional only when the chain is in `try`, ends in `otherwise`, `is` or `match`, or is in an optional-typed position | add one of those at the end of the chain | §8.1 |
 | V0416 | error | the `Error` of `{f}` is not handled here | `{f}` can return `{E}` | add `try`, `otherwise` or a `match` arm for `{E}` | §8.4 |
 | V0417 | error | `{x}` is not a `Text`, so it cannot be indexed by character | | use `.bytes()` for the UTF-8 bytes | §4.1 |
-| V0418 | error | missing type for a public item | `export` items need types in `verse.api` | annotate the parameters and the result | §16.4 |
-| V0419 | error | `{f}` needs a new copy for every depth of this call | `{f}` calls itself with `{T}` wrapped in `{W}` | annotate the parameter with one concrete type | §4.2 rule 1 |
+| V0418 | error | `{name}` is exported, so its {part} must be written | an exported item is written in full: parameter types, return type and `raises` clause | write `{suggestion}` (the type inferred from the body, when one is known) | §4.2 rule 1, §12.3 |
 | V0420 | error | `{f}` can raise `{E}`, which `{g}` does not declare | `{g}` declares `raises {set}` | add `{E}` to the `raises` clause of `{g}`, or handle it here | §8.2 |
 | V0421 | warning | `{E}` is declared, but nothing in `{f}` raises it | | remove `{E}` from the `raises` clause | §8.2 |
 | V0422 | error | `otherwise return` throws away the error of `{f}` | `{g}` could pass on `{E}` | pass it on with `try`, add context with `try ….context("…")`, or return a value | §3.8.2 |
 | V0423 | error | `Error` already includes `{E}` | a raise set that names `Error` names nothing else | write `raises Error`, or list only specific errors | §4.6 |
 | V0424 | error | `{E}` is an error type, so it goes after `raises` | an error type is not a member of a union | write `{T} raises {E}` | §4.6 |
+| V0425 | error | `{p}` of `{f}` gets `{T}` here and `{U}` at {position} | `{f}` reads `{p}.{field}`, so `{p}` has one concrete type | annotate `{p}`, or make `{f}` generic with a trait bound | §4.2 rule 1 |
+
+Code V0419 is intentionally unassigned: a recursive function is annotated (§4.2 rule 3), and a parameter that would be wrapped deeper on each call has one written type, so no call needs a new instance per depth.
 
 ### V05xx Ownership
 
@@ -189,7 +191,6 @@ fact has a position.
 | V0505 | error | `{name}` is borrowed exclusively by this call and cannot be used in it again | the first use is here | call it with a copy | §4.10 |
 | V0506 | error | `{name}` is not `mut`, but `{f}` needs to change it | `{f}` takes `mut {param}` | bind it as `mut {name}` | §4.10 |
 | V0507 | error | `{T}` cannot be copied | `{why}` | move it instead | §4.9 |
-| V0508 | error | `{f}` needs `{T}` to be `Copy`, because it returns `{x}` | the bound is inferred from the body | take the parameter with `take` | §4.2 rule 9 |
 | V0509 | error | this call needs `{T}` to be `Copyable` | `{T}` contains `{part}`, which is not | pass a type that can be copied | §4.2 rule 9 |
 | V0511 | error | a chain bound to a name is collected here | `{name}` holds the whole result | no change needed; this note shows where the chain runs | §9.5 |
 | V0513 | error | `{name}` is a borrowed function and cannot outlive this call | `{name}` is a parameter without `take`; it is {use: stored, returned, sent to a task, or captured by an escaping lambda} here | declare the parameter as `take {name}` | §5.4 |
@@ -202,6 +203,8 @@ assignment gives every owner its own value, so no binding is a view that
 could be stored, returned or sent to a task, and no later use changes what a
 line means (§4.9). A move made in one branch is V0501, whose label names the
 condition.
+
+Code V0508 is intentionally unassigned: no `Copy` bound is inferred. A generic body that copies a `T` writes `T: Copy`, and the definition reports it (§4.2 rule 9).
 
 ### V06xx Patterns
 

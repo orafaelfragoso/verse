@@ -23,3 +23,4 @@ were accepted on 2026-10-18.
 | [0015](0015-refine-a-binding.md) | A binding can be refined by consuming it | accepted (2026-10-19) |
 | [0016](0016-raises-clause.md) | A `raises` clause keeps error sets exact | accepted (2026-10-19) |
 | [0017](0017-prefix-try.md) | Propagation is the prefix word `try` | accepted (2026-10-19) |
+| [0018](0018-exported-signatures-in-full.md) | Exported signatures are written in full | accepted (2026-10-19) |
