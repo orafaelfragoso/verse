@@ -1,4 +1,4 @@
-# Architecture 16. Diagnostics catalog
+# 16. Diagnostics catalog
 
 Status: **draft 1**.
 This file assigns a stable code to every diagnostic the 0.1 toolchain gives,
@@ -250,6 +250,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V1009 | error | the build command of plugin `{name}` failed | it exited with status {status} | run `{command}` yourself to see the full output | 07 §7.2 |
 | V1010 | error | a foreign function cannot take `{x}` | Verse memory is never handed to foreign code | remove `take`; the argument is borrowed for the call | §12.6, 07 §7.4 |
 | V1011 | error | script mode needs a shared library for plugin `{name}` | only `{file}` was found | build a shared library as well as the static one | 07 §7.6 |
+| V1012 | error | plugin `{name}` is not available on `{target}` | its `targets` list is {list} | add `{target}` to `targets` in `[plugins.{name}]`, or avoid `{f}` | 07 §7.8 |
 
 ### V11xx Command line
 
@@ -404,7 +405,7 @@ These are the others, so a script can tell the causes apart.
 |--------|---------|
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
-| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer, found by the build-time check (15 §15.8.1) |
+| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1) |
 | 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
 | 70 | a deadlock (R0008) |
 | 101 | a panic (16.6) |

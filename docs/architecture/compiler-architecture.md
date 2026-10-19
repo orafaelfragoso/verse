@@ -94,7 +94,7 @@ unmet written or inferred bound (§4.2 rule 9, final paragraph).
    - a view cannot flow into a stored position, a return, or `spawn`.
 4. **Chain classification**: adapters such as `filter` and `zip` pass views;
    the chain end decides (§9.5, §18.10). The pass records, for each chain, the
-   owning step that collects it (RF-32).
+   owning step that collects it.
 5. **Inferred `Copy` bounds** for unannotated getters, written to the
    function's interface record (and to `verse.api` for exports).
 6. **Explanations.** Every ownership error carries a structured explanation:

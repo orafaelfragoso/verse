@@ -417,8 +417,8 @@ before the first instruction.
   `dropped`, `not_yet_bound`) are computed by the VM from these words and the
   executed statements.
 - **Source marks.** Stepping marks are derived from spans (a new source line
-  starts at the first statement whose span begins on a different line). 03's
-  `DebugMark` statement is therefore not stored (applied in 03). **Optimization
+  starts at the first statement whose span begins on a different line). MIR
+  therefore has no mark statement. **Optimization
   level 0** runs no pass except the read-only `verify`; debug sessions and
   replays use it, so marks stay where users expect them and steps (next bullet)
   mean the same thing in every session.

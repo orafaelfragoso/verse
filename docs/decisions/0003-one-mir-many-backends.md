@@ -4,7 +4,7 @@ Status: accepted (2026-10-18).
 
 ## Context
 
-Requirements R1 (script and compile) and R2 (many targets) and the agreed rule
+Requirements R1 (script and compile) and R2 (many targets) and the rule
 that script and compiled modes must behave identically.
 
 ## Decision

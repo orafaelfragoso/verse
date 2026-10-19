@@ -216,7 +216,7 @@ each place:
   print(port(config))
   ```
 
-  Entry-file locals are not visible in functions (M-2), so the parameter
+  Entry-file locals are not visible in functions, so the parameter
   `config` is not shadowing.
 
 ### 12.5 Program entry
@@ -266,6 +266,8 @@ so Verse code can call them. The plugin is named in `verse.toml` under
 extern sqlite
     export fn sqlite3_open(filename: Bytes, mut db: Pointer?): Int32
     export fn sqlite3_close(db: Pointer): Int32
+
+extern sdl
     fn SDL_Init as sdl_init(flags: UInt32): Int32
 
 mut db: Pointer? = none

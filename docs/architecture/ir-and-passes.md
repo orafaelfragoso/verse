@@ -87,7 +87,7 @@ Notes on the shape (details and examples in [13](mir-specification.md)):
 
 - **Operands, not rvalues, carry moves and copies.** `Copy` is only the
   implicit bitwise copy of a `Copy` type; the explicit `.copy()` is a call.
-- **Spans, not marks.** There is no `DebugMark` statement. Every statement and
+- **Spans, not marks.** MIR has no mark statement. Every statement and
   terminator has a span and a debug name, and the stepping marks that the
   bytecode VM and debuggers need are derived from spans ([13.7](mir-specification.md#137-debug-info-and-source-spans)).
 - **Spawn and Yield** carry operands, a destination, a continuation block and

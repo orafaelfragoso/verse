@@ -144,7 +144,7 @@ All three are explicit MIR control flow; the VM executes it.
   MIR `switch` to `panic neg_exponent` (V11).
 - **Panic record.** `PANIC kind k` builds `{kind, facts, span, task, call
   list}`; the span comes from the span table of the faulting pc. The kinds,
-  their codes (R0001 to R0012) and facts are those of
+  their codes and facts are those of
   [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics) and the table in
   13.4: an index panic carries `i`, `n`, `what` and `unit` (08 §8.6). Wording is
   not in the VM.

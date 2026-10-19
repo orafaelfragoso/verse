@@ -3,7 +3,7 @@
 Requirement R7: debugging that is easy. The debugger speaks the Debug Adapter
 Protocol (DAP), so any DAP client can drive it: an editor, a terminal front
 end, or a script. Verse-specific features are DAP extensions that a client
-may ignore. Status: **agreed**.
+may ignore.
 
 ## 8.1 What the debugger shows
 
@@ -35,7 +35,7 @@ flowchart LR
   inputs**: results of capability calls (clock, random, file and network
   reads, environment), scheduler decisions, and external signals. Replaying
   that log in the VM reproduces the run exactly, with full inspection. This
-  works because script and compiled modes behave identically (agreed rule) and
+  works because script and compiled modes behave identically and
   all outside-world access goes through capabilities ([05](runtime.md), 5.6).
 - **Native debuggers still work.** The compiler emits DWARF and a Verse debug
   map, so `gdb` and `lldb` can show Verse names. This is a secondary path.
@@ -339,7 +339,7 @@ debugger.
 Both requests answer in the shapes above: `verse/goto` with a `stopped` event,
 `verse/history` with a list of events from the vocabulary.
 
-The language server ([16](../language/16-tooling.md), `verse lsp`) shows
+The language server ([spec §16](../language/16-tooling.md), `verse lsp`) shows
 ownership state and inferred types inline. It uses the same compiler queries,
 not DAP.
 

@@ -74,6 +74,7 @@ segment:
 | not a keyword, not `verse`, `prelude`, `generated`, `vendor` | they already mean something |
 | not a standard library module name (`fs`, `json`, `http`, …, spec §15.2) | `import json` always means the standard library (spec §12.2) |
 | not a prelude name (`print`, `args`, …) | an import of it would hide the prelude name (spec §3.9) |
+| not a capability name (`clock`, `net`, …) | `verse why` tells a package from a capability by its name ([19 §19.4](../reference/cli-and-manifest.md#194-verse-why)) |
 | reserved first-party names: `finance`, `ml`, `web`, `gui`, `iot` (Fact: P6-1, spec §16.3) | published only by the Verse project |
 | no name that differs from an existing one only by `_` or by one of `0`/`o`, `1`/`l` | confusable names are a supply-chain attack (registry rule, Decision) |
 | first come, first served, never reused after deletion | a name always means the same package |
@@ -193,7 +194,7 @@ other change bumps the patch), as in Cargo (Decision).
 invisible to a diff. The computed bump is a minimum; the author can always
 choose a larger one. The registry shows both "declared" and "computed".
 
-Message (wording as in [16-diagnostics-catalog.md](../reference/diagnostics-catalog.md#v08xx-packages-and-api)):
+Message (wording as in [16](../reference/diagnostics-catalog.md#v08xx-packages-and-api)):
 
 ```
 error: version 1.4.0 is too small for these changes; publish as 2.0.0
@@ -528,7 +529,7 @@ safe by construction. Running its tests is not, and `verse test` runs only
 the root's tests unless `--deps` is given.
 
 **Messages.** Codes and wording are those of
-[16-diagnostics-catalog.md](../reference/diagnostics-catalog.md#v08xx-packages-and-api).
+[16](../reference/diagnostics-catalog.md#v08xx-packages-and-api).
 Each block shows its code on the last line, as in
 [16 §16.4](../reference/diagnostics-catalog.md#164-how-a-code-is-shown).
 

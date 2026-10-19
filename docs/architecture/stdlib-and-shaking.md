@@ -198,7 +198,7 @@ directly, outside this table ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 | Capability | Typical source in the library | Runtime slice ([05 §5.1](runtime.md#51-feature-slices)) | Example target without it |
 |------------|-------------------------------|----------------------------|---------------------------|
-| `stdio` | `print`, `input` (prelude), `io`, error reports of a failed top-level `?` | `sys-stdio` (named `sys-stdout` in 05's prose; see §6.13) | a headless board without UART console |
+| `stdio` | `print`, `input` (prelude), `io`, error reports of a failed top-level `?` | `sys-stdio` | a headless board without UART console |
 | `fs` | `fs` | `sys-fs` | `wasm32-unknown-unknown`, Cortex-M |
 | `net` | `net`, `http` | `sys-net` | Cortex-M without a network stack |
 | `clock` | `time` | `sys-clock` | none planned |
@@ -207,8 +207,8 @@ directly, outside this table ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 | `os` | `os` | `sys-os` | WASI, browser, microcontrollers |
 | `env` | `env`, the prelude `env`, `args` | `sys-env` | microcontrollers (empty `args`) |
 | `gpio`, `uart`, `i2c`, `spi` | IoT packages | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | desktop targets |
-| `surface` (windows, input, drawing) | GUI package | *none in 05 yet* (Proposal P6-6) | servers, microcontrollers |
-| `gpu` (compute) | ML package | *none in 05 yet* (Proposal P6-6) | most targets |
+| `surface` (windows, input, drawing) | GUI package | `sys-surface` (P6-6) | servers, microcontrollers |
+| `gpu` (compute) | ML package | `sys-gpu` (P6-6) | most targets |
 
 Non-capability slices are selected by MIR facts rather than by capabilities:
 
@@ -230,8 +230,8 @@ replays and test output is deterministic.
 
 ## 6.6 `verse build --size-report`
 
-Proposal P6-4 adds the flag to the spec's tool table (§16); 01 and 11 already
-plan it (M2). The report is generated from the `included` map of §6.4, so it
+The flag is in the spec's tool table (§16) and is planned for M2
+([roadmap](../roadmap.md)). The report is generated from the `included` map of §6.4, so it
 explains every item by construction.
 
 ### Format
@@ -472,7 +472,7 @@ finance package API is not designed yet.)
 | R-1 | **Generic libraries are monomorphized in the consumer.** A library of unannotated functions is compiled once per concrete type, in every program that uses it | compile time and code size grow with use ([09](performance.md), P6) | identical code folding; the size report shows instance counts; library authors can annotate concrete types where specialization does not pay |
 | R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | pure-Verse kernels, a `gpu` capability proposal (P6-6), and BLAS-like libraries through a plugin ([07](plugins.md)) |
 | R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (P6-6); a pure-Verse widget library on top; the web target uses `std-web` |
-| R-5 | **Names of first-party packages** | the rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1); 07's example uses `gui` |
+| R-5 | **Names of first-party packages** | the rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1) |
 | R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](plugins.md#71-what-a-plugin-is)); there are no transforming plugins |
 | R-7 | **`print` pulls in `stdio` and the failed-`?` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `?` prints (spec §12.5) | acceptable; the report shows why |
 | R-8 | **Test builds and fakes** | capability fakes must not leak into release builds | fakes live in a test-only slice selected only in `verse test` |
@@ -483,32 +483,10 @@ These touch the spec (§12, §15, §16) or package naming, and all seven are acc
 
 | # | Proposal | Touches | Recommendation |
 |---|----------|---------|----------------|
-| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a standard library module (HTTP serving stays `http.serve`; `web` adds routing and templates on top). 07's example uses `gui` | spec §15 (a short paragraph listing first-party packages), 07 | ruled |
+| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a standard library module (HTTP serving stays `http.serve`; `web` adds routing and templates on top) | spec §15 (a short paragraph listing first-party packages) | ruled |
 | P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
 | P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
-| P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are already planned (01, 11 M2, 08 `size_report`) |
+| P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are in the §16 tool table and planned for M2 |
 | P6-5 | **Eager capability check before running** (`verse --deny net app.vs`, `verse check --target T`) based on reachability, so a missing or denied capability fails before execution in every tier | spec §16 (flags), 04, 08 | accept; it keeps script and compiled modes failing the same way |
 | P6-6 | **New capabilities `surface` and `gpu`** with runtime slices `sys-surface` and `sys-gpu` | 05 §5.1, §5.6, later the GUI and ML packages | accept as names now; design in M9 |
 | P6-7 | **Per-target module variants without conditional compilation.** The spec has no `cfg`-style syntax. A package that needs different code per target selects files by the target's capabilities in `[library.targets]`, never by annotations in source (consistent with 07 §7.1: no new syntax) | spec §16.3, 07 | accepted: per-target code is chosen by files and manifest data, never by `cfg`-style syntax |
-
-## 6.13 Inconsistencies noticed while writing this document
-
-Each item is **fixed** in the named file.
-
-1. [05 §5.1](runtime.md#51-feature-slices) says a hello world links
-   "`core` and `sys-stdout`", but the slice table has no `sys-stdout` row and
-   [05 §5.6](runtime.md#56-the-sys-capability-interface) calls the
-   capability `stdio`. This document uses `stdio` / `sys-stdio`.
-2. 05 §5.1 lists `Channel` in the `tasks` slice; the spec now has
-   `Sender<T>` and `Receiver<T>` created by `Channel.new<T>()` (spec §11.4).
-3. [04 §4.2](backends-and-targets.md#42-target-matrix) uses platform
-   runtime names (`std-os`, `std-wasi`, `std-web`, `std-embedded`) while 05 §5.1
-   uses feature slices (`core`, `unwind`, `tasks`, `sys-*`). How the two
-   axes combine (a platform layer per target, feature slices within it) is not
-   written down.
-4. [02 §2.6](compiler-architecture.md#26-monomorphization) and ADR-0004
-   speak of `dyn Trait`; the spec has no `dyn` keyword (trait names used as
-   types, §10.3). 02 §2.6 also uses `UInt64`, which is not a spec type name
-   (sized integers live in `math`, names unspecified).
-5. [03 §3.2](ir-and-passes.md#32-hir-the-desugared-core) writes the
-   `with` form as `with x = e as y`; the spec form is `with e as y` (§13).

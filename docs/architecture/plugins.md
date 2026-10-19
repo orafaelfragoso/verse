@@ -249,7 +249,7 @@ its library exists for that target.
 | microcontrollers | static only |
 
 `verse check --target <T>` reports every reachable call into a plugin that
-`T` cannot provide, before anything is built (V1005, or V0902 for a plugin
+`T` cannot provide, before anything is built (V1005, or V1012 for a plugin
 whose `targets` list leaves `T` out).
 
 ## 7.9 Diagnostics
@@ -268,6 +268,7 @@ covers plugins and `extern`:
 | V1009 | the `build` command failed |
 | V1010 | `take` on an `extern` parameter |
 | V1011 | script mode found only a static library |
+| V1012 | a plugin whose `targets` list leaves out the target |
 
 A dependency that declares `path` or `build` is V0834. A null `Pointer` result
 is the panic R0014.

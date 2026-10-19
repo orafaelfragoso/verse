@@ -1,9 +1,7 @@
 ## 18. Design notes
 
-Most of Verse's surface syntax — function and type declarations, `match`,
-error types, optionals, modules, tests, and so on — was settled in the design
-discussion and then refined in review passes. This section records the
-remaining decisions, and why.
+Most of Verse's surface syntax (function and type declarations, `match`,
+error types, optionals, modules, tests) is described in the chapters above. This section records the remaining decisions, and why.
 Each follows the same tests: *Does it read like prose? Is there exactly one
 reading? Is the safe behavior the default?*
 
@@ -51,10 +49,10 @@ with `Bool` operands (no `&&`, `||`, `!`, and no truthiness). The fallback
 operator is a separate word, `otherwise`, which applies only to optional and
 fallible values. Error and union types are written with `|`.
 
-**Why:** An early draft let `or` mean both "boolean or" and "fallback",
-resolved by the type of the left operand. It was unambiguous to the compiler
-but not always to a reader: in `a or b` you had to know the type of `a` to know
-which operation you were looking at. Giving each idea its own word removes the
+**Why:** One `or` for both "boolean or" and "fallback", resolved by the type
+of the left operand, would be unambiguous to the compiler but not always to a
+reader: in `a or b` you would have to know the type of `a` to know which
+operation you were looking at. Giving each idea its own word removes the
 guesswork: `or` is always logic, `otherwise` is always a fallback, and
 `find_user(id).email otherwise "no email"` reads as a sentence. Using `|`
 for fallible types (`Int | Error`) frees `or` from type position too and
@@ -110,8 +108,8 @@ written **before** the loop, `outer: for row in grid`, and used as
 `break outer` / `continue outer`. No `do-while`, no C-style `for`, no separate
 infinite-loop keyword (`while true`).
 
-**Why:** `for … in` covers almost all loops; `while` covers the rest. An
-earlier draft wrote labels as `for row in grid as outer`, but `as` elsewhere
+**Why:** `for … in` covers almost all loops; `while` covers the rest. A label
+written as `for row in grid as outer` would misuse `as`, which elsewhere
 (`with x as y`, `import m as n`) names the thing on its *left*, whereas a loop
 label names the loop. A leading `outer:` uses the colon in its "is named"
 sense (§1.2), reads like a heading, and is what readers of other languages
@@ -147,8 +145,7 @@ reader has to watch. The price is that without a declaration keyword,
 identical. Without it, the rule is simple (an existing name can only be
 reassigned, and only if it is `mut`), each name means one thing for the whole
 function, and the typo warning catches the main risk of binding by writing,
-a misspelt assignment that silently creates a new name. Earlier drafts
-allowed an inner block to shadow an outer name; that rule is superseded.
+a misspelt assignment that silently creates a new name.
 
 ### 18.10 Why no garbage collector
 
@@ -233,8 +230,8 @@ functions, building results) never mentions ownership at all.
   pattern recovers the specific type.
 - **Patterns.** `match` on a union uses typed patterns (`n: Int`,
   `err: Error`) at the top level only; inside parentheses `name: pattern` is
-  always a field. `p?` matches a present optional, replacing the earlier
-  `if let` form (removed, as is `let` itself, §18.9). A catch-all lowercase
+  always a field. `p?` matches a present optional. There is no `if let`,
+  and no `let` (§18.9). A catch-all lowercase
   arm that is not last makes later arms an *unreachable arm* error.
 - **No `?.` operator; the consumer decides.** A plain dot looks through an
   optional only when the chain is immediately consumed by `otherwise`, a
@@ -266,12 +263,11 @@ value whose type implements `Cleanup`, so a fallible acquisition is written
 with an explicit `?`:
 `with open("log.txt")? as file`.
 
-**Why:** An earlier draft let `with` perform the `?` check implicitly. Review
-rejected it: §1 and §8 promise that every early exit is marked with `?` or
-`return`; `with` is also used for infallible things (`counter.lock()`), so the
+**Why:** Letting `with` perform the `?` check implicitly was rejected. §1
+and §8 promise that every early exit is marked with `?` or `return`; `with` is also used for infallible things (`counter.lock()`), so the
 word itself does not signal failure; and an implicit check would make `with`
 mean "cleanup" or "cleanup plus propagation" depending on the type — the same
-two-meanings-by-type problem that was removed from `or`. The cost is one
+two-meanings-by-type problem that §18.4 avoids for `or`. The cost is one
 character.
 
 ### 18.13 Concurrency details

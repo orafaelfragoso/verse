@@ -1,4 +1,4 @@
-# Architecture 20. First-party packages
+# 20. First-party packages
 
 Status: **draft 1, every signature is a sketch
 (non-normative)**. Nothing here is designed in detail or implemented; the
@@ -459,9 +459,8 @@ On a board, `print` goes to the UART console if the target grants `stdio`.
 
 An interrupt handler inside the runtime only records the event and wakes the
 receiving task on the cooperative executor (05 §5.3). User code never runs in
-interrupt context, so it can use the whole language, and "may not block"
-(05 §5.7) is enforced by construction (Decision, agreed as P20-5; 05's "handlers written in Verse" is
-still to align).
+interrupt context, so it can use the whole language (Decision, P20-5;
+05 §5.7).
 
 ### No-heap notes
 
@@ -487,7 +486,7 @@ applies to this program.
 |---|----------|---------|----------------|
 | P20-1 | `finance` offers only `Calendar.named(text)`; no one-function-per-calendar form | one obvious name (§1.4), 06 | ruled: keep only `named`; measure table sizes in M9 |
 | P20-2 | `Money` does not implement `Add`/`Sub`; mixing currencies is an error value from `add`/`sub` | spec §10 operator traits | agreed |
-| P20-3 | `ml` model loading: a `generator` that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | spec §16.6, 06 | agreed; the generated file is visible and committed like any generator output (spec §16.6); file format chosen in M9 |
+| P20-3 | `ml` model loading: a generator package that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | spec §16.6, 06 | agreed; the generated file is visible and committed like any generator output (spec §16.6); file format chosen in M9 |
 | P20-4 | `gui` uses the message model (Elm architecture); long work runs as tasks whose results return as messages | `gui` API, spec §11 | agreed |
 | P20-5 | `iot` interrupts only wake tasks; no user code runs in interrupt context | 05 §5.7 | agreed |
 | P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in the standard library, since `iot` and `net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in the standard library; channel sizing still open |
@@ -496,9 +495,5 @@ applies to this program.
 
 ## 20.8 Conflicts with other documents
 
-1. [05 §5.7](runtime.md#57-embedded-profile) registers interrupt handlers
-   "through the `gpio` or `timer` capability", but neither [05 §5.1](runtime.md#51-feature-slices)
-   nor §5.6 has a `timer` capability or slice. This document uses `clock` for
-   timers.
-2. The spec gives `http.serve` and `Response.body` no signatures (§15.2),
+1. The spec gives `http.serve` and `Response.body` no signatures (§15.2),
    so every `web` example depends on an assumed `serve(port:, handler:)`.

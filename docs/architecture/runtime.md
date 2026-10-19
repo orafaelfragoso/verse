@@ -118,7 +118,7 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes
   standard output and error. A code outside 0 to 255 is a panic, R0013, on every
   platform. A program that needs its cleanups returns from `main` or ends with a
-  failed `?` ([15 §15.8.1](target-and-abi.md#1581-statuses); ruled, final).
+  failed `?` ([15 §15.8.1](target-and-abi.md#1581-statuses)).
 
 ## 5.4 Panics and unwinding
 
@@ -133,7 +133,7 @@ MIR has explicit unwind edges. Each backend chooses how to realize them:
 | native with `unwind = "native"` | DWARF unwind tables and a personality routine in `verse-rt` |
 | Wasm with exception handling | `try_table` and `throw` |
 | Wasm without it, and embedded | the compiler emits a status check after calls that can unwind and branches to the cleanup block (zero cost on the success path except the check) |
-| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification and rejected unless the program has no `Cleanup` types in scope of any panic site. Panics clean up on every target, and `abort` is allowed only when the compiler proves no `Cleanup` value is live at any panic site; otherwise the build fails. An `abort` build also fails with V0910 when a `spawn` is reachable, because a task's panic could not reach its waiter ([15 §15.7.6](target-and-abi.md#1576-the-abort-profile-and-unreachable)) |
+| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification. Panics clean up on every target, and `abort` is allowed only when the compiler proves no `Cleanup` value is live at any panic site; otherwise the build fails. An `abort` build also fails with V0910 when a `spawn` is reachable, because a task's panic could not reach its waiter ([15 §15.7.6](target-and-abi.md#1576-the-abort-profile-and-unreachable)) |
 
 Panic output is a structured record first (message, task, source span, stack),
 rendered as text for humans and emitted as JSON when `VERSE_PANIC=json` or when

@@ -14,4 +14,4 @@ were accepted on 2026-10-18.
 | [0006](0006-debugging-over-dap.md) | Debugging over DAP, with record and replay | accepted (2026-10-18) |
 | [0007](0007-task-model.md) | One task semantics, three native lowerings and VM tasks | accepted (2026-10-18) |
 | [0008](0008-tiered-execution.md) | Bytecode VM first, Cranelift second, LLVM for release | accepted (2026-10-18) |
-| [0009](0009-cargo-disk-budget.md) | Cargo disk budget: pinned toolchain, trimmed profiles, size cap | accepted (2026-10-19) |
+| [0009](0009-cargo-disk-budget.md) | Cargo disk budget | accepted (2026-10-19) |

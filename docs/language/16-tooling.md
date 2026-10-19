@@ -14,7 +14,7 @@ manager.
 | `verse build` | build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle |
 | `verse build --size-report` | build, and list every included item with its size and why it was included |
 | `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`http.get`), the chain of uses from the program's entry statements; for a file path (`generated/items/item.vs`), the `verse generate` entry that wrote it |
-| `verse --deny <capability> file.vs` | run, refusing a system capability named after its standard library module (`net`, `fs`, `process`, `os`, …); a program that can reach it fails before it starts |
+| `verse --deny <capability> file.vs` | run, refusing a system capability (`net`, `fs`, `process`, `os`, …); a program that can reach it fails before it starts |
 | `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `fs` on a browser WebAssembly target, for example) |
 | `verse generate [name]` | run the generators listed in `verse.toml` (§16.6) |
 | `verse bind <header.h>` | write a `.vs` file with an `extern` block for a C header (§12.6) |

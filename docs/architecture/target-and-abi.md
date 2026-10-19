@@ -682,7 +682,7 @@ Nothing in this document applies beyond the unwinding and exit rules.
 
 ### 15.6.4 Stack bounds and overflow
 
-**Decision** (P15-23; amends 05 §5.3). A guard page fault cannot run cleanup, because the cleanup blocks need
+**Decision** (P15-23). A guard page fault cannot run cleanup, because the cleanup blocks need
 stack that is exhausted, and a signal handler cannot unwind arbitrary frames
 safely. So **every compiled target uses an explicit check**:
 
@@ -841,12 +841,12 @@ function that unwinds is undefined behaviour ([07 §7.5](plugins.md#75-ownership
   process with status 101. It is allowed only when no `Cleanup` value is live
   at any panic site (V0908 otherwise). Under `abort` a panic in a non-main
   task cannot become `TaskPanicked` at `.wait()`, so an `abort` build **also
-  fails with V0910 when a `spawn` is reachable** (ruled; P15-4 is closed).
+  fails with V0910 when a `spawn` is reachable** (P15-4).
 - **`unreachable`** (13.4) and an internal runtime error are **traps**: native
   code executes the architecture's trap instruction, Wasm executes `unreachable`,
   the VM stops with a bug report ([14.4](bytecode-and-vm.md#144-instruction-set-and-encoding)). No cleanup runs. Where the runtime is the cause (a
   runtime trap, an internal error, `unreachable`, a VM `TRAP`, a failed run-time
-  capability re-check), the exit status is **3**, "a bug in Verse" ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses); P15-16 is closed). A host trap that Verse cannot control (an
+  capability re-check), the exit status is **3**, "a bug in Verse" ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses); P15-16). A host trap that Verse cannot control (an
   engine's own call-stack limit, a kill signal) keeps the status the host gives.
 
 ## 15.8 Exit codes
@@ -872,7 +872,7 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 | `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) | fact |
 | host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 | assumption |
 
-**`exit(code)`** (ruled, final; P15-13; spec §12.5 and §15.1). It ends the
+**`exit(code)`** (P15-13; spec §12.5 and §15.1). It ends the
 program **immediately**, from any task: it runs **no `Cleanup`**, does not
 cancel the other tasks, never raises R0009, flushes standard output and
 standard error, writes the `debug` end event, and delivers `code`. A code
@@ -1227,7 +1227,7 @@ spi = true
 
 A target file is checked when it is loaded; a violation is a build error with
 a message naming the key. The codes are V0911 to V0915 of the V09xx family of
-[16](../reference/diagnostics-catalog.md#162-families) (P15-11, closed); the meanings
+[16](../reference/diagnostics-catalog.md#162-families) (P15-11); the meanings
 below are those of 16. Like any source error, each ends the run with status 2.
 
 | Rule | Code | Reason |
@@ -1353,8 +1353,7 @@ reaches the provider and the documentation.
 Notes:
 
 - The capability names are those of 05 §5.6 and 06 §6.5. There is no `timer`
-  capability: where 20 says "`gpio` or `timer`", the capability is `clock`
-  (20's own note on this).
+  capability; timers use `clock`.
 - A **detail** never changes the call signature of an operation: `fs =
   "preopened"` makes `open` of a path outside the preopens return an `Error`
   value, not a build error. What the target cannot do at all is the build
@@ -1442,15 +1441,10 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
 3. **[03 §3.5](ir-and-passes.md#35-layout-rules)** gives `Text` only for 64-bit
    targets; 15.3.3 adds a 12-byte 32-bit header. It also leaves record order
    to "minimize padding"; L4 fixes the algorithm.
-4. **[05 §5.4](runtime.md#54-panics-and-unwinding)** lists `abort` as a
-   mechanism with no mention of task isolation (15.7.6).
-5. **[06 §6.5](stdlib-and-shaking.md#65-capabilities-and-runtime-slices)**
-   notes that `sys-stdio` is `sys-stdout` in 05's prose; this document uses
-   `sys-stdio`.
 
 ## 15.14 Open items
 
-Open proposals and questions. The prefix `P15` is new; the ids are
+Open proposals and questions. The ids are
 this document's.
 
 | # | Question or proposal | Touches | Recommendation |

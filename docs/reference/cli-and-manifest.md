@@ -1,4 +1,4 @@
-# Architecture 19. CLI, manifests and package manager
+# 19. CLI, manifests and package manager
 
 Status: **draft 1**. This is the implementable reference for
 the `verse` commands that manage projects, and for the three files a project
@@ -15,7 +15,7 @@ Related documents: [06](../architecture/stdlib-and-shaking.md) (reachability, si
 `[library]`), [07](../architecture/plugins.md) (native plugins), [02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)
 (cache), [04 §4.3](../architecture/backends-and-targets.md#43-what-a-target-is) (target
 files), [20](../architecture/first-party-packages.md) (the first-party packages), and
-[16-diagnostics-catalog.md](diagnostics-catalog.md), and
+[16](diagnostics-catalog.md) (diagnostics), and
 [08](../architecture/debugging.md) (the debugger). The codes shown below are in
 16, and their long forms are read with `verse explain`
 ([16 §16.5](diagnostics-catalog.md#165-verse-explain)).
@@ -118,8 +118,8 @@ apart. The table is the one of
 |--------|---------|
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
-| 2 | `verse check` or `build`, or running a file, found errors in the source, a capability check failed (V0901, V0902), or the command line names no command (V1101), so the program did not start |
-| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused |
+| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1) |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
 | 70 | a deadlock (R0008) |
 | 101 | a panic |
 | *code* | the program called `exit(code)`; `code` is 0 to 255, it runs no `Cleanup`, and it is never changed (spec §12.5) |
@@ -292,7 +292,7 @@ entry  = "src/board.vs"   # a different entry file for this target
 |-----|------|---------|---------|
 | `default` | target name | `"host"` | |
 | `check` | list of target names | `[default]` | `verse check` checks every listed target ([06 §6.8](../architecture/stdlib-and-shaking.md#68-per-target-constraints)) |
-| `<target>.heap` | size | target file's value | replaces 05 §5.7's `[embedded] heap` (P19-4) |
+| `<target>.heap` | size | target file's value | the embedded heap of 05 §5.7 (P19-4) |
 | `<target>.no_heap` | bool | `false` | |
 | `<target>.entry` | path | `src/main.vs` | the per-target choice is a file, not a condition in source (P6-7) |
 | `<target>.files` | map of module path to file | `{}` | module variants for that target (P6-7); each variant must produce the same `verse.api` |
@@ -444,16 +444,11 @@ registry (V0833, 21 §21.3).
 | P19-1 | New commands: `verse lock` (`--check`), `verse vendor`, `verse yank`, `verse api diff`, `build --verify-reproducible`; global `--offline`, `--locked`, `--frozen`, `--json` | spec §16 tool table | agreed |
 | P19-2 | The `verse.toml` reference of §19.3: `[package]` keys (`authors`, `repository`, `readme`, `include`), dependency forms (`registry`, `path`, git `tag`/`rev`, no `branch`, no unbounded ranges), `[plugins]`, `[generate]`, `[tool]`, `[targets]`, `[profile.*]`, `[run]`, `[build]`, `[test]`, `[workspace]`; unknown keys are errors | spec §16.3 | agreed |
 | P19-3 | `[capabilities] grant` for applications: the build fails if reachability finds an ungranted capability | spec §16.3, 06 §6.8 | agreed; it uses the word *grant* |
-| P19-4 | `[targets.<t>] heap` replaces 05 §5.7's `[embedded] heap` | 05 | agreed, per target |
+| P19-4 | The embedded heap of 05 §5.7 is set per target, as `[targets.<t>] heap` | 05 | agreed |
 | P19-5 | No `[features]` in 0.1; if needed later, only named sets of optional dependencies, never source conditions | spec §16.3, P6-7 | agreed |
 | P19-6 | Adding a defaulted parameter is a major change, because it changes the function type. Alternative: minor, and function-value uses of library functions get a lint | versioning, spec §4.7 | agreed: **major** (a changed function type is a changed promise) |
 | P19-7 | Security advisories in the index, shown by `verse update`; two-maintainer approval for first-party releases | registry | agreed |
-| P19-8 | `verse why` also accepts a package name or a capability, distinguished by form (items and paths are already spec §16) | spec §16 | agreed; wording in §19.4 (two openers, answer is a chain) |
+| P19-8 | `verse why` also accepts a package name or a capability, distinguished by form (items and paths are already spec §16) | spec §16 | agreed; wording in §19.4 (one opener per kind of argument, answer is a chain) |
 | P19-9 | Package names are `[a-z][a-z0-9_]*` | spec §16.3 | agreed |
 | P19-10 | Minimal version selection, with lock entries as extra minimums | spec §16.3 ("a single version per major") | agreed |
 | P19-11 | Libraries commit `verse.lock` too (used for their own tests, ignored by dependents) | spec §16.3 says "committed for applications" | agreed |
-
-## 19.7 Conflicts with other documents
-
-1. **[05 §5.7](../architecture/runtime.md#57-embedded-profile)** puts the heap size in an
-   `[embedded]` section; this document puts it per target (P19-4).
