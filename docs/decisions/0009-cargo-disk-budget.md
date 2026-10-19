@@ -1,6 +1,6 @@
 # ADR-0009: Cargo disk budget
 
-Status: proposed (2026-10-19). The 15 GiB cap is an estimate. Re-measure after the first full build of the workspace.
+Status: accepted (2026-10-19). The 15 GiB cap is an estimate. Re-measure after the first full build of the workspace.
 
 ## Context
 
