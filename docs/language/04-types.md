@@ -469,7 +469,7 @@ user.age = 31                     # error: `user` is not `mut`, so `user.age` ca
 
 mut guest = User(name: "Guest", age: 0)
 guest.age = 18                    # fine
-guest = User(name: "Other", age: 5)   # fine; the old guest is freed
+guest = User(name: "Other", age: 5)   # fine; the old guest is dropped
 ```
 
 ```
