@@ -51,7 +51,9 @@ ci: require the pr-title check on main
    issue (`Closes #12`). **What changed** lists the changes a reviewer
    cannot see at a glance. **Verification** lists the commands you ran and
    what they printed.
-4. Squash merge is the only merge method. History on `main` stays linear, one
+4. Label it like an issue: one type label, the `area:` labels it touches,
+   and the milestone of the issue it closes.
+5. Squash merge is the only merge method. History on `main` stays linear, one
    commit per pull request, so `git log`, `git bisect` and `git revert` all
    work on whole changes.
 

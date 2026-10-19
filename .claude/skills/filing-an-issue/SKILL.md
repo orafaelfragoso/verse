@@ -1,6 +1,6 @@
 ---
 name: filing-an-issue
-description: Covers how to file a Verse issue. Choosing the Bug, Design proposal or Task form, writing observable acceptance criteria, labels (one type label, `area:` labels, `status:needs-design`, `status:ready`, `status:blocked`, `good first issue`), milestones M0 to M9 from docs/roadmap.md, `gh issue create` with labels and milestone, and splitting a roadmap milestone into issues. Use when opening, triaging or labeling an issue, running `gh issue create` or `gh issue edit`, planning a milestone, or deciding whether an issue is ready to start.
+description: Covers how to file a Verse issue. Choosing the Bug, Design proposal or Task form, writing observable acceptance criteria, labels (one type label, `area:` labels, `status:needs-design`, `status:ready`, `status:blocked`, `good first issue`), milestones M0 to M9 from docs/roadmap.md, `gh issue create` with labels and milestone, linking related issues, and splitting a roadmap milestone into issues. Use when opening, triaging or labeling an issue, running `gh issue create` or `gh issue edit`, planning a milestone, or deciding whether an issue is ready to start.
 ---
 
 # Filing an issue
@@ -141,6 +141,35 @@ gh issue create \
 - Fix labels or the milestone later with
   `gh issue edit 12 --add-label status:ready --remove-label status:needs-design`
   and `gh issue edit 12 --milestone "M1: Script core"`.
+
+## Link related issues
+
+Before you file, search for open issues that touch the same docs:
+`gh issue list --search "<doc file or § number>"`. After you file, link
+the new issue to each related issue. When you file several issues at once,
+compare their Affected docs and Context sections pair by pair.
+
+Two issues are related when:
+
+- both change the same spec section, for example both rewrite 08 §8.3;
+- one deletes a section the other edits;
+- one proposal works only if the other is accepted.
+
+A shared file is not enough. Almost every design touches
+`docs/reference/diagnostics-catalog.md` and `docs/language/17-grammar.md`.
+Link two issues only when the same section or the same rule changes.
+
+Post one comment on each issue of the pair, and give the reason in each
+comment. A bare `#N` does not tell a reader what to decide together:
+
+```markdown
+Related:
+- #9: both rewrite 08 §8.2–§8.4 and 03 §3.8.2.
+- #6: this proposal edits 13 §13.2, which #6 deletes.
+```
+
+When one issue cannot start until another closes, it is not just related.
+Write `Blocked by #N` in its body and add `status:blocked` (see Labels).
 
 ## Splitting a milestone into issues
 
