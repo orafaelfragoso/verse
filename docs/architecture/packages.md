@@ -586,5 +586,5 @@ explain: V0804 (run `verse explain V0804`)
 - Network access is concurrent and limited to resolution and fetching; build,
   check and run never touch the network once the store is filled.
 - Targets (to measure in M5, none measured yet): `verse lock` on a warm cache
-  for a graph of 200 packages under 100 ms; `verse run` adds no measurable
+  for a graph of 200 packages under 100 ms; running a file adds no measurable
   time when the lock is current (it only compares the hash of `verse.toml`).

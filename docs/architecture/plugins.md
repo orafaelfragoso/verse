@@ -200,7 +200,7 @@ Other rules at the boundary:
 Both modes run the same checks, the same type mapping and the same machine
 code inside the library. Only the moment the library is attached differs.
 
-| | Script mode (`verse run`, tier 0) | Compiled mode (`verse build`) |
+| | Script mode (`verse app.vs`, tier 0) | Compiled mode (`verse build`) |
 |---|---|---|
 | when | before the first statement runs | at link time |
 | how | the VM opens the shared library (`dlopen`, `LoadLibrary`) and resolves each reachable symbol | the linker links the library, dynamically or statically per `link` |
@@ -212,8 +212,8 @@ code inside the library. Only the moment the library is attached differs.
   plugin with no reachable call is not loaded and not linked. The size report
   lists each linked plugin with the chain that reached it.
 - **Script mode needs a shared library.** A plugin with `link = "static"` must
-  also provide a shared build for `verse run`; with only a static file,
-  `verse run` stops with V1011. A Rust crate gets both with
+  also provide a shared build for script mode; with only a static file,
+  running the program stops with V1011. A Rust crate gets both with
   `crate-type = ["cdylib", "staticlib"]`.
 - **A failure to load is a start-up failure, never a late one.** Every
   reachable symbol is resolved before the first statement, in both modes, so a

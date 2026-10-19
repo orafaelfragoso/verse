@@ -14,7 +14,7 @@ the harness, and each target becomes a regression gate once it has a baseline.
 | Compile speed | `verse check` on 10k lines, cold | under 300 ms on 8 cores | M1 |
 | Compile speed | `verse check` after a one-line edit | under 30 ms | M1 |
 | Compile speed | `verse build` (Cranelift) 10k lines | under 2 s | M2 |
-| Startup | `verse run hello.vs`, warm cache | under 20 ms | M1 |
+| Startup | `verse hello.vs`, warm cache | under 20 ms | M1 |
 | Script speed | tier 0 on the benchmark suite | within 30x of optimized native, aiming at 10x to 20x | M1 |
 | Native speed | Cranelift tier | within 2x of the LLVM tier | M2 |
 | Native speed | LLVM tier | within 1.3x of equivalent Rust on the suite | M7 |

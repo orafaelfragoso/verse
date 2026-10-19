@@ -12,7 +12,7 @@ Build backends in this order: bytecode VM (M1), Cranelift (M2), Wasm (M3), LLVM
 - The VM is the cheapest way to get an end-to-end language and the best oracle
   for differential testing.
 - Cranelift compiles faster than LLVM, which keeps `verse build` and
-  `verse run --fast` pleasant.
+  `verse --fast app.vs` pleasant.
 - LLVM covers the targets Cranelift does not (32-bit ARM, 32-bit RISC-V,
   Xtensa) and gives the best release performance.
 

@@ -146,7 +146,7 @@ Spec §4.2 requires "specialized code for each concrete type used".
   code: it is one shared body instead of one copy per type.
 - **Script mode** instantiates **code** lazily at first call, so bytecode
   generation and optimization scale with what runs. **Decision:** before tier 0
-  starts, `verse run` performs a cheap whole-program **reachability pre-pass**
+  starts, running a file performs a cheap whole-program **reachability pre-pass**
   from the entry statements: it walks the generic MIR with type arguments
   substituted (resolving trait calls and vtable slots), builds no bytecode and
   runs no optimizer pass, and caches its result per module. The **capability
@@ -166,7 +166,7 @@ Spec §4.2 requires "specialized code for each concrete type used".
   and code generation.
 - **Persistent cache.** `.verse/cache/` stores parsed modules, signatures and
   object code keyed by `blake3(source, compiler version, flags, verse.api of
-  imports)`. `verse run` on an unchanged script skips straight to execution.
+  imports)`. `verse x.vs` on an unchanged script skips straight to execution.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.

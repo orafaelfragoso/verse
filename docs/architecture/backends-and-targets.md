@@ -4,8 +4,8 @@
 
 | Tier | Name | Used by | Compile cost | Run speed | Introspection |
 |------|------|---------|--------------|-----------|---------------|
-| 0 | **Bytecode VM** | `verse run`, `verse test`, `verse repl`, debugging | lowest: lazy, per function | baseline | full: every local, every step |
-| 1 | **Cranelift** | `verse run --fast`, hot-function JIT (later), `verse build --profile dev` | low | typically within 2x of optimized native (assumption) | DWARF plus Verse debug map |
+| 0 | **Bytecode VM** | running a file (`verse app.vs`), `verse test`, `verse repl`, debugging | lowest: lazy, per function | baseline | full: every local, every step |
+| 1 | **Cranelift** | `verse --fast app.vs`, hot-function JIT (later), `verse build --profile dev` | low | typically within 2x of optimized native (assumption) | DWARF plus Verse debug map |
 | 2 | **LLVM** | `verse build --release`, embedded and exotic targets | high | best | DWARF plus Verse debug map |
 | W | **Wasm emitter** | browser, WASI, edge, GUI on web | low | engine dependent | DWARF in `.debug_*`, source maps |
 
@@ -53,7 +53,7 @@ compiler with a different last stage, so they cannot drift apart semantically.
 - **No cross-backend divergence in semantics.** Overflow checks, bounds checks
   and panics are already in MIR as explicit control flow, so neither backend
   can quietly choose a different policy.
-- **Hot-function JIT** (Tier 0 to Tier 1 inside `verse run`) is deferred past
+- **Hot-function JIT** (Tier 0 to Tier 1 while a file runs) is deferred past
   the first stable release. It needs the call-count and type feedback that
   Verse mostly does not need, because the program is statically typed; the
   simpler path is to compile the whole script natively behind the cache when it

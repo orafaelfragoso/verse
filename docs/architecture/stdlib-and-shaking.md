@@ -108,7 +108,7 @@ may have removed further calls.
 
 | Build | Roots |
 |-------|-------|
-| Program (`verse build`, `verse run`) | the entry file's top-level statements. Verse has no `fn main` (spec §12.5); a function named `main` is reached only if the script calls it |
+| Program (`verse build`, `verse app.vs`) | the entry file's top-level statements. Verse has no `fn main` (spec §12.5); a function named `main` is reached only if the script calls it |
 | Tests (`verse test`) | every selected `test` block and doc test (spec §14), plus the module constants they read. Entry-file statements are *not* roots, because tests never run them (spec §12.4, §14.1) |
 | Library artifact (C ABI or Wasm component, [04 §4.4](backends-and-targets.md#44-linking-and-artifacts)) | every exported item, instantiated at the concrete types its exported signature names |
 | Generator output | not a root by itself: generated `.vs` files are ordinary modules, reached through imports like any other ([spec §16.6](../language/16-tooling.md#166-generators)) |
@@ -216,7 +216,7 @@ Non-capability slices are selected by MIR facts rather than by capabilities:
 | `core` | always (allocator, panic machinery, `Text`, `List`, `Map`, `Set` primitives) |
 | `unwind` | a reachable unwind edge runs a drop (a `Cleanup` call or a heap free) *and* the target's unwind strategy needs runtime support (`native`); with `status-code` the cleanup paths are ordinary code (Assumption, see [05 §5.4](runtime.md#54-panics-and-unwinding)) |
 | `tasks` | a `Spawn` terminator or a `std.task` primitive is reachable |
-| `debug` | debug builds, `verse run`, or an attached debugger ([08](debugging-and-mcp.md)) |
+| `debug` | debug builds, running a file, or an attached debugger ([08](debugging-and-mcp.md)) |
 
 Each target file declares which capabilities it provides
 ([04 §4.3](backends-and-targets.md#43-what-a-target-is)). After
@@ -368,7 +368,7 @@ The chain is the stored reason of each node, followed back to a root
 
 ### Script mode (tier 0)
 
-`verse run` must mean exactly what `verse build` means ([00](overview.md),
+`verse app.vs` must mean exactly what `verse build` means ([00](overview.md),
 principle 1). It differs only in *when* work happens:
 
 - The front end checks the entry file and every module it imports, directly
@@ -380,7 +380,7 @@ principle 1). It differs only in *when* work happens:
   cost scales with what runs.
 - Because imports have no side effects and constants are lazy (spec §12.4),
   loading lazily cannot change behaviour.
-- Capabilities are still checked: `verse run --deny net` refuses a program
+- Capabilities are still checked: `verse --deny net app.vs` refuses a program
   whose reachable code needs `net` before it starts (Proposal P6-5: check
   eagerly by running reachability on the program before execution, so a
   denied capability fails at start, not halfway through).
@@ -487,7 +487,7 @@ These touch the spec (§12, §15, §16) or package naming, and all seven are acc
 | P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
 | P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
 | P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are already planned (01, 11 M2, 08 `size_report`) |
-| P6-5 | **Eager capability check before running** (`verse run --deny net`, `verse check --target T`) based on reachability, so a missing or denied capability fails before execution in every tier | spec §16 (flags), 04, 08 | accept; it keeps script and compiled modes failing the same way |
+| P6-5 | **Eager capability check before running** (`verse --deny net app.vs`, `verse check --target T`) based on reachability, so a missing or denied capability fails before execution in every tier | spec §16 (flags), 04, 08 | accept; it keeps script and compiled modes failing the same way |
 | P6-6 | **New capabilities `surface` and `gpu`** with runtime slices `sys-surface` and `sys-gpu` | 05 §5.1, §5.6, later the GUI and ML packages | accept as names now; design in M9 |
 | P6-7 | **Per-target module variants without conditional compilation.** The spec has no `cfg`-style syntax. A package that needs different code per target selects files by the target's capabilities in `[library.targets]`, never by annotations in source (consistent with 07 §7.1: no new syntax) | spec §16.3, 07 | accepted: per-target code is chosen by files and manifest data, never by `cfg`-style syntax |
 

@@ -1,7 +1,7 @@
 ## 20. Complete example programs
 
 Each program below is a complete, runnable entry file. Run one with
-`verse run file.vs`; run its tests with `verse test file.vs`, which checks the
+`verse file.vs`; run its tests with `verse test file.vs`, which checks the
 functions and types but never runs the top-level program (§14.1) — so the
 tests below read no files, touch no network, and never call `exit`.
 
@@ -10,7 +10,7 @@ tests below read no files, touch no network, and never call `exit`.
 ```verse
 ## wordcount — show the most common words in one or more text files.
 ##
-## Usage: verse run wordcount.vs [--top N] FILE...
+## Usage: verse wordcount.vs [--top N] FILE...
 
 import std.fs
 
@@ -91,7 +91,7 @@ test "parse_args requires at least one file"
 Sample run:
 
 ```
-$ verse run wordcount.vs --top 3 poem.txt
+$ verse wordcount.vs --top 3 poem.txt
 112 words, 74 distinct, in 1 file
 
   1. the                       9
@@ -104,7 +104,7 @@ $ verse run wordcount.vs --top 3 poem.txt
 ```verse
 ## fetch — download several pages at once and report on each.
 ##
-## Usage: verse run fetch.vs [URL...]
+## Usage: verse fetch.vs [URL...]
 
 import get from std.net
 import TaskPanicked from std.task

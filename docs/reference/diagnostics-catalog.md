@@ -55,6 +55,7 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 | Packages and API | V08xx | `verse.toml`, `verse.lock`, `verse.api`, versions |
 | Capabilities and targets | V09xx | grants, targets, `--no-heap`, reachability |
 | Foreign calls | V10xx | `extern` blocks and plugins (07) |
+| Command line | V11xx | the arguments of `verse` itself |
 | Run time (panics) | R0xxx | overflow, bounds, division by zero, stack, memory (16.6) |
 | Internal | V99xx | a compiler bug; the message asks for a report |
 
@@ -249,6 +250,12 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V1010 | error | a foreign function cannot take `{x}` | Verse memory is never handed to foreign code | remove `take`; the argument is borrowed for the call | §12.6, 07 §7.4 |
 | V1011 | error | script mode needs a shared library for plugin `{name}` | only `{file}` was found | build a shared library as well as the static one | 07 §7.6 |
 
+### V11xx Command line
+
+| Code | Sev | Message | Label | Help | Rule |
+|------|-----|---------|-------|------|------|
+| V1101 | error | no command `{word}`; to run a file, write `{word}.vs` | | run `verse` with no arguments to see the commands | 19 §19.2.1 |
+
 ### V99xx Internal
 
 | Code | Sev | Message | Label | Help |
@@ -396,8 +403,8 @@ These are the others, so a script can tell the causes apart.
 |--------|---------|
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
-| 2 | `verse check`, `build` or `run` found errors in the source, so the program did not start. This includes a capability the target does not offer, found by the build-time check (15 §15.8.1) |
-| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, in `run` as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
+| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer, found by the build-time check (15 §15.8.1) |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
 | 70 | a deadlock (R0008) |
 | 101 | a panic (16.6) |
 

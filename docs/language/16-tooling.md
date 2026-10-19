@@ -6,14 +6,15 @@ manager.
 
 | Command | Purpose |
 |---------|---------|
-| `verse run file.vs [args…]` | compile (cached) and run a script or project |
+| `verse file.vs [args…]` | compile (cached) and run a script; arguments after the file go to the program |
+| `verse .` | run the package in the current folder from its entry file |
 | `verse test [path]` | run `test` blocks and doc tests; `--filter "name"`, `--watch` |
 | `verse fmt [path]` | format code in the one canonical style; `--check` for CI |
 | `verse check` | type-check without running; fast feedback for editors |
 | `verse build` | build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle |
 | `verse build --size-report` | build, and list every included item with its size and why it was included |
 | `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`std.net.get`), the chain of uses from the program's entry statements; for a file path (`generated/items/item.vs`), the `verse generate` entry that wrote it |
-| `verse run --deny <capability>` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
+| `verse --deny <capability> file.vs` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
 | `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `std.fs` on a browser WebAssembly target, for example) |
 | `verse generate [name]` | run the generators listed in `verse.toml` (§16.6) |
 | `verse bind <header.h>` | write a `.vs` file with an `extern` block for a C header (§12.6) |
@@ -26,6 +27,13 @@ manager.
 | `verse lsp` | language server for editors, including inline hints for inferred types |
 | `verse api update` | regenerate `verse.api`, the committed interface file of exported signatures (§16.4) |
 | `verse api check` | compare inferred exported signatures with `verse.api` (run by every build) |
+
+The first argument that is not a flag decides what `verse` does. If it ends in
+`.vs` or contains `/`, it is a path to run; any other word is a command, and a
+word that is no command is an error that says how to run a file. Flags for
+`verse` come before the path, and everything after the path is the program's
+`args`. `verse` with no arguments prints the commands. The full rule is in
+[19 §19.2.1](../reference/cli-and-manifest.md#1921-running-a-file).
 
 ### 16.1 The formatter
 
@@ -178,8 +186,8 @@ export type Item
     title: Text
 ```
 
-- **Only `verse generate` runs a generator.** `verse run`, `build`, `check`
-  and `test` read the generated files and never run any code to make them,
+- **Only `verse generate` runs a generator.** Running a file, `build`,
+  `check` and `test` read the generated files and never run any code to make them,
   so building a project still runs no code from its dependencies (§16.3).
 - **Generated files are ordinary source.** They are committed, checked like
   any other file and imported like any other module. Ownership, exports and

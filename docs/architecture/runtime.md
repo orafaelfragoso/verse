@@ -38,10 +38,10 @@ holds `print` and `input`). That is a requirement of R6, and it is tested ([09](
   (`refcount-opt`, [03](ir-and-passes.md)). `Weak` uses a weak count.
 - **Cycles** through `Shared` and `Guarded` leak, as the spec says (§4.10). In
   debug builds the runtime can run a leak report at exit
-  (`verse run --leak-check`), which finds leaked cycles by scanning live
+  (`verse --leak-check app.vs`), which finds leaked cycles by scanning live
   allocations from roots. This is a diagnostic, not collection.
 - **Arenas** (index-based, in user code) need no runtime support.
-- **Memory limits.** `verse run --max-memory` is enforced by the allocator
+- **Memory limits.** `verse --max-memory <size> app.vs` is enforced by the allocator
   hook. Out of memory is a panic, with a report of the largest allocations in
   debug mode.
 
@@ -177,7 +177,7 @@ Reasons:
 2. **Reachability gets exact.** A program that never reaches `sys.net` links
    none of it, and the build can say which function pulled `net` in.
 3. **Denying is natural.** A Wasm host or a test harness can grant or deny
-   capabilities (and `verse run --deny net` becomes trivial). Foreign code in
+   capabilities (and `verse --deny net app.vs` becomes trivial). Foreign code in
    a plugin does not go through `sys`, so a denial does not reach it
    ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 4. **Testing.** Tests substitute fake capabilities (virtual clock, in-memory

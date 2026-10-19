@@ -14,7 +14,7 @@ items at the end are **proposals**.
 1. **Reference semantics** (**decision**, [ADR-0008](../decisions/0008-tiered-execution.md)).
    Where a compiled tier and the VM disagree, the VM is presumed right until the
    spec says otherwise. It is the oracle of [10 §10.3](testing-and-verification.md#103-differential-testing).
-2. **Script mode.** `verse run`, `verse test` and `verse repl` run here. Compile
+2. **Script mode.** Running a file (`verse app.vs`), `verse test` and `verse repl` run here. Compile
    cost is lazy and per function ([14.6](#146-calls-and-lazy-instantiation)).
 3. **Debug target.** Every debug session runs in the VM, live or by replay of a
    recording made by any tier ([08 §8.2](debugging-and-mcp.md#82-architecture)).
@@ -153,7 +153,7 @@ All three are explicit MIR control flow; the VM executes it.
 
 ## 14.6 Calls and lazy instantiation
 
-- **Before the first instruction**, `verse run` runs the reachability pre-pass
+- **Before the first instruction**, script mode runs the reachability pre-pass
   of [02 §2.6](compiler-architecture.md#26-monomorphization): no bytecode, no
   optimizer, cached per module. It yields the reachable instance keys with their
   `caps` and `mayyield` ([13.6](mir-specification.md#136-generic-mir-and-mono-mir)), and the capability check of
@@ -376,7 +376,7 @@ or cleared.
 | Breakpoint (line, function, condition, hit count, log point) | first word of a statement-boundary instruction replaced by `BREAK bp`; the original runs out of line, as in native debuggers; the pc comes from the span table, so it works in protos without marks; conditions use the pure evaluator | none | one trap per hit |
 | Break on event kind (`moved`, `overflowed`, `spawned`, `propagated`, ...) | the event table lists every pc of that kind; those are patched like breakpoints | none | one trap per matching pc |
 | Step (into, over, out, line, task) | step flag read by the instrumented loop; `line` uses `MARK` | none | one flag test per instruction |
-| `MARK` | present only in protos compiled for debugging (`debug_launch`, `verse run --debug`) | **not emitted**: zero | one dispatch and one load and branch per source line |
+| `MARK` | present only in protos compiled for debugging (`debug_launch`, `verse --debug app.vs`) | **not emitted**: zero | one dispatch and one load and branch per source line |
 | Watch (a place) | the instrumented loop compares the watched bytes after each store; a watch on a call's local ends when that call returns (`watch_changed`) | none | one compare per store |
 | Event stream and trace | instrumented loop reads the event table and writes events to the **separate** trace channel | none | per event |
 
@@ -424,7 +424,7 @@ adopted into 09.
 
 | Metric | Target | Source |
 |--------|--------|--------|
-| `verse run hello.vs`, warm cache, pre-pass included | under 20 ms wall time | 09 |
+| `verse hello.vs`, warm cache, pre-pass included | under 20 ms wall time | 09 |
 | reachability pre-pass, 10,000 reachable functions, cold module cache | under 50 ms; warm: under 5 ms | proposal |
 | tier 0 on the benchmark suite | within 30x of optimized native, aiming at 10x to 20x | 09 |
 | instructions executed per MIR statement, after fusion | 1.2 or fewer on average | proposal |
@@ -443,7 +443,7 @@ adopted into 09.
 |---|----------|----------------|
 | P14-1 | VM on one worker thread in 0.1? | Yes. Parallel tier-0 tasks add nothing the native tiers lack and break determinism. Revisit with M4 results |
 | P14-2 | A task that spins on `is_done()` never yields and starves the others | `is_done` and similar non-blocking polls act as `pause` once every N calls, logged as a `Pick`; no instruction-count preemption |
-| P14-3 | Capability check needs exact reachability (P6-5) but 02 §2.6 says script mode instantiates lazily | **Resolved** by the decision in [02 §2.6](compiler-architecture.md#26-monomorphization): `verse run` does a cheap reachability pre-pass (no code generation, no optimization), then the capability check, then lazy instantiation |
+| P14-3 | Capability check needs exact reachability (P6-5) but 02 §2.6 says script mode instantiates lazily | **Resolved** by the decision in [02 §2.6](compiler-architecture.md#26-monomorphization): script mode does a cheap reachability pre-pass (no code generation, no optimization), then the capability check, then lazy instantiation |
 | P14-4 | NaN payload and sign are hardware dependent, but 10 §10.3 says floats are bit-identical | **Closed**: canonicalise every NaN where bits can be observed (`to_bits`, hashing, byte serialization, `Show`); arithmetic is untouched |
 | P14-5 | Snapshots: fixed-address arena, or `fork()` where it exists | Fixed-address arena in the VM (works on Wasm hosts and under tests); `fork()` stays an optional accelerator |
 | P14-6 | Should the VM treat `DROPC` of a `Cleanup` type as a possible switch point? | **Closed**: yes, with the cancel mask of 14.8; 13.10 M7 |

@@ -325,7 +325,7 @@ compiler error, `V9902` ([16 §16.2](../reference/diagnostics-catalog.md#162-fam
 `{function}`" and whose primary span is the span of the offending line. In
 script mode a failure at the first call of an instance stops the run with that
 diagnostic before the instance executes, and the exit status is 3, a compiler
-bug ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)), in `run` as in `build`. Rule ids `V1`..`V24` are **not** diagnostic
+bug ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)), when running a file as in `build`. Rule ids `V1`..`V24` are **not** diagnostic
 codes (those are `V` plus four digits, [02 §2.8](compiler-architecture.md#28-diagnostics)).
 Rules V3 to V9 re-derive what the ownership pass decided; they are a safety net
 and the oracle for the soundness fuzzer ([10 §10.4](testing-and-verification.md)).
@@ -393,7 +393,7 @@ M11), or rewriting a `drop` of a type with no glue, is the optimizer's job, so
 that monomorphization stays a pure substitution and its output is predictable in
 golden tests.
 
-**Facts in script mode.** `verse run` instantiates code lazily
+**Facts in script mode.** Running a file instantiates code lazily
 ([02 §2.6](compiler-architecture.md#26-monomorphization)), so a callee is not
 yet compiled when its caller is. The reachability pre-pass computes, per
 instance key, the exact `caps(...)` and `mayyield` from the generic MIR with the

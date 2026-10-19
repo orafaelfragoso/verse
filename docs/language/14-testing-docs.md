@@ -16,7 +16,7 @@ test "slugify of empty text is empty"
 ```
 
 - A `test` block has a descriptive text name and an indented body.
-- `test` blocks are ignored by `verse run` and `verse build`, and compiled only
+- `test` blocks are ignored when a file runs and by `verse build`, and compiled only
   by `verse test`.
 - **`verse test` never runs the entry file's top-level statements.** Tests see
   the module's declarations (functions, types, traits, impls) and its

@@ -49,7 +49,7 @@ behaviour. Commands marked *new* are proposals (P19-1).
 | `verse generate [name]` | runs the `[generate]` entries (spec §16.6): empties `generated/<name>/` and runs the entry's tool | toml, lock, the inputs the tool reads | `generated/` | only if resolving |
 | `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
 | `verse api diff [ver]` *new* | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
-| `verse run`, `build`, `check`, `test` | read the lock; resolve only if it is missing or stale (and say so) | toml, lock | lock (only if stale) | only if resolving |
+| `verse app.vs`, `verse .`, `build`, `check`, `test` | read the lock; resolve only if it is missing or stale (and say so) | toml, lock | lock (only if stale) | only if resolving |
 
 Global flags, accepted by every command that may touch the network:
 `--offline` (never connect; use the cache and `vendor/`), `--locked` (fail
@@ -62,9 +62,54 @@ with [08](../architecture/debugging-and-mcp.md)). The shapes follow the rules an
 types of [17-mcp-tool-schemas.md](mcp-tool-schemas.md) (17.1, 17.2), and
 17 applies them to the package manager in [§17.8](mcp-tool-schemas.md#178-package-manager-tools) (P19-12, agreed).
 
-### 19.2.1 Exit statuses
+### 19.2.1 Running a file
 
-`verse run` ends with the status of the program it ran; every command that
+`verse app.vs [args…]` compiles `app.vs` (cached) and runs it in script mode.
+`verse .` runs the package in the current folder.
+
+**Dispatch rule.** The first argument that is not a flag decides what `verse`
+does. If it ends in `.vs` or contains `/`, it is a path to run. `.` is the
+current folder. Any other word is a command.
+
+| First argument | Example | What runs |
+|----------------|---------|-----------|
+| a path to a `.vs` file | `verse app.vs`, `verse tools/gen.vs` | that file, as the entry file (spec §12.5) |
+| a path to a folder | `verse .`, `verse apps/server/` | the package in that folder, from its entry file: `[targets.<t>] entry` of the default target, `src/main.vs` unless the manifest says otherwise (§19.3) |
+| a command | `verse build`, `verse test` | that command |
+| none | `verse` | nothing: it prints the commands and how to run a file, and exits with status 0 |
+
+A word that is not a command is an error, never a guess, even when a file
+with that name exists. It exits with status 2:
+
+```
+error: no command `foo`; to run a file, write `foo.vs`
+help: run `verse` with no arguments to see the commands
+explain: V1101 (run `verse explain V1101`)
+```
+
+**Arguments.** Flags for `verse` come before the path. Every argument after
+the path goes to the program unchanged, flags included, and the program reads
+them as `args` (spec §12.5). No `--` separator is needed.
+
+```
+verse --deny net wordcount.vs --top 3 poem.txt
+```
+
+Here `--deny net` is for `verse`, and `args` is `["--top", "3", "poem.txt"]`.
+
+| Flag | Effect |
+|------|--------|
+| `--deny <capability>` | refuse a capability; a program that can reach it fails before it starts (spec §16) |
+| `--fast` | compile with Cranelift and run natively instead of in the VM ([04](../architecture/backends-and-targets.md)) |
+| `--debug` | compile for a debugger ([14](../architecture/bytecode-and-vm.md)) |
+| `--leak-check` | report leaked `Shared` cycles at exit ([05](../architecture/runtime.md)) |
+| `--max-memory <size>` | cap the heap; running out is a panic ([05 §5.2](../architecture/runtime.md#52-memory)) |
+
+`[run]` in `verse.toml` sets defaults for these flags (§19.3).
+
+### 19.2.2 Exit statuses
+
+Running a file ends with the status of the program it ran; every command that
 reports a problem uses the statuses below, so a script can tell the causes
 apart. The table is the one of
 [16 §16.6.1](diagnostics-catalog.md#1661-exit-statuses) (Fact: spec §12.5);
@@ -74,8 +119,8 @@ apart. The table is the one of
 |--------|---------|
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
-| 2 | `verse check`, `build` or `run` found errors in the source, or a capability check failed (V0901, V0902), so the program did not start |
-| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, in `run` as in `build`, or a trap inside the runtime that Verse itself caused |
+| 2 | `verse check` or `build`, or running a file, found errors in the source, a capability check failed (V0901, V0902), or the command line names no command (V1101), so the program did not start |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused |
 | 70 | a deadlock (R0008) |
 | 101 | a panic |
 | *code* | the program called `exit(code)`; `code` is 0 to 255, it runs no `Cleanup`, and it is never changed (spec §12.5) |
@@ -215,7 +260,7 @@ args = ["schema/item.json"]
 
 What the program is granted. Absent means "whatever the target provides".
 Present means the build fails if reachability finds a capability outside the
-list; `verse run --deny` (spec §16) narrows it further for one run.
+list; `verse --deny <capability> app.vs` (§19.2.1) narrows it further for one run.
 
 ```toml
 [capabilities]
@@ -296,7 +341,8 @@ is part of every cache key (21 §21.10).
 ### `[run]`, `[build]`, `[test]`
 
 Defaults for command-line flags, so CI and people run the same thing.
-Command-line flags win.
+Command-line flags win. `[run]` applies when a file or the package runs
+(§19.2.1).
 
 | Section | Key | Type | Default |
 |---------|-----|------|---------|

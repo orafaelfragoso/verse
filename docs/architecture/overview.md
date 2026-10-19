@@ -24,7 +24,7 @@ stages:
   optimizes it, and works out exactly which functions, types and platform
   capabilities the program reaches.
 - The **last stage** is chosen by the command: a bytecode virtual machine for
-  `verse run` and debugging (tier 0), Cranelift for fast native builds
+  running a file and debugging (tier 0), Cranelift for fast native builds
   (tier 1), LLVM for release and microcontroller builds (tier 2), or a
   WebAssembly emitter (tier W).
 - The **runtime** is a Rust library split into *slices* (allocator, panics,
@@ -50,7 +50,7 @@ flowchart LR
         MMIR --> OPT["Optimizer"] --> REACH["Reachability +<br/>capabilities"]
     end
 
-    REACH --> T0["Tier 0: bytecode VM<br/>verse run, debugger, MCP"]
+    REACH --> T0["Tier 0: bytecode VM<br/>verse app.vs, debugger, MCP"]
     REACH --> T1["Tier 1: Cranelift<br/>x86-64, ARM64, RISC-V 64"]
     REACH --> T2["Tier 2: LLVM<br/>release, Cortex-M, ESP32"]
     REACH --> TW["Tier W: Wasm emitter<br/>WASI, browser"]
@@ -65,7 +65,7 @@ The full pipeline, with each stage's contract, is in
 
 | Req. | Requirement (short) | How it is met | Read more |
 |------|---------------------|---------------|-----------|
-| R1 | Runs as a script and can be compiled | `verse run` and `verse build` share everything up to mono MIR; only the last stage differs, so a script and its compiled binary cannot mean different things. Differential tests compare them. | [04 §4.1](backends-and-targets.md#41-tiers), [10](testing-and-verification.md) |
+| R1 | Runs as a script and can be compiled | Running a file and `verse build` share everything up to mono MIR; only the last stage differs, so a script and its compiled binary cannot mean different things. Differential tests compare them. | [04 §4.1](backends-and-targets.md#41-tiers), [10](testing-and-verification.md) |
 | R2 | Easy to target Wasm, native, ARM, x86, IoT | Targets are data files plus a platform layer; the front and middle ends never see a target triple. | [04 §4.2–4.3](backends-and-targets.md#42-target-matrix), [05 §5.6](runtime.md#56-the-sys-capability-interface) |
 | R3 | Extensible with native libraries | A plugin is a C-ABI library declared in `verse.toml` and called through `extern` blocks as plain calls. The VM loads it at start-up and the compiled tiers link it, with the same checks. Plugins never add syntax. Lints are built into the compiler, and generators are Verse packages run by `verse generate`. | [07](plugins.md), [ADR-0005](../decisions/0005-native-c-abi-plugins.md) |
 | R4 | Really fast | Arena data structures, per-function parallel and incremental compilation, monomorphized code, explicit performance budgets in CI. | [02 §2.3, §2.7](compiler-architecture.md#23-data-structures), [09](performance.md) |
@@ -76,7 +76,7 @@ The full pipeline, with each stage's contract, is in
 
 ## Guiding principles
 
-1. **One meaning in both modes.** A program run with `verse run` and the same
+1. **One meaning in both modes.** A program run with `verse app.vs` and the same
    program built with `verse build` behave identically, including overflow
    checks, panics, `Cleanup` order and task outcomes. Every tier consumes the
    same mono MIR, and the semantics live in MIR, not in a backend.

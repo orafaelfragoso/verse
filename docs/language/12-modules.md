@@ -164,7 +164,7 @@ which is often what a library author wants.
 
 ### 12.4 Module contents
 
-Only the **entry file** — the file passed to `verse run` — runs top-level
+Only the **entry file**, the file passed to `verse`, runs top-level
 statements. Imported modules may contain only declarations (`fn`, `type`,
 `alias`, `trait`, `impl`, `extern`, `test`, `import`) and module-level constants
 (`name = expr`).
@@ -217,7 +217,7 @@ print("Hello, {args.first() otherwise "world"}!")
 ```
 
 - `args` is a built-in `List<Text>` of command-line arguments, *not* including
-  the program name (`verse run hello.vs Ana` gives `args == ["Ana"]`).
+  the program name (`verse hello.vs Ana` gives `args == ["Ana"]`).
 - **Top-level statements are the only entry mechanism.** Verse 0.1 has no
   `fn main`; a function named `main` is just an ordinary function that runs
   only if the script calls it.
@@ -227,8 +227,8 @@ print("Hello, {args.first() otherwise "world"}!")
   |--------|---------|
   | `0` | normal completion |
   | `1` | a top-level `?` failed (the error message is printed to standard error), or an unwaited task failed (§11.3) |
-  | `2` | the compiler found errors in the source, or a capability check failed, so the program did not start (in `verse run` as in `verse build`) |
-  | `3` | a bug in Verse, not in the program: a compiler bug found before the program started (in `verse run` as in `verse build`), or a trap inside the runtime that Verse itself caused |
+  | `2` | the compiler found errors in the source, or a capability check failed, so the program did not start (when running a file as in `verse build`) |
+  | `3` | a bug in Verse, not in the program: a compiler bug found before the program started (when running a file as in `verse build`), or a trap inside the runtime that Verse itself caused |
   | `70` | a deadlock: every task is waiting and none can continue |
   | `101` | a panic (§8.5) |
 

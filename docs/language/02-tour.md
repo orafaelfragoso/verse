@@ -78,7 +78,7 @@ test "negative ages are rejected"
     assert parse_age(" 42 ")? == 42
 ```
 
-Run it with `verse run tour.vs`; run its tests with `verse test tour.vs`.
+Run it with `verse tour.vs`; run its tests with `verse test tour.vs`.
 Two things are worth noticing. `greet` and `add_guest` have no type
 annotations at all, yet everything is checked at compile time (§4.2). And the
 `.copy()` in the `adults` line is the one place ownership shows: `filter`
