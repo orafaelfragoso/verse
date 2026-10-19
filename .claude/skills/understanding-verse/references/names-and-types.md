@@ -26,7 +26,7 @@ the AST and the ownership pass.
 
 | Stage | Input | Output |
 |-------|-------|--------|
-| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule enforced; import graph acyclic |
+| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule enforced; modules may import each other, but module-level constants initialise without a cycle (V0310) |
 | HIR lowering | resolved AST | no sugar; optional-lifting positions marked but not yet typed |
 | Type inference | HIR | every expression has a type or a recorded unresolved variable; an unresolved variable becomes the "cannot infer, annotate here" error |
 
@@ -173,11 +173,6 @@ the unit for resolution
 
 ## Where the docs are silent or disagree
 
-- [02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts)
-  says the import graph is acyclic, while
-  [§12.2](../../../../docs/language/12-modules.md#122-importing) allows
-  circular imports for declarations and forbids them only for module-level
-  constant initialization (V0310).
 - Spec wording differs from the catalog for the same errors. §3.9 writes
   "`total` is immutable; write `mut total = …`", the catalog V0303 writes
   "`{name}` is not `mut`, so it cannot be reassigned". §3.6 writes "`let` is
