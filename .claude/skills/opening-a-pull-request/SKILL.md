@@ -1,19 +1,12 @@
 ---
 name: opening-a-pull-request
-description: Covers how a change reaches `main` in the Verse repository. Maintainers and their agents commit directly to `main`; other contributors use pull requests. Branch naming, one change per pull request, the `<type>(<scope>): <summary>` title format checked by the `pr-title` job, the Why / What changed / Verification body that becomes the squash commit body, linking issues, labels and milestones, `gh pr create`, and squash merge. Use when opening, titling, describing or merging a pull request, writing a commit message, running `gh pr create` or `gh pr merge`, or when a push to `main` is rejected.
+description: Covers how a change reaches `main` in the Verse repository. Branch naming, one change per pull request, the `<type>(<scope>): <summary>` title format checked by the `pr-title` job, the Why / What changed / Verification body that becomes the squash commit body, linking issues, labels and milestones, `gh pr create`, and squash merge. Use when opening, titling, describing or merging a pull request, writing a commit message, running `gh pr create` or `gh pr merge`, or when a push to `main` is rejected.
 ---
 
 # Opening a pull request
 
-**Maintainers and agents working for them commit directly to `main`.** Do not
-create branches or pull requests for them. Use the commit format below, put
-Why, What changed and Verification in the commit body, run
-`tools/docs/check.sh` before pushing when docs changed, pull with
-`--ff-only` first, and never force push. The rest of this skill is for other
-contributors.
-
-For other contributors, every change reaches `main` through a pull request,
-and every pull request lands as one squashed commit. The title becomes the commit subject. The body
+Every change reaches `main` through a pull request, and every pull request
+lands as one squashed commit. The title becomes the commit subject. The body
 becomes the commit body. Write both for someone reading `git log` a year from
 now. The source of these rules is
 [CONTRIBUTING.md](../../../CONTRIBUTING.md); the title check is
@@ -21,9 +14,9 @@ now. The source of these rules is
 
 ## Rules
 
-- Only repository admins push to `main`. The `default-branch` ruleset
-  rejects everyone else's direct pushes, rejects force pushes and deletion of
-  `main`, requires linear history, and allows only squash merges.
+- Never push to `main`. The `default-branch` ruleset rejects direct pushes,
+  force pushes and deletion of `main`, requires linear history, and allows
+  only squash merges through a pull request.
 - One change per pull request. A reviewer must be able to state it in one
   sentence. If the sentence needs "and", split the pull request.
 - The `pr-title` check is required. A pull request whose title fails it
@@ -217,7 +210,7 @@ The remote branch is deleted on merge.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| a push to `main` fails with "Repository rule violations found" | direct push without admin rights | push a branch and open a pull request |
+| a push to `main` fails with "Repository rule violations found" | direct push to `main` | push a branch and open a pull request |
 | `pr-title` fails | title does not match the format or is over 72 characters | `gh pr edit --title "..."` |
 | merge blocked with the check green | an unresolved review thread | resolve or answer the thread |
 | `gh pr merge` refuses `--merge` or `--rebase` | squash is the only method | use `--squash` |

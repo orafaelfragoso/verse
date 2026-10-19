@@ -1,9 +1,9 @@
 # Contributing
 
-Maintainers commit directly to `main`, one change per commit. Other
-contributors open a pull request, which lands as one squashed commit: its
-title becomes the commit subject and its body the commit body. Either way,
-write the message for someone reading `git log` a year from now.
+Every change reaches `main` through a pull request, and every pull request
+lands as one squashed commit. The pull request title becomes the commit
+subject and the pull request body becomes the commit body, so write both for
+someone reading `git log` a year from now.
 
 ## Commit format
 
@@ -42,14 +42,7 @@ spec(std): give http.serve a handler that can fail
 ci: require the pr-title check on main
 ```
 
-## Committing to `main` (maintainers)
-
-1. Pull first: `git pull --ff-only`. Never force push.
-2. One change per commit, in the commit format above. The body has the same
-   three parts as a pull request: Why, What changed, Verification.
-3. Run `tools/docs/check.sh` before pushing when docs changed.
-
-## Pull requests (other contributors)
+## Pull requests
 
 1. Branch from `main`. Name the branch after the change: `extern-blocks`.
 2. Keep one change per pull request. A reviewer should be able to state it in
