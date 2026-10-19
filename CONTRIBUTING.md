@@ -69,9 +69,3 @@ Pick a template:
 Each issue gets one type label (`bug`, `feature`, `design`, `docs`, `perf`,
 `chore`), one or more `area:` labels, and the milestone of the
 [roadmap](docs/roadmap.md) stage it belongs to.
-
-## Repository settings
-
-`tools/github/setup.sh <owner/repo>` applies the merge settings, labels,
-milestones and branch rules. Rerunning it converges to the same state. Change
-labels or rules in that script, and milestones in the roadmap, then run it.
