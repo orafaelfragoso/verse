@@ -207,8 +207,7 @@ with open_gpu()? as mut gpu
 `GpuTensor` is also an index into the `Gpu` resource that owns device memory,
 so it cannot outlive the device in a harmful way: using it after the `with`
 block, or with another device, is an error value. The capability appears
-where the resource is acquired, which matches the extern ruling's pattern
-(the bound name appears in the calls it permits).
+where the resource is acquired.
 
 ### Shaking
 
@@ -286,11 +285,12 @@ unused-binding warning (spec §3.9).
 ### Templates without new syntax
 
 Templates are **generated code**, not a runtime language: a first-party
-`generator` plugin ([07 §7.3](plugins.md#73-generators-write-source-and-the-source-is-visible))
-turns `templates/user.html` into `generated/templates.vs` with one typed
-function per template (`fn user_page(user: User): Text`). A missing field is a
-compile error in the generated file, which the reader can open. The project
-opts in under `[plugins]` (root only, [19 §19.3](../reference/cli-and-manifest.md#plugins-root-only)).
+generator package ([spec §16.6](../language/16-tooling.md#166-generators))
+turns `templates/user.html` into `generated/templates/templates.vs` with one
+typed function per template (`fn user_page(user: User): Text`). A missing
+field is a compile error in the generated file, which the reader can open.
+The project lists it under `[generate]`
+([19 §19.3](../reference/cli-and-manifest.md#generate-and-tool)), and `verse generate` refreshes it.
 
 ### Shaking and ownership
 
@@ -487,11 +487,11 @@ applies to this program.
 |---|----------|---------|----------------|
 | P20-1 | `finance` offers only `Calendar.named(text)`; no one-function-per-calendar form | one obvious name (§1.4), 06 | ruled: keep only `named`; measure table sizes in M9 |
 | P20-2 | `Money` does not implement `Add`/`Sub`; mixing currencies is an error value from `add`/`sub` | spec §10 operator traits | agreed |
-| P20-3 | `ml` model loading: a `generator` that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | 07 §7.3, 06 | agreed; the generated file is visible and committed like any generator output (07 §7.3); file format chosen in M9 |
+| P20-3 | `ml` model loading: a `generator` that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | spec §16.6, 06 | agreed; the generated file is visible and committed like any generator output (spec §16.6); file format chosen in M9 |
 | P20-4 | `gui` uses the message model (Elm architecture); long work runs as tasks whose results return as messages | `gui` API, spec §11 | agreed |
 | P20-5 | `iot` interrupts only wake tasks; no user code runs in interrupt context | 05 §5.7 | agreed |
-| P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in `std`, since `iot` and `std.net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item with `extern` (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in `std`; channel sizing still open |
-| P20-7 | `web` templates are generated code from a first-party `generator` plugin, not a run-time template language | 07, spec §1.4 | agreed |
+| P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in `std`, since `iot` and `std.net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in `std`; channel sizing still open |
+| P20-7 | `web` templates are generated code from a first-party generator package, not a run-time template language | spec §16.6, §1.4 | agreed |
 | P20-8 | `web` routes receive shared state through `Router.with_state(Guarded<T>)` | `web` API | agreed |
 
 ## 20.8 Conflicts with other documents

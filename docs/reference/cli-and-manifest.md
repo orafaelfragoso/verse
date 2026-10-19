@@ -12,8 +12,7 @@ Nothing here changes what a Verse program means. The spec (§12, §16.3, §16.4)
 wins wherever this document disagrees with it.
 
 Related documents: [06](../architecture/stdlib-and-shaking.md) (reachability, size report,
-`[library]`), [07](../architecture/plugins.md) (plugins, trust), [18](../architecture/plugin-interface.md)
-(the plugin interface: manifest, grants, limits), [02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)
+`[library]`), [07](../architecture/plugins.md) (native plugins), [02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)
 (cache), [04 §4.3](../architecture/backends-and-targets.md#43-what-a-target-is) (target
 files), [20](../architecture/first-party-packages.md) (the first-party packages), and
 [16-diagnostics-catalog.md](diagnostics-catalog.md),
@@ -28,7 +27,7 @@ covers the package manager). The codes shown below are in
    and `verse.api` are written by the tool and committed. A reviewer reads a
    diff of any of them and knows what changed (Fact: spec §16.3, §16.4).
 2. **No code runs to build a dependency.** No build scripts, no install
-   hooks, no plugins from dependencies (Fact: spec §16.3, 07 §7.5).
+   hooks, no plugin `build` commands from dependencies (Fact: spec §16.3, 07 §7.2).
 3. **Minimal version selection** picks versions, so the same manifests give
    the same graph without a solver and without the lock (Decision, §19.7).
 4. **The required version bump is computed** from the `verse.api` diff, and
@@ -52,8 +51,10 @@ behaviour. Commands marked *new* are proposals (P19-1).
 | `verse vendor` *new* | copies every locked package into `vendor/` and records it in the lock (§19.9) | lock | `vendor/`, lock | yes, unless cached |
 | `verse publish` | checks, computes the required bump, packs and uploads (§19.5, §19.8) | everything | registry | yes |
 | `verse yank pkg@ver` *new* | marks a published version yanked (§19.8); `--undo` reverses | — | registry | yes |
-| `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the plugin that wrote it (07 §7.7); this document adds package names and capabilities (§19.11, P19-8) | build graph, lock | — | no |
+| `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the `verse generate` entry that wrote it (spec §16.6); this document adds package names and capabilities (§19.11, P19-8) | build graph, lock | — | no |
 | `verse api update` / `verse api check` | as spec §16.4 | sources | `verse.api` | no |
+| `verse generate [name]` | runs the `[generate]` entries (spec §16.6): empties `generated/<name>/` and runs the entry's tool | toml, lock, the inputs the tool reads | `generated/` | only if resolving |
+| `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
 | `verse api diff [ver]` *new* | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
 | `verse run`, `build`, `check`, `test` | read the lock; resolve only if it is missing or stale (and say so) | toml, lock | lock (only if stale) | only if resolving |
 
@@ -173,54 +174,49 @@ As spec §16.3 and [06 §6.9](../architecture/stdlib-and-shaking.md#69-package-f
 | `size_budget` | text, size (`"40K"`, `"2M"`) | none | `verse publish` builds the package's `examples/` and fails if the package's share exceeds it |
 | `[library.targets] default` | `"all"` or `"none"` | `"all"` | |
 | `[library.targets] available` / `unavailable` | list of target names | `[]` | exceptions to `default` |
-| `[library.native] links`, `link-search`, `pure` | lists, bool | — | **0.2**, with `extern` |
 
-### `[plugins]` (root only)
+### `[plugins]`
 
-As [07 §7.5](../architecture/plugins.md#75-trust-and-grants): a separate section,
-never in `[dependencies]`, and accepted only in the root manifest (workspace
-root, §19.10). A dependency's manifest with `[plugins]` is rejected at
-resolution (§19.12).
+Native libraries called through `extern` ([07 §7.2](../architecture/plugins.md#72-declaring-a-plugin),
+spec §12.6). One table per plugin; the name is what `extern <name>` refers to.
 
 ```toml
-[plugins]
-jsonschema = { version = "1.2", kind = "generator", reads = ["schema/"], writes = ["generated/"] }
-style      = { version = "0.4", kind = "lint", promote = ["style/prefer-map"] }
+[plugins.sqlite]
+lib = "sqlite3"
+
+[plugins.fastmath]
+path  = "native/fastmath/target/release"
+build = "cargo build --release --manifest-path native/fastmath/Cargo.toml"
+link  = "static"
 ```
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `version` | requirement | required | resolved like a dependency, locked with its content hash |
-| `kind` | `lint` \| `generator` \| `bindgen` \| `tool` | required | must equal the kind in the plugin's own manifest ([18 §18.2](../architecture/plugin-interface.md#182-the-plugin-manifest)); a mismatch is V0814 |
-| `reads`, `writes` | lists of paths | `[]` | the grant; the tool refuses to run a plugin that asks for more ([18 §18.2](../architecture/plugin-interface.md#182-the-plugin-manifest), [18 §18.6](../architecture/plugin-interface.md#186-capabilities), 07 §7.5); that is V0815 |
-| `capabilities` | list | `[]` | other capabilities granted (for a `tool` plugin, for example `net`) |
-| `promote` | list of rule codes | `[]` | lint rules raised to `error` (07 §7.6, [18 §18.7](../architecture/plugin-interface.md#187-what-a-plugin-reports)) |
+| `lib` | text | the plugin name | the library's file name without platform prefix and suffix |
+| `path` | path | none | the folder that holds the library; without it, the system linker paths and `pkg-config` are searched |
+| `build` | text | none | a command run before each build or run that links or loads the library |
+| `link` | `"dynamic"` \| `"static"` | `"dynamic"` | how compiled mode links it; script mode always needs a shared library (V1011) |
+| `targets` | list of target names | every target | where the plugin is available ([07 §7.8](../architecture/plugins.md#78-targets)) |
 
-A `kind` that differs from the plugin's own manifest stops the build:
+A dependency may declare plugins with `lib` only. A dependency that uses
+`path` or `build` is rejected at resolution (V0834, §19.12).
 
-```
-error: plugin `jsonschema` is a `generator`, but verse.toml says `lint`
-  --> verse.toml:6:40
-   |
- 6 | jsonschema = { version = "1.2", kind = "lint" }
-   |                                        ^^^^^^ the plugin's own manifest says `generator`
-   |
-help: change `kind` in verse.toml to "generator"
-explain: V0814 (run `verse explain V0814`)
+### `[generate]` and `[tool]`
+
+`[generate.<name>]` lists a generator run by `verse generate` (spec §16.6).
+`[tool]` is how a package offers the command a generator runs.
+
+```toml
+[generate.items]
+tool = "jsonschema"
+args = ["schema/item.json"]
 ```
 
-A plugin that asks for more than the grant stops the build before it runs:
-
-```
-error: plugin `jsonschema` asks for more than verse.toml grants
-  --> verse.toml:6:53
-   |
- 6 | jsonschema = { version = "1.2", kind = "generator", writes = ["generated/"] }
-   |                                                     ^^^^^^^^^^^^^^^^^^^^^^^ it asks to write `docs/`; the grant is `generated/`
-   |
-help: grant it in `[plugins]`, or do not use this plugin
-explain: V0815 (run `verse explain V0815`)
-```
+| Section | Key | Type | Default | Meaning |
+|---------|-----|------|---------|---------|
+| `[generate.<name>]` | `tool` | package name | required | a dependency (usually in `[dev-dependencies]`) that has a `[tool]` section |
+| `[generate.<name>]` | `args` | list of text | `[]` | passed to the command, followed by `--out generated/<name>/` |
+| `[tool]` | `main` | path | required | the entry file of the package's command; it is never part of a program that imports the package |
 
 ### `[capabilities]` (applications) — Proposal P19-3
 
@@ -478,13 +474,6 @@ version  = "0.4.1"
 source   = "git+https://example.com/http_extra.git?tag=v0.4.1#<commit id>"
 checksum = "blake3:<64 hex digits>"      # of the source tree as packed
 api      = "blake3:<64 hex digits>"
-
-[[plugin]]
-name     = "jsonschema"
-version  = "1.2.0"
-kind     = "generator"
-checksum = "blake3:<64 hex digits>"      # of the Wasm component
-grants   = { reads = ["schema/"], writes = ["generated/"], capabilities = [] }
 ```
 
 | Field | Pinned because |
@@ -494,7 +483,6 @@ grants   = { reads = ["schema/"], writes = ["generated/"], capabilities = [] }
 | `checksum` | integrity: a mirror, a cache or a vendored copy is accepted only if its bytes hash to this |
 | `api` | dependents are checked against `verse.api` only (spec §16.4); a changed api with the same version number is an error (V0824, below: registry corruption or a republish) |
 | `capabilities` | `verse update` shows the difference before it is accepted |
-| plugin `grants` | a plugin update that asks for more than the locked grant stops with a message instead of running ([18 §18.6](../architecture/plugin-interface.md#186-capabilities), 07 §7.5) |
 
 A lock made by another toolchain:
 
@@ -689,7 +677,8 @@ identical bytes. The inputs are exactly:
 | target file | blake3 of the resolved target file: the toolchain's `targets/<name>.toml`, the project's `targets/<name>.target`, or `verse.target` ([15 §15.9.1](../architecture/target-and-abi.md#1591-files-and-lookup)) |
 | profile | the resolved profile table |
 | flags that change output | `--no-heap`, `--size-report` (report only), `--deny` (check only) |
-| plugin outputs | generated files are sources, so they are hashed as files (07 §7.3) |
+| generated files | they are sources, so they are hashed as files (spec §16.6) |
+| plugin libraries | blake3 of each linked library file; a system library is outside the build's control, so builds are reproducible only for the same system library (07 §7.6) |
 
 Not inputs: time, paths, user name, environment variables, the order of
 files on disk, the number of cores. Output contains no paths or timestamps
@@ -711,32 +700,28 @@ When the bytes differ:
 
 ```
 error: two clean builds of this project differ
-  --> generated/item.vs
+  --> generated/items/item.vs
    |
-   = note: `generated/item.vs` has different bytes
-help: run `verse why generated/item.vs`; the usual cause is a plugin that is not deterministic
+   = note: `generated/items/item.vs` has different bytes
+help: run `verse why generated/items/item.vs`; the usual cause is a generator that is not deterministic
 explain: V0832 (run `verse explain V0832`)
 ```
 
 ## 19.10 Workspaces
 
-Several packages in one repository share one lock, one cache and one set of
-plugins:
+Several packages in one repository share one lock and one cache:
 
 ```toml
 # verse.toml at the repository root
 [workspace]
 members = ["apps/server", "libs/shapes", "libs/money_utils"]
-
-[plugins]                                 # only here, never in members
-style = { version = "0.4", kind = "lint" }
 ```
 
 | Rule | Why |
 |------|-----|
 | one `verse.lock` at the workspace root | one graph; MVS runs once over all members |
 | members depend on each other with `{ path = "../shapes" }`; at publish time a path dependency must also name a version, which is checked to exist in the registry | a published package never depends on a path |
-| the workspace root is the "root project" of 07 §7.5 | plugins stay opt-in at one place |
+| the workspace root is the root project of 07 §7.2 | a member may use `path` and `build` plugins, as the root may |
 | `verse test`, `check`, `build` at the root run for every member; `-p name` selects one | |
 | each member has its own `verse.api` and is published separately | the api is per package |
 | a member's `[capabilities]` and `[targets]` are its own | a server and a firmware can share a library |
@@ -751,7 +736,7 @@ capabilities are Proposal P19-8:
 |----------|---------|--------|
 | an item (dotted path) | `verse why std.net.get` | the edge chain from a root (06 §6.6) |
 | a package | `verse why colors` | the dependency chain that requires the selected version, and the largest minimum that chose it (§19.7) |
-| a file path (contains `/` or ends in `.vs`) | `verse why generated/item.vs` | the plugin that wrote it (07 §7.7) |
+| a file path (contains `/` or ends in `.vs`) | `verse why generated/items/item.vs` | the `[generate]` entry that wrote it (spec §16.6) |
 | a capability | `verse why net` | the chain to the first `sys.net` use (06 §6.6) |
 
 ```
@@ -783,9 +768,9 @@ registry (V0833, §19.4).
 
 | Threat | Defence | Status |
 |--------|---------|--------|
-| code execution while building a dependency | no build scripts, no install hooks (spec §16.3); `[library.native]` is data (0.2) | Fact |
-| a dependency adds a plugin | `[plugins]` accepted only at the root (07 §7.5); a dependency manifest with `[plugins]` is rejected | Fact / Decision |
-| a plugin does more than allowed | Wasm sandbox, grants locked in `verse.lock`, budgets (07 §7.5, [18 §18.6](../architecture/plugin-interface.md#186-capabilities), [§18.10](../architecture/plugin-interface.md#1810-limits)) | Fact |
+| code execution while building a dependency | no build scripts, no install hooks (spec §16.3); a dependency's plugins may name only a system library (`lib`), never `path` or `build` (V0834) | Fact / Decision |
+| a dependency calls native code | its `[plugins]` are listed by `verse add` and `verse update`; Verse cannot check foreign code, so adding the package is trusting the library (07 §7.1) | Decision |
+| a generator does harm | it runs only on `verse generate`, never on build, check, run or test (spec §16.6) | Decision |
 | a dependency starts using the network | capabilities in the index and lock; `verse update` shows the change; `[capabilities] grant` fails the build (P19-3) | Proposal |
 | a tampered archive or mirror | blake3 checksums in the lock; signed index | Decision |
 | typosquatting | name rules of §19.4 | Decision |
@@ -800,17 +785,17 @@ the root's tests unless `--deps` is given.
 **Messages.** Codes and wording are those of
 [16-diagnostics-catalog.md](diagnostics-catalog.md#v08xx-packages-and-api).
 Each block shows its code on the last line, as in
-[16 §16.4.1](diagnostics-catalog.md#1641-how-a-code-is-shown).
+[16 §16.4](diagnostics-catalog.md#164-how-a-code-is-shown).
 
 ```
-error: `charts` lists plugins, but only the root project may
-  --> ~/.cache/verse/pkg/…/charts-2.0.0/verse.toml:14:1
+error: `charts` declares a plugin with `build`, which only the root project may use
+  --> ~/.cache/verse/pkg/…/charts-2.0.0/verse.toml:16:1
    |
-14 | [plugins]
-   | ^^^^^^^^^ a dependency cannot run code while your project builds
+16 | build = "make"
+   | ^^^^^^^^^^^^^^ a dependency cannot build or ship native code
    |
-help: add the plugin to your own verse.toml under [plugins]
-explain: V0805 (run `verse explain V0805`)
+help: declare the plugin in your own verse.toml
+explain: V0834 (run `verse explain V0834`)
 ```
 
 ```
@@ -856,7 +841,6 @@ explain: V0804 (run `verse explain V0804`)
 | V0802 | the package name `{name}` cannot be imported | §19.4 |
 | V0803 | version {have} is too small for these changes; publish as {need} | §19.5 (message) |
 | V0804 | version {req} of `{pkg}` does not exist | §19.12 (message), §19.7 |
-| V0805 | `{pkg}` lists plugins, but only the root project may | §19.12 (message), §19.3 `[plugins]` |
 | V0806 | `{pkg}` {ver} does not match its checksum | §19.12 (message), §19.6 `checksum` |
 | V0807 | `verse.lock` is out of date | §19.2 (`--locked`), §19.6 |
 | V0808 | `{pkg}` needs {T}, which `{other}` does not provide | §19.7 (two majors) |
@@ -864,8 +848,6 @@ explain: V0804 (run `verse explain V0804`)
 | V0810, V0811 | `verse.api` changed / differs from the source | §19.5, spec §16.4 |
 | V0812 | `{name}` is not a valid license | §19.3 `license` |
 | V0813 | a yanked version cannot be chosen | §19.7 step 5, §19.8 |
-| V0814 | plugin `{name}` is a `{k1}`, but verse.toml says `{k2}` | §19.3 `[plugins]` (message) |
-| V0815 | plugin `{name}` asks for more than verse.toml grants | §19.3 `[plugins]` (message) |
 | V0823 | this lock was made with {old}, and you run {new} | §19.6 (message) |
 | V0824 | `{pkg}` {ver} has a different API from the one in your lock | §19.6 (message) |
 | V0825 | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | §19.7 (message) |
@@ -877,6 +859,7 @@ explain: V0804 (run `verse explain V0804`)
 | V0831 | `{req}` has no upper bound | §19.3 `[dependencies]` (message) |
 | V0832 | two clean builds of this project differ | §19.9 (message) |
 | V0833 | the package name `{name}` is not available | §19.4 (messages) |
+| V0834 | `{pkg}` declares a plugin with `{key}`, which only the root project may use | §19.12 (message), §19.3 `[plugins]` |
 | V0901 | this program reaches the `{cap}` capability, which verse.toml does not grant | §19.12 (message), §19.3 `[capabilities]` |
 | V0904 | `{pkg}` reaches `{cap}`, which it does not declare | §19.3 `[library] capabilities` |
 | V0905 | this package uses {n} KB, but its size budget is {m} KB | §19.3 `size_budget` |
@@ -902,7 +885,7 @@ explain: V0804 (run `verse explain V0804`)
 | # | Proposal | Touches | Ruling |
 |---|----------|---------|----------------|
 | P19-1 | New commands: `verse lock` (`--check`), `verse vendor`, `verse yank`, `verse api diff`, `build --verify-reproducible`; global `--offline`, `--locked`, `--frozen`, `--json` | spec §16 tool table | agreed |
-| P19-2 | The `verse.toml` reference of §19.3: `[package]` keys (`authors`, `repository`, `readme`, `include`), dependency forms (`registry`, `path`, git `tag`/`rev`, no `branch`, no unbounded ranges), `[plugins]`, `[targets]`, `[profile.*]`, `[run]`, `[build]`, `[test]`, `[workspace]`; unknown keys are errors | spec §16.3 | agreed |
+| P19-2 | The `verse.toml` reference of §19.3: `[package]` keys (`authors`, `repository`, `readme`, `include`), dependency forms (`registry`, `path`, git `tag`/`rev`, no `branch`, no unbounded ranges), `[plugins]`, `[generate]`, `[tool]`, `[targets]`, `[profile.*]`, `[run]`, `[build]`, `[test]`, `[workspace]`; unknown keys are errors | spec §16.3 | agreed |
 | P19-3 | `[capabilities] grant` for applications: the build fails if reachability finds an ungranted capability | spec §16.3, 06 §6.8 | agreed; it uses the word *grant* |
 | P19-4 | `[targets.<t>] heap` replaces 05 §5.7's `[embedded] heap` | 05 | agreed, per target |
 | P19-5 | No `[features]` in 0.1; if needed later, only named sets of optional dependencies, never source conditions | spec §16.3, P6-7 | agreed |

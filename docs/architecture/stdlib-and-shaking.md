@@ -41,7 +41,6 @@ the spec or from a ruling),
 | `std` | general-purpose modules (spec §15.2) | `std.fs`, `std.net`, `std.text`, `std.time`, `std.json`, `std.task`, `std.math`, `std.num`, `std.random`, `std.process`, `std.env`, `std.cli`, `std.log` | the toolchain, versioned with it | `import std.fs`, `import get from std.net` | Fact |
 | First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals: `finance`, `ml`, `web`, `gui`, `iot` (P6-1) | the package registry, installed on demand | `verse add finance`, then `import … from finance` | Fact: they are packages, not `std` |
 | Third-party packages | anything published to the registry, git or path | `colors`, `http_extra` (spec §16.3 examples) | the registry | `verse add colors`, then `import red, bold from colors` | Fact |
-| Wasm-implemented packages | a package whose functions are a Wasm component; not a plugin ([07 §7.4](plugins.md#74-wasm-implemented-packages-are-ordinary-packages)) | a GUI toolkit, a PLC driver | the registry | an ordinary dependency under `[dependencies]`, imported like any module | Fact (07 §7.4) |
 
 Notes:
 
@@ -112,7 +111,7 @@ may have removed further calls.
 | Program (`verse build`, `verse run`) | the entry file's top-level statements. Verse has no `fn main` (spec §12.5); a function named `main` is reached only if the script calls it |
 | Tests (`verse test`) | every selected `test` block and doc test (spec §14), plus the module constants they read. Entry-file statements are *not* roots, because tests never run them (spec §12.4, §14.1) |
 | Library artifact (C ABI or Wasm component, [04 §4.4](backends-and-targets.md#44-linking-and-artifacts)) | every exported item, instantiated at the concrete types its exported signature names |
-| Plugin `generator` output | not a root by itself: generated `.vs` files are ordinary modules, reached through imports like any other ([07 §7.3](plugins.md#73-generators-write-source-and-the-source-is-visible)) |
+| Generator output | not a root by itself: generated `.vs` files are ordinary modules, reached through imports like any other ([spec §16.6](../language/16-tooling.md#166-generators)) |
 
 ### Edges
 
@@ -132,7 +131,7 @@ An item is a node; an edge says "if this is included, that must be too".
 | function | `layout` | the type's layout record | layout costs no code; it is recorded so the report can show which types exist |
 | function | `panic` | panic machinery in `core`; the `unwind` slice if a reachable unwind edge runs a drop | spec §8.5 |
 | function | `intrinsic` | the capability the intrinsic belongs to (`sys.net.accept` → `net`) | see §6.5 |
-| function | `extern` | the capability held by the enclosing `with` block, and the native symbol | 0.2 only |
+| function | `extern` | the plugin and its native symbol ([07 §7.6](plugins.md#76-loading-in-script-mode-and-compiled-mode)) | a foreign call adds no capability |
 | capability | `slice` | the runtime slice that provides it | [05 §5.1](runtime.md#51-feature-slices) |
 
 ### Worklist
@@ -184,18 +183,18 @@ the verifier to prove that every `CallDyn` slot index is in the called set).
 - **Conservative for run-time values.** A branch that never runs is still
   included, as in every static analysis. The optimizer removes branches it
   can prove dead; the size report shows the rest.
-- **What would break exactness.** Run-time reflection, dynamic loading, or a
-  plugin that injects code. The language has none of these, and plugins are
-  limited to the four kinds in [07 §7.2](plugins.md#72-what-a-plugin-can-be),
-  none of which rewrites a program.
+- **What would break exactness.** Run-time reflection, dynamic loading of
+  Verse code, or code injected at build time. The language has none of these.
+  A plugin is reached only through `extern` functions, which are ordinary call
+  edges, and generators write visible source.
 
 ## 6.5 Capabilities and runtime slices
 
 A **capability** is a named group of platform operations reached through the
 `sys` interface ([05 §5.6](runtime.md#56-the-sys-capability-interface)).
 Standard library code calls capability intrinsics; user code reaches them
-only through the library (and, from 0.2, through `extern` functions inside a
-`with` block that holds the capability).
+only through the library. Foreign code in a plugin reaches the platform
+directly, outside this table ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 | Capability | Typical source in the library | Runtime slice ([05 §5.1](runtime.md#51-feature-slices)) | Example target without it |
 |------------|-------------------------------|----------------------------|---------------------------|
@@ -362,9 +361,8 @@ The chain is the stored reason of each node, followed back to a root
 | Function values and lambdas (spec §4.7, §5.4) | taking a function's value or creating a closure includes its body (`fn-value`); a call through a function value then needs nothing new | Assumption (detail of ADR-0004) |
 | Reflection | none in the spec; `Show`, `Eq`, `Hash`, `ToJson`, `FromJson` are derived per used type and shaken like any function | Fact |
 | `Show` for interpolation and `print` | each interpolated or printed type pulls in its own `Show` instance and nothing else | Fact (spec §10.4) |
-| Wasm-implemented packages | translated ahead of time to mono MIR in every tier, with no engine embedded ([07 §7.4](plugins.md#74-wasm-implemented-packages-are-ordinary-packages), [ADR-0005](../decisions/0005-wasm-component-plugins.md)), so it is shaken per function like Verse code; on the Wasm target it is linked as a component | Fact (07 §7.4) |
-| Generator plugins | output is ordinary `.vs` source, reached through imports | Fact (07 §7.3) |
-| `extern` functions (0.2) | callable only inside a `with` block that holds the matching `sys` capability, with plain-data types only, so each call site is a capability use the analysis already sees | Fact; spec text pending |
+| Generators | output is ordinary `.vs` source, reached through imports | Fact (spec §16.6) |
+| `extern` functions | each reachable call is an edge to the plugin and its symbol; a plugin with no reachable call is neither linked nor loaded | Fact ([07 §7.6](plugins.md#76-loading-in-script-mode-and-compiled-mode)) |
 | Test builds | roots are the selected tests (§6.4); `[dev-dependencies]` are visible only here (spec §16.3); fakes for capabilities (virtual clock, in-memory fs, [05 §5.6](runtime.md#56-the-sys-capability-interface)) replace slices | Fact / Assumption |
 | Module constants | included on first reachable read; the initializer is infallible (spec §12.4), so leaving out an unread one changes nothing | Fact |
 
@@ -424,10 +422,6 @@ size_budget  = "150K"               # fails `verse publish` if the example build
 [library.targets]                   # where the package is available
 default      = "all"
 unavailable  = []                   # for example ["thumbv7em-none-eabihf"] for a GUI package
-
-[library.native]                    # 0.2, needs `extern`
-links        = []                   # for example ["openblas"] for an ML package
-link-search  = []
 ```
 
 | Field | Why it is needed |
@@ -436,7 +430,6 @@ link-search  = []
 | `capabilities` | an upper bound the registry can show before installation; the real set is still computed by reachability |
 | `size_budget` | a published promise checked by `verse publish` against the package's example programs (Target for each first-party package) |
 | `targets` | lets the build fail with a clear message instead of a missing-capability error deep in a call chain |
-| `native` | native libraries and link flags, only once `extern` exists (0.2). Building a dependency still runs no code (spec §16.3): link flags are data, not scripts |
 
 Using such a package, with assumed names:
 
@@ -477,11 +470,10 @@ finance package API is not designed yet.)
 | # | Risk or question | Why it matters | Handling |
 |---|------------------|----------------|----------|
 | R-1 | **Generic libraries are monomorphized in the consumer.** A library of unannotated functions is compiled once per concrete type, in every program that uses it | compile time and code size grow with use ([09](performance.md), P6) | identical code folding; the size report shows instance counts; library authors can annotate concrete types where specialization does not pay |
-| R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | 0.1: pure-Verse kernels and a `gpu` capability proposal (P6-6); 0.2: `extern` for BLAS-like libraries, under the capability-gated, plain-data `extern` rules |
+| R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | pure-Verse kernels, a `gpu` capability proposal (P6-6), and BLAS-like libraries through a plugin ([07](plugins.md)) |
 | R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (P6-6); a pure-Verse widget library on top; the web target uses `std-web` |
-| R-4 | **Wasm-component libraries must be lowerable** | a component is translated ahead of time to mono MIR in every tier, with no engine embedded (07 §7.4, ADR-0005); a component using Wasm features the frontend cannot lower is rejected at build time | the rejection names the feature; once lowered, the component is shaken per function and its items appear in the size report like Verse code |
 | R-5 | **Names of first-party packages** | the rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1); 07's example uses `gui` |
-| R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](plugins.md#71-the-two-rules)); transforming plugins are out of 0.1 |
+| R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](plugins.md#71-what-a-plugin-is)); there are no transforming plugins |
 | R-7 | **`print` pulls in `stdio` and the failed-`?` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `?` prints (spec §12.5) | acceptable; the report shows why |
 | R-8 | **Test builds and fakes** | capability fakes must not leak into release builds | fakes live in a test-only slice selected only in `verse test` |
 
@@ -492,7 +484,7 @@ These touch the spec (§12, §15, §16) or package naming, and all seven are acc
 | # | Proposal | Touches | Recommendation |
 |---|----------|---------|----------------|
 | P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a `std` module (HTTP serving stays `std.net.serve`; `web` adds routing and templates on top). 07's example uses `gui` | spec §15 (a short paragraph listing first-party packages), 07 | ruled |
-| P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget; `native` in 0.2) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
+| P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
 | P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
 | P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are already planned (01, 11 M2, 08 `size_report`) |
 | P6-5 | **Eager capability check before running** (`verse run --deny net`, `verse check --target T`) based on reachability, so a missing or denied capability fails before execution in every tier | spec §16 (flags), 04, 08 | accept; it keeps script and compiled modes failing the same way |
@@ -501,7 +493,7 @@ These touch the spec (§12, §15, §16) or package naming, and all seven are acc
 
 ## 6.13 Inconsistencies noticed while writing this document
 
-Each item is **fixed** in the named file. Item 6 is decided in [07 §7.4](plugins.md):
+Each item is **fixed** in the named file.
 
 1. [05 §5.1](runtime.md#51-feature-slices) says a hello world links
    "`core` and `sys-stdout`", but the slice table has no `sys-stdout` row and
@@ -520,4 +512,3 @@ Each item is **fixed** in the named file. Item 6 is decided in [07 §7.4](plugin
    (sized integers live in `std.num`, names unspecified).
 5. [03 §3.2](ir-and-passes.md#32-hir-the-desugared-core) writes the
    `with` form as `with x = e as y`; the spec form is `with e as y` (§13).
-6. A Wasm-implemented package (no longer a plugin kind, 07 §7.4) inside a native binary: decided as ahead-of-time translation to mono MIR in every tier, no embedded engine ([07 §7.4](plugins.md)).

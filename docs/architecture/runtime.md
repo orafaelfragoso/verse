@@ -176,8 +176,10 @@ Reasons:
    standard library.
 2. **Reachability gets exact.** A program that never reaches `sys.net` links
    none of it, and the build can say which function pulled `net` in.
-3. **Sandboxing is natural.** A Wasm host, a plugin host or a test harness can
-   grant or deny capabilities (and `verse run --deny net` becomes trivial).
+3. **Denying is natural.** A Wasm host or a test harness can grant or deny
+   capabilities (and `verse run --deny net` becomes trivial). Foreign code in
+   a plugin does not go through `sys`, so a denial does not reach it
+   ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 4. **Testing.** Tests substitute fake capabilities (virtual clock, in-memory
    file system) for deterministic tests and for replay ([08](debugging-and-mcp.md)).
 

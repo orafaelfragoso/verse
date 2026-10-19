@@ -7,7 +7,7 @@
 | 0 | **Bytecode VM** | `verse run`, `verse test`, `verse repl`, debugging | lowest: lazy, per function | baseline | full: every local, every step |
 | 1 | **Cranelift** | `verse run --fast`, hot-function JIT (later), `verse build --profile dev` | low | typically within 2x of optimized native (assumption) | DWARF plus Verse debug map |
 | 2 | **LLVM** | `verse build --release`, embedded and exotic targets | high | best | DWARF plus Verse debug map |
-| W | **Wasm emitter** | browser, WASI, edge, plugins, GUI on web | low | engine dependent | DWARF in `.debug_*`, source maps |
+| W | **Wasm emitter** | browser, WASI, edge, GUI on web | low | engine dependent | DWARF in `.debug_*`, source maps |
 
 All tiers consume the same **mono MIR** ([ADR-0003](../decisions/0003-one-mir-many-backends.md)).
 That is how requirement R1 is met: scripting and compiling are the same
@@ -140,22 +140,20 @@ after reachability ([02 §2.2](compiler-architecture.md#22-stage-contracts)), an
 - **Executable** (`verse build`): object code for reachable functions plus a
   prebuilt runtime slice for the target, linked with `lld` (bundled) and
   section garbage collection.
-- **Static or shared library** with a C ABI for exported items (foreign interfaces
-  are specified in the 0.2 `extern` section).
+- **Static or shared library** with a C ABI for exported items, using the
+  type mapping of [07 §7.4](plugins.md#74-values-across-the-boundary).
 - **Wasm module or component** with WIT generated from `export` items.
 - **Bytecode bundle** (`.vsb`): a single file the VM runs. Useful for shipping
   a script without recompiling. Versioned with the compiler version.
 - **Reproducible builds**: no embedded paths or timestamps; builds from the
   same `verse.lock` produce identical bytes.
 
-**Wasm-implemented packages.** A package shipped as a Wasm component (an ordinary dependency, not a plugin) is translated to mono MIR before linking on every target except Wasm, where it is linked as a component. No engine is embedded in a native binary ([07 §7.4](plugins.md)).
-
 ## 4.5 Calling convention and ABI
 
 - **Internal ABI**: free to change between compiler versions. Verse-to-Verse
   calls use a compiler-chosen convention: small values in registers, large
   values by hidden pointer, `mut` and borrowed arguments by pointer.
-- **Stable ABI**: only the C ABI for explicit `extern` exports and imports
-  (0.2) and the Wasm component ABI for components.
-- **Interop** with C, Rust and Wasm components goes through generated
-  bindings (`verse bindgen`, a plugin type: [07](plugins.md)).
+- **Stable ABI**: only the C ABI for `extern` calls and library exports, and
+  the Wasm component ABI for component exports.
+- **Interop** with C, C++, Zig and Rust goes through plugins: `extern` blocks
+  over the C ABI, written by hand or by `verse bind` ([07](plugins.md)).

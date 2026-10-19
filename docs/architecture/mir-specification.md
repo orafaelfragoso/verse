@@ -96,7 +96,8 @@ tbody     = "goto" , BB
 unwind    = "unwind" , ( BB | "continue" | "none" ) ;
 callee    = path , [ "<" , type , { "," , type } , ">" ]           (* function or instance *)
           | "<" , type , "as" , path , ">" , "::" , IDENT         (* trait call, generic only *)
-          | "dyn" , "#" , INT | "intrinsic" , path | "sys" , IDENT , "." , IDENT ;
+          | "dyn" , "#" , INT | "intrinsic" , path | "sys" , IDENT , "." , IDENT
+          | "foreign" , IDENT , "." , IDENT ;                     (* plugin.symbol, spec §12.6 *)
 span      = [ FID , ":" ] , INT , ":" , INT , "-" , INT , ":" , INT , [ "in" , span ] ;   (* inlined: call-site span *)
 type      = path , [ "<" , type , { "," , type } , ">" ] | "(" , type , { "," , type } , ")"
           | "(" , type , ")" | type , "?" | type , "|" , type | "&" , [ "mut" ] , type
@@ -115,7 +116,8 @@ name, `TYNAME` the name of a scalar type, `HEX` a hex digit, `EVENT` a word of
 `events.toml`. `#` starts a comment that the parser ignores and the
 printer never writes.
 `PKIND` is one of `overflow OP TYPE`, `div_zero`, `index_oob`, `slice_oob`,
-`assert`, `expect_none`, `neg_exponent`, `stack_overflow`, `out_of_memory`; the
+`assert`, `expect_none`, `neg_exponent`, `stack_overflow`, `out_of_memory`,
+`foreign_null`; the
 facts each carries are in [13.4](#134-statements-and-terminators).
 `YKIND` is `send`, `recv`, `wait`, `join`, `sleep`, `lock`, `sys`, `pause`.
 `CASTKIND` is `widen`, `i2f`, `char_int`, `niche`, `narrow`, `f2i`, `int_char`.
@@ -140,6 +142,7 @@ scalar, or a constant), a text, or a word.
 | `Int`, `Float`, `Bool`, `Char`, `Nothing` | scalars (spec §4.1) | `Int` is 64-bit on every target; `Float` is IEEE 754 binary64 |
 | `Int8`..`UInt64`, `Float32` | sized numerics of `std.num` | same ops, own checked-overflow ranges |
 | `Text`, `Bytes`, `List<T>`, `Map<K,V>`, `Set<T>` | runtime types with primitives in `verse-rt` | opaque to MIR; handled by intrinsics, calls and `len` (see below) |
+| `Pointer` | an opaque foreign address (spec §12.6) | a scalar of pointer width; `Pointer?` uses null as its niche |
 | `Slice<T>` | a view of a range of a list or of bytes: `(ptr, len)` | only as `&Slice<T>`, produced by `call intrinsic slice(...)`; V7 applies |
 | `(A, B)` | tuple | fields by index |
 | record `P<T>` | named fields | fields by name |
@@ -223,7 +226,11 @@ unwind).
 `send` takes its value by move (`take value`, spec §11.4); `recv` and `lock`
 take a borrow of the handle; `wait` takes the `Task` and hands its outcome to
 the program. Non-blocking capability calls use `call sys cap.op(...)`; blocking
-ones use `yield sys`. `lock` blocks and is a cancellation point (assumption:
+ones use `yield sys`. A call to an `extern` function is
+`call foreign plugin.symbol(...)` with `unwind none`, because a foreign
+function never unwinds ([07 §7.5](plugins.md#75-ownership-and-lifetime)); a
+`Pointer` result is followed by a `switch` whose null edge reaches
+`panic foreign_null`. `lock` blocks and is a cancellation point (assumption:
 spec §11.5 lists I/O, wait, sleep, send and recv but not lock). `pause` has no
 surface syntax in 0.1; it is emitted only for the polling rule P14-2 and test
 harnesses.
@@ -282,6 +289,7 @@ without owning anything.
 | `assert` | R0006 | `expr`: text of the condition |
 | `stack_overflow` | R0004 | none in MIR; the runtime supplies `n` (the task) |
 | `out_of_memory` | R0007 | none in MIR; the runtime supplies `size` |
+| `foreign_null` | R0014 | `f`: text, the Verse name of the `extern` function that returned null where its signature says `Pointer` |
 
 R0008 (deadlock) and R0009 (a `Cleanup` panicked during unwinding) are not MIR
 kinds: the runtime raises them. For an `assert`, the `switch` on the
@@ -732,8 +740,7 @@ cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
 
 - **Decision**: in 0.1 the MIR
   serialization, text and binary, is **internal and unversioned for third
-  parties**. No plugin, tool or backend outside the repository may depend on
-  it. Transforming plugins are out of 0.1.
+  parties**. No tool or backend outside the repository may depend on it.
 - The header `rev N` is an internal revision. Any change to the grammar, to a
   statement or terminator, or to a printing rule increments `rev` and
   regenerates golden files in the same commit.
@@ -743,8 +750,6 @@ cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
 - Bytecode bundles (`.vsb`) have their own compiler-version rule
   ([04 §4.4](backends-and-targets.md#44-linking-and-artifacts)); they are a
   different artifact and do not carry MIR.
-- Wasm library plugins are translated to the in-memory mono MIR, not to a text
-  form ([04 §4.4](backends-and-targets.md#44-linking-and-artifacts)).
 - A stable MIR form, if ever offered, needs a new document, a version scheme
   with a compatibility promise, and a ruling (proposal; not in 0.1).
 

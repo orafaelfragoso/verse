@@ -16,7 +16,8 @@ file          = { NEWLINE } [ doc BLANK ] { import } { top_item } ;
 top_item      = declaration | statement | test_block ;
 declaration   = [ doc ] [ "export" ]
                 ( fn_decl | type_decl | alias_decl | trait_decl | binding )
-              | [ doc ] impl_block ;
+              | [ doc ] impl_block
+              | [ doc ] extern_block ;
 doc           = DOC_COMMENT { DOC_COMMENT } ;     (* directly above its item *)
 
 import        = "import" module_path [ "as" IDENT ] NEWLINE
@@ -65,6 +66,14 @@ base_type     = { IDENT "." } TYPE_IDENT [ type_args ]      (* `time.Duration` *
               | "(" type ")" ;
 labeled       = IDENT ":" type ;
 type_args     = "<" type { "," type } ">" ;
+
+(* ---------- Foreign functions (§12.6) ---------- *)
+extern_block  = "extern" IDENT NEWLINE INDENT { extern_fn } DEDENT ;
+                (* IDENT names a `[plugins.<name>]` section of verse.toml *)
+extern_fn     = [ doc ] [ "export" ] "fn" name [ "as" IDENT ]
+                "(" [ params ] ")" [ ":" type ] NEWLINE ;
+                (* (semantic) every parameter has a type; no `take`, no
+                   `self`, no defaults; only the plain-data types of §12.6 *)
 
 (* ---------- Traits and impls ---------- *)
 trait_decl    = "trait" TYPE_IDENT [ generics ] [ ":" bound { "+" bound } ]

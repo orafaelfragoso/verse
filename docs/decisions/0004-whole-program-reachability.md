@@ -45,4 +45,6 @@ reachability pass over mono MIR:
   vtable slots actually called.
 - "Exact" means exact with respect to the optimized program text, not to
   run-time values: a branch that never executes is still included.
-- Plugins and FFI must declare capabilities so the analysis stays exact.
+- A foreign call is an ordinary call edge to its plugin and symbol, so the
+  analysis stays exact on the Verse side. What foreign code does inside is
+  outside it.

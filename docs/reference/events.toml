@@ -38,7 +38,7 @@ fields = ["name"]
 text = "`{name}` cleaned up"
 
 [events.called]
-fields = ["function", "foreign"]  # foreign: true for a foreign call (0.2 extern)
+fields = ["function", "foreign"]  # foreign: true for a foreign call (extern)
 text = "{function} called"
 text_foreign = "{function} called (foreign code)"
 
@@ -155,6 +155,6 @@ text = "{package} {version} is selected because:"
 [why.item]
 text = "{item} is included because:"
 [why.file]
-text = "{file} was written by {plugin}"
+text = "{file} was written by `verse generate {entry}`"
 [why.capability]
 text = "this program reaches `{capability}` because:"

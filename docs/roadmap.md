@@ -29,7 +29,7 @@ flowchart LR
 | M5 | Standard library core | `std.fs`, `std.net`, `std.text`, `std.time`, `std.json`, `std.task`, `std.math`, `std.num`, `std.random`, `std.process`, `std.env`, `std.cli`, `std.log` in Verse over `sys` capabilities; package manager, `verse.lock`, `verse.api`; Windows | all spec §15 examples run; `verse test` and doc tests work; shaking verified on each module |
 | M6 | Tooling | language server with inline type hints, `verse doc`, `verse test --watch`, structured diagnostics JSON, record and replay | LSP passes a protocol test suite; replay reproduces a recorded task-heavy run exactly |
 | M7 | Release and embedded | LLVM backend, release profile, Cortex-M and ESP32 targets, `--no-heap`, RISC-V | LLVM within target of Rust on benchmarks; blinky under 16 KB flash on a Cortex-M target |
-| M8 | Plugins | plugin host, WIT interfaces, capability grants, first-party plugins (lint, bindgen) | a third-party lint plugin runs sandboxed and cannot read the file system; plugin API versioned |
+| M8 | Plugins and generators | `extern` blocks, `[plugins]`, the VM loader and call stubs (`verse-ffi`), static and dynamic linking, `verse bind`, `verse generate` | the same program calls SQLite and a Rust `cdylib` in tier 0 and in a native build with identical output; `verse bind sqlite3.h` writes a file that compiles; a generator package refreshes `generated/` |
 | M9 | Domain libraries | first-party packages for finance, ML, web and GUI, IoT peripherals | each package imports only what it needs; each has a size report; example applications build for at least two targets |
 
 ## Principles for sequencing
@@ -42,8 +42,8 @@ flowchart LR
 3. **One backend per milestone.** Each new backend is measured against the
    previous one.
 4. **Tasks after native.** The scheduler needs real stacks and real I/O.
-5. **Plugins late.** The extension points are only stable after the compiler
-   has real consumers; M8 stabilizes what M0 to M7 prove is needed. The
+5. **Plugins late.** Foreign calls need the VM, the native backends and the
+   linker in place, so they come after M0 to M7. The
    debug protocol and diagnostics JSON, however, exist from M1.
 
 ## Risks and their milestones

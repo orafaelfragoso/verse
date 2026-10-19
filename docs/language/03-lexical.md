@@ -122,11 +122,11 @@ A single `_` is a wildcard: it discards a value in patterns and bindings.
 
 ```
 alias      and        as         assert     break      continue   else
-export     false      fn         for        from       if         impl
-import     in         is         let        match      mut        none
-not        or         otherwise  pass       return     self       Self
-set        spawn      take       test       then       trait      true
-type       while      with
+export     extern     false      fn         for        from       if
+impl       import     in         is         let        match      mut
+none       not        or         otherwise  pass       return     self
+Self       set        spawn      take       test       then       trait
+true       type       while      with
 ```
 
 `let` is reserved but not used: Verse has no `let` (bindings are written

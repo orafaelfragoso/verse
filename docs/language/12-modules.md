@@ -166,7 +166,7 @@ which is often what a library author wants.
 
 Only the **entry file** — the file passed to `verse run` — runs top-level
 statements. Imported modules may contain only declarations (`fn`, `type`,
-`alias`, `trait`, `impl`, `test`, `import`) and module-level constants
+`alias`, `trait`, `impl`, `extern`, `test`, `import`) and module-level constants
 (`name = expr`).
 Importing a module therefore never has side effects.
 
@@ -242,6 +242,62 @@ print("Hello, {args.first() otherwise "world"}!")
   entry file or with a failed `?` instead. An explicit `exit(code)` always
   overrides the failed-unwaited-task status, which applies only when the
   program ends naturally.
+
+
+### 12.6 Foreign functions (`extern`)
+
+An `extern` block declares functions from a native library, a **plugin**,
+so Verse code can call them. The plugin is named in `verse.toml` under
+`[plugins.<name>]`, and the block names it:
+
+```verse
+extern sqlite
+    export fn sqlite3_open(filename: Bytes, mut db: Pointer?): Int32
+    export fn sqlite3_close(db: Pointer): Int32
+    fn SDL_Init as sdl_init(flags: UInt32): Int32
+
+mut db: Pointer? = none
+status = sqlite3_open("app.db".bytes(), mut db)
+```
+
+- **The block names a declared plugin.** `extern sqlite` with no
+  `[plugins.sqlite]` in `verse.toml` is an error. Declaring the library is the
+  only opt-in.
+- **Every signature is written in full.** Each parameter and the result have
+  a type, and nothing is inferred, because a foreign function has no body to
+  infer from. A function without a result type returns `Nothing`.
+- **The C name comes first.** `fn SDL_Init as sdl_init(…)` calls the C symbol
+  `SDL_Init` and binds it as `sdl_init`, in the order of an import (§12.2).
+  Without `as`, the C name must be a valid value name.
+- **The functions are module items.** They are exported with `export` and
+  imported like any other function. An `extern` block may appear only at the
+  top level of a module.
+- **A call is a normal call.** There is no `unsafe` marker and no `with`
+  block.
+- **Only plain data crosses.** Parameters and results are numbers
+  (`Int`, `Float`, `Int8` … `UInt64`, `Float32`), `Bool`, `Char`,
+  `Pointer`, `Pointer?`, `Bytes` and byte views (parameters only), and `Copy`
+  records made only of these. `Text` does not cross: write `text.bytes()`.
+  Collections, other optionals, variants, trait types, function values, `Task`
+  and `Cleanup` types do not cross.
+- **Ownership words keep their meaning.** A plain parameter is borrowed for the
+  call. A `mut` parameter is an exclusive borrow that the foreign function may
+  write. `take` is not allowed: Verse memory is never handed to foreign code.
+
+`Pointer` is an opaque foreign address. It is `Copy` and can be stored,
+passed and compared with `==`. It never holds null; a foreign pointer that
+may be null is `Pointer?`, and a null returned where `Pointer` was declared is
+a panic. `p.read_bytes(count)` copies `count` bytes from foreign memory into a
+new `Bytes`, and `p.read_c_bytes()` copies the bytes before the first zero
+byte.
+
+**Verse cannot check foreign code.** The rules above are checked on the
+Verse side of the call. What the library does inside is outside the
+language: it can corrupt memory, keep a pointer it was given, or reach the
+network under `--deny net`. A foreign function must not unwind, and it
+cannot call back into Verse. The type mapping to C, loading in script and
+compiled mode, and `verse bind` are described in architecture
+[07](../architecture/plugins.md).
 
 ---
 

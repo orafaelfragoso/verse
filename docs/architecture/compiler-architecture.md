@@ -15,7 +15,6 @@ flowchart LR
     OWN --> GMIR["Generic MIR<br/>CFG, moves, drops, unwind edges"]
     GMIR --> MONO["Monomorphization<br/>demand driven"]
     MONO --> MMIR["Mono MIR"]
-    WLIB["Wasm-implemented package<br/>(07 §7.4)"] --> WFE["Wasm frontend<br/>translates to mono MIR"] --> MMIR
     MMIR --> OPT["MIR optimizer"]
     OPT --> SHAKE["Reachability and<br/>capability check"]
     SHAKE --> BC["Bytecode<br/>script tier"]
@@ -23,8 +22,6 @@ flowchart LR
     SHAKE --> LL["LLVM<br/>release AOT"]
     SHAKE --> WA["Wasm emitter"]
 ```
-
-A package implemented as a Wasm component enters at `Mono MIR` through a Wasm frontend, so it is optimized, shaken and compiled like Verse source ([07 §7.4](plugins.md)).
 
 Everything left of `Generic MIR` is **target independent and library
 independent**. Everything from `Mono MIR` onward knows the target. Nothing
@@ -207,6 +204,7 @@ verse/
     verse-own         ownership analysis
     verse-mir         MIR definition, build, verifier, optimizer, mono
     verse-reach       reachability and capability analysis
+    verse-ffi         native plugins: loading and call stubs for the VM, link lines
     verse-bc          bytecode compiler and interpreter
     verse-cl          Cranelift backend
     verse-llvm        LLVM backend (optional feature)
@@ -216,7 +214,6 @@ verse/
     verse-fmt         formatter (CST based)
     verse-lsp         language server
     verse-dbg         debugger core, record and replay, MCP server
-    verse-plugin      plugin host (wasmtime), WIT interfaces
     verse-cli         the `verse` binary
   std/                the standard library, in Verse
   tests/              conformance, differential, golden, fuzz corpora

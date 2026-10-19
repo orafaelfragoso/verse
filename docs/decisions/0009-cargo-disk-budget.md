@@ -9,7 +9,7 @@ Cargo never deletes anything from `target/` on its own. Its built-in cleanup
 `$CARGO_HOME`, and the request to do the same for `target/` is still open
 ([cargo#13136](https://github.com/rust-lang/cargo/issues/13136)). So `target/`
 only grows, and the project will build a large workspace with heavy
-dependencies (Cranelift, wasmtime, optional LLVM).
+dependencies (Cranelift, optional LLVM).
 
 Each of these multiplies the size:
 

@@ -53,7 +53,7 @@ flowchart LR
     REACH --> T0["Tier 0: bytecode VM<br/>verse run, debugger, MCP"]
     REACH --> T1["Tier 1: Cranelift<br/>x86-64, ARM64, RISC-V 64"]
     REACH --> T2["Tier 2: LLVM<br/>release, Cortex-M, ESP32"]
-    REACH --> TW["Tier W: Wasm emitter<br/>WASI, browser, plugins"]
+    REACH --> TW["Tier W: Wasm emitter<br/>WASI, browser"]
     REACH -. selects .-> RT["Runtime slices<br/>core, unwind, tasks, sys-*"]
 ```
 
@@ -67,7 +67,7 @@ The full pipeline, with each stage's contract, is in
 |------|---------------------|---------------|-----------|
 | R1 | Runs as a script and can be compiled | `verse run` and `verse build` share everything up to mono MIR; only the last stage differs, so a script and its compiled binary cannot mean different things. Differential tests compare them. | [04 §4.1](backends-and-targets.md#41-tiers), [10](testing-and-verification.md) |
 | R2 | Easy to target Wasm, native, ARM, x86, IoT | Targets are data files plus a platform layer; the front and middle ends never see a target triple. | [04 §4.2–4.3](backends-and-targets.md#42-target-matrix), [05 §5.6](runtime.md#56-the-sys-capability-interface) |
-| R3 | Plugins | Sandboxed WebAssembly plugins of four kinds only (`lint`, `generator`, `bindgen`, `tool`), opted into by the root project with explicit grants. Plugins never add syntax and never rewrite a program; transforming plugins are out of 0.1. A package implemented as a Wasm component is an ordinary dependency, not a plugin. | [07](plugins.md), [ADR-0005](../decisions/0005-wasm-component-plugins.md) |
+| R3 | Extensible with native libraries | A plugin is a C-ABI library declared in `verse.toml` and called through `extern` blocks as plain calls. The VM loads it at start-up and the compiled tiers link it, with the same checks. Plugins never add syntax. Lints are built into the compiler, and generators are Verse packages run by `verse generate`. | [07](plugins.md), [ADR-0005](../decisions/0005-native-c-abi-plugins.md) |
 | R4 | Really fast | Arena data structures, per-function parallel and incremental compilation, monomorphized code, explicit performance budgets in CI. | [02 §2.3, §2.7](compiler-architecture.md#23-data-structures), [09](performance.md) |
 | R5 | Name the implementation language | **Rust** for compiler, runtime and tooling. | [ADR-0001](../decisions/0001-implementation-language.md) |
 | R6 | Optional stdlib; only what is used is built in | Library tiers; `import` is the opt-in; whole-program reachability over mono MIR; capabilities select runtime slices; `verse build --size-report` explains every item. | [06](stdlib-and-shaking.md), [ADR-0004](../decisions/0004-whole-program-reachability.md) |
@@ -114,6 +114,6 @@ The full pipeline, with each stage's contract, is in
 | **Root** | A starting point for reachability: the entry file's top-level statements (Verse has no `fn main`, spec §12.5), test blocks in test builds, and exported items in library builds. |
 | **Why chain** | The path of edges from a root to an included item, printed by `verse build --size-report` and returned by the MCP server. |
 | **`verse.api`** | The committed file of a package's exported signatures (spec §16.4). Other modules are checked against it, never against source. |
-| **Plugin** | A sandboxed WebAssembly component, opted into by the root project, of one of four kinds: `lint`, `generator`, `bindgen` (0.2, needs `extern`), `tool`. Plugins cannot add syntax or change what a program means. ([07](plugins.md)) |
+| **Plugin** | A native library with a C interface, declared under `[plugins]` in `verse.toml` and called through an `extern` block. Verse cannot check the code inside it. ([07](plugins.md)) |
 | **MCP** | Model Context Protocol: an open protocol through which an LLM-based tool calls structured tools on a server. `verse mcp` exposes the compiler and debugger this way. ([08](debugging-and-mcp.md)) |
 | **ADR** | Architecture decision record: one file per major decision, with context, alternatives and consequences ([decisions/](../decisions/)). |

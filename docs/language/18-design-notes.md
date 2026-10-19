@@ -342,14 +342,18 @@ caller, so it must not be able to fail.
 - Generic `impl` blocks declare their parameters: `impl<T> Box<T>`.
 - A trait type such as `List<Speaker>` uses run-time dispatch, and the trait
   type itself implements the trait, so it can be passed to generic functions.
-- **Reserved for 0.2: `extern`.** Calling foreign (C ABI) functions is a 0.2
-  item. An `extern` function will be callable only inside a `with` block that
-  holds the matching system capability, and will take and return plain-data
-  types only. Verse 0.1 adds no syntax for it, and no `extern` word.
+- **Foreign functions are plain calls.** An `extern` block (§12.6) declares C
+  functions from a plugin named in `verse.toml`, and they are called like any
+  other function. There is no capability gate, no `with` block and no `unsafe`
+  marker, because Verse cannot see what foreign code does and a marker would
+  promise a check that does not exist. Declaring the library is the opt-in.
+  Only plain data crosses, and `Text` crosses as `text.bytes()`, so the
+  conversion stays visible.
 - **Reserved for 0.2: a fixed-size mutable byte buffer.** `Bytes` is
   immutable and `List<Int>` allocates, so bulk I/O on boards without a heap
   (SPI, UART, I2C reads) needs a buffer whose size is fixed when it is made.
-  It is a 0.2 item together with `extern`; 0.1 adds no type for it.
+  The same buffer would let a foreign function fill Verse memory. 0.1 adds no
+  type for it.
 
 ### 18.16 Standard library and tooling
 

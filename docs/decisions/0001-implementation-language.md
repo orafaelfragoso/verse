@@ -6,8 +6,8 @@ Status: accepted (2026-10-18).
 
 We need one language for the compiler, the runtime and the tooling. The
 runtime must run with no OS on microcontrollers and in Wasm, and the compiler
-must be fast, parallel, and embeddable (a language server, a plugin host, a
-JIT).
+must be fast, parallel, and embeddable (a language server, a VM that loads
+native libraries, a JIT).
 
 ## Decision
 
@@ -21,7 +21,7 @@ goal after the first stable release, not part of the plan).
 
 | Option | For | Against |
 |--------|-----|---------|
-| **Rust** | memory safety without a collector; enums and pattern matching fit ASTs and IRs; Cranelift, `wasm-encoder`, wasmtime and tree-sitter-style tools are native crates; `no_std` for embedded; one static binary; strong cross-compilation; excellent tooling for fuzzing and sanitizers | longer compile times; borrow-checker friction for graph-shaped IRs (solved by arenas and indices); steeper contributor learning curve |
+| **Rust** | memory safety without a collector; enums and pattern matching fit ASTs and IRs; Cranelift, `wasm-encoder` and tree-sitter-style tools are native crates; `no_std` for embedded; one static binary; strong cross-compilation; excellent tooling for fuzzing and sanitizers | longer compile times; borrow-checker friction for graph-shaped IRs (solved by arenas and indices); steeper contributor learning curve |
 | Zig | simple, fast builds, excellent C interop, explicit allocators | no mature Cranelift or Wasm tooling in the language; fewer libraries; language not yet stable (1.0 not reached); weaker safety in the compiler itself |
 | C++ | LLVM is native; mature | memory-unsafe compiler; slower development; build complexity; poor fit for fuzz-proof parsers |
 | Go | fast builds, easy concurrency | has a garbage collector, awkward for a runtime for a language with no GC and for embedded; weak at algebraic data types |

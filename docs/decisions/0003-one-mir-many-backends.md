@@ -33,9 +33,8 @@ Backends are lowerings, not interpretations of the language.
 - MIR becomes a stability-sensitive internal interface, specified in
   [13](../architecture/mir-specification.md) (text format, statements, verifier rules).
   In 0.1 its serialization is **internal and unversioned for third parties**:
-  there is no backend plugin kind
-  ([07](../architecture/plugins.md) ships only `lint`, `generator`, `bindgen` and
-  `tool`), and nothing outside the repository may read or write MIR. An
+  there are no backend plugins ([07](../architecture/plugins.md) plugins are
+  native libraries called from a program), and nothing outside the repository may read or write MIR. An
   internal revision number in the header guards the persistent cache only
   ([13.9](../architecture/mir-specification.md#139-versioning-policy)).
 - The first backend is the bytecode VM, specified in

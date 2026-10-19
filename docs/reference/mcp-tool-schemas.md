@@ -111,7 +111,6 @@ Written as JSON Schema fragments. `$defs` are referred to by name below.
     "value": {
       "type": "object",
       "required": ["id", "type", "state", "summary"],
-      "dependentRequired": {"rendered": ["rendered_by"], "rendered_by": ["rendered"]},
       "properties": {
         "id": {"type": "string"},
         "name": {"type": "string"},
@@ -130,8 +129,6 @@ Written as JSON Schema fragments. `$defs` are referred to by name below.
         "until": {"$ref": "#/$defs/position"},
         "reassigned_at": {"$ref": "#/$defs/position"},
         "note": {"enum": ["from_foreign"]},
-        "rendered": {"type": "string", "description": "plugin text, at most 25 words; summary is always present too"},
-        "rendered_by": {"type": "string", "description": "the plugin name; present exactly when rendered is"},
         "fields": {
           "type": "array",
           "items": {

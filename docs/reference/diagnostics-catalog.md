@@ -4,8 +4,7 @@ Status: **draft 1**.
 This file assigns a stable code to every diagnostic the 0.1 toolchain gives,
 and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 (vocabulary and the "don't say" table), spec §16.2 (the style) and
-`events.toml`. Entries marked **0.2** belong to the `extern` section and
-are reserved, not active.
+`events.toml`.
 
 ## 16.1 Rules
 
@@ -13,8 +12,8 @@ are reserved, not active.
    keeps its code, marked *retired*.
 2. **Codes are `V` and four digits.** The first two digits are the family
    (16.2). Errors and warnings share the number space; the record's `severity`
-   says which one it is. Debugger codes are `D0xxx` (17.2). Run-time panic codes are `R0xxx` (16.6). Plugin codes are
-   `plugin/rule` and never start with `V` (07 §7.6).
+   says which one it is. Debugger codes are `D0xxx` (17.2). Run-time panic codes are `R0xxx` (16.6). Lints are
+   compiler warnings and use `V` codes in the family of their topic (spec §16.5).
 3. **The message says what is wrong, in the program's words.** It names the
    binding, the type or the rule, never an internal stage. It does not use any
    word from the "don't say" table of 08 §8.7.
@@ -55,7 +54,7 @@ are reserved, not active.
 | Resources and tasks | V07xx | `Cleanup`, `with`, `spawn`, channels, locks |
 | Packages and API | V08xx | `verse.toml`, `verse.lock`, `verse.api`, versions |
 | Capabilities and targets | V09xx | grants, targets, `--no-heap`, reachability |
-| Foreign calls (0.2) | V10xx | `extern` and `bindgen` |
+| Foreign calls | V10xx | `extern` blocks and plugins (07) |
 | Run time (panics) | R0xxx | overflow, bounds, division by zero, stack, memory (16.6) |
 | Internal | V99xx | a compiler bug; the message asks for a report |
 
@@ -183,15 +182,13 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
 ### V08xx Packages and API
 
-The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `error` for a `generator`, `bindgen` or `tool`, because the files or the output the build then needs would be missing. A stop from the clock is V0822, an `error` for every kind and never cached (18 §18.10).
-
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
 | V0801 | error | `{key}` is not a key of `[{section}]` | unknown keys are errors | did you mean `{near}`? | 19 §19.3 |
 | V0802 | error | the package name `{name}` cannot be imported | a name uses letters, digits and `_`, starting with a letter | write `{suggested}` | 19 §19.4 |
 | V0803 | error | version {have} is too small for these changes; publish as {need} | {change summary} | set `version = "{need}"`, or keep the old signature and add a new function | 19 §19.5 |
 | V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 19 §19.12 |
-| V0805 | error | `{pkg}` lists plugins, but only the root project may | a dependency cannot run code while your project builds | add the plugin to your own `verse.toml` under `[plugins]` | 07 §7.5 |
+| V0805 | retired | | | | |
 | V0806 | error | `{pkg}` {ver} does not match its checksum | the archive hashes to `{got}` | `verse lock --refetch {pkg}` | 19 §19.12 |
 | V0807 | error | `verse.lock` is out of date | `{pkg}` asks for {req}, the lock has {have} | run `verse lock` (not allowed with `--locked`) | 19 §19.6 |
 | V0808 | error | `{pkg}` needs {T}, which `{other}` does not provide | two packages need different major versions of `{pkg}` | pin both to one major | 19 §19.7 |
@@ -200,15 +197,7 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V0811 | error | `verse.api` differs from the source | `{item}`: file says `{a}`, source says `{b}` | run `verse api update` | §16.4 |
 | V0812 | error | `{name}` is not a valid license | use an SPDX name such as `MIT` | | 19 §19.3 |
 | V0813 | error | a yanked version cannot be chosen | `{pkg}` {ver} was yanked: {reason} | use {near} | 19 §19.8 |
-| V0814 | error | plugin `{name}` is a `{k1}`, but verse.toml says `{k2}` | the plugin's own manifest says `{k1}` | change `kind` in verse.toml | 18 §18.2 |
-| V0815 | error | plugin `{name}` asks for more than verse.toml grants | it asks to {ask}; the grant is {grant} | grant it in `[plugins]`, or do not use this plugin | 07 §7.5 |
-| V0816 | warning | plugin `{name}` reported a code that is not its own | `{code}` was dropped | tell the plugin's author | 18 §18.7 |
-| V0817 | error | plugin `{name}` needs plugin interface {n}, and this compiler supports {m} | | update the compiler or use an older plugin | 18 §18.9 |
-| V0818 | error | `{pkg}` uses {feature}, which Verse cannot build in | first used in `{export}` | use a version of `{pkg}` without it | 07 §7.4 |
-| V0819 | warning or error | plugin `{name}` stopped with an error and wrote nothing | it failed in `{call}` | update the plugin, or remove it from `[plugins]` | 18 §18.10 |
-| V0820 | warning or error | plugin `{name}` ran out of {limit} and wrote nothing | the limit is {value} | simplify its inputs; `[limits]` can only go down | 18 §18.10 |
-| V0821 | warning or error | plugin `{name}` wrote a file the compiler cannot accept | `{path}`: {reason} | tell the plugin's author | 18 §18.8 |
-| V0822 | error | plugin `{name}` ran out of time on this machine | the limit is {seconds} seconds, and time depends on the machine | raise `time` in `[plugins]`, or lower the work it does | 18 §18.10 |
+| V0814 to V0822 | retired | | | | |
 | V0823 | warning | this lock was made with {old}, and you run {new} | the toolchain differs | run `verse lock` to record {new}; the build continues and does not reuse old caches | 19 §19.6 |
 | V0824 | error | `{pkg}` {ver} has a different API from the one in your lock | the lock says `{a}`, the package says `{b}` | `verse lock --refetch {pkg}`; if it persists, the version was republished | 19 §19.6, §19.12 |
 | V0825 | error | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | two major versions of `{pkg}` are in this build | update `{other}`, or pin one version of `{pkg}` | 19 §19.7 |
@@ -218,8 +207,9 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V0829 | error | `{file}` in `vendor/` was edited | it does not match the lock's checksum for `{pkg}` | `verse vendor --restore {pkg}`, or copy the package into your own source | 19 §19.8 |
 | V0830 | error | `branch` is not accepted | a branch changes without a new version | use `tag = "…"` or `rev = "…"` | 19 §19.3 |
 | V0831 | error | `{req}` has no upper bound | any new major version would be accepted | write `"{near}"`, which means {range} | 19 §19.3 |
-| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a plugin that is not deterministic | 19 §19.9 |
+| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a generator that is not deterministic | 19 §19.9 |
 | V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, or named like a capability such as `net`} | choose another name | 19 §19.4 |
+| V0834 | error | `{pkg}` declares a plugin with `{key}`, which only the root project may use | a dependency cannot build or ship native code | declare the plugin in your own `verse.toml` | 07 §7.2 |
 
 ### V09xx Capabilities and targets
 
@@ -241,15 +231,21 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V0914 | error | the `[memory]` section of target `{t}` is not valid | {reason: `heap` is not allowed on this layer, or the sizes do not fit in `ram`} | change `{key}` in `{file}` | 15 §15.9.4 |
 | V0915 | error | no target is named `{t}` | looked in {list of places} | check the name, or add `targets/{t}.target` | 15 §15.9.1 |
 
-### V10xx Foreign calls (0.2, reserved)
+### V10xx Foreign calls
 
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
-| V1001 | error | calling `{f}` needs the `{cap}` capability | foreign code runs here | wrap the call in `with {cap}() as {x}` | extern E3 |
-| V1002 | error | `{T}` cannot cross a foreign call | allowed types: {list} | pass `text.bytes()` for text | extern E5 |
-| V1003 | error | `{f}` needs a written signature | every parameter and the result need types | annotate them | extern E2 |
-| V1004 | error | the bound name `{x}` is never used in this `with` block | the block is there to permit foreign calls | pass `{x}` to the calls it permits | extern review R1 |
-| V1005 | error | `{target}` cannot link foreign code | the browser target has no native linking | build for a native target | extern E11 |
+| V1001 | retired | | | | |
+| V1002 | error | `{T}` cannot cross a foreign call | allowed types: {list} | pass `text.bytes()` for text | §12.6, 07 §7.4 |
+| V1003 | error | `{f}` needs a written signature | every parameter and the result need types | annotate them | §12.6 |
+| V1004 | retired | | | | |
+| V1005 | error | `{target}` cannot link foreign code | {reason} | build for a native target | 07 §7.8 |
+| V1006 | error | no plugin is named `{name}` | `extern {name}` needs `[plugins.{name}]` in verse.toml | add `[plugins.{name}]` with `lib` or `path` | §12.6, 07 §7.2 |
+| V1007 | error | the library for plugin `{name}` was not found | looked in {places} | install it, or set `path` in `[plugins.{name}]` | 07 §7.6 |
+| V1008 | error | the library for plugin `{name}` has no `{symbol}` | declared here | check the C name, or rebuild the library | 07 §7.6 |
+| V1009 | error | the build command of plugin `{name}` failed | it exited with status {status} | run `{command}` yourself to see the full output | 07 §7.2 |
+| V1010 | error | a foreign function cannot take `{x}` | Verse memory is never handed to foreign code | remove `take`; the argument is borrowed for the call | §12.6, 07 §7.4 |
+| V1011 | error | script mode needs a shared library for plugin `{name}` | only `{file}` was found | build a shared library as well as the static one | 07 §7.6 |
 
 ### V99xx Internal
 
@@ -258,14 +254,7 @@ The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `erro
 | V9901 | error | the compiler failed in {stage}; this is a bug in Verse, not in your program | | run `verse check --report` and send the file |
 | V9902 | error | the verifier found a broken rule in {stage} | rule {rule} failed in `{function}` | as above |
 
-## 16.4 Plugin diagnostics
-
-A plugin writes its own codes as `plugin/rule` (for example `style/prefer-map`).
-The tool adds `source: "plugin"` and the plugin name. A plugin diagnostic is a
-warning unless the root `verse.toml` promotes it with `promote = […]`. It
-cannot reuse a `V` code, suppress a compiler diagnostic, or lower one.
-
-### 16.4.1 How a code is shown
+## 16.4 How a code is shown
 
 The first line is the message exactly as spec §16.2 shows it, with no code in
 it. The code goes on the last line of the block, which also says how to read
@@ -283,8 +272,7 @@ explain: V0412 (run `verse explain V0412`)
 ```
 
 - The `explain:` line is always last, after every `help:` line. A `note` and a
-  `warning` use it the same way. A plugin diagnostic prints its own code, for
-  example `explain: style/prefer-map (run `verse explain style/prefer-map`)`.
+  `warning` use it the same way.
 - JSON output carries the code as `code`, a separate field (02 §2.8). A tool that reads
   the text can match `^explain: (\S+)` for the code.
 - A run-time panic (16.6) uses the same last line with its `R` code.
@@ -359,6 +347,7 @@ the same facts are one record (05 §5.4); the message is the same.
 | R0011 | the exponent {n} is negative, and an `Int` power needs 0 or more | this exponent | spec §3.8 |
 | R0012 | `{a}` cannot be converted to `{T}` | {reason: it is too large, it is too small, it is not a number, or it is not a Unicode character} | spec §3.8 |
 | R0013 | the exit code {n} is outside 0 to 255 | this call | spec §12.5 and §15.1 `exit`, 15 §15.8 |
+| R0014 | `{f}` returned a null pointer, and its signature says `Pointer` | this call | spec §12.6, 07 §7.4 |
 
 **From MIR panic kind to code** (13 §13.2 names the kinds; the operands a kind
 carries are the facts below, and the debugger and the compiled tiers fill the
@@ -376,6 +365,7 @@ same placeholders from them).
 | `slice_oob` | R0010 | `from`, `to`, `n`, `what`, `unit` |
 | `neg_exponent` | R0011 | `n` |
 | `convert T` (a `checked_cast` that failed: `narrow`, `f2i`, `int_char`) | R0012 | `a`, `T`, `reason` |
+| `foreign_null` | R0014 | `f` |
 
 A panic kind with no row here is a bug in the compiler, and the build's
 verifier reports it as V9902. `what` is `list` or `text`; `unit` is `items` or
@@ -410,7 +400,7 @@ These are the others, so a script can tell the causes apart.
 | 101 | a panic (16.6) |
 
 A `V99xx` message always ends with "this is a bug in Verse, not in your program"
-and the `explain:` line (16.4.1), so the cause is clear even when the status is
+and the `explain:` line (16.4), so the cause is clear even when the status is
 all a script sees. An `exit(code)` that the program calls itself is never
 changed.
 

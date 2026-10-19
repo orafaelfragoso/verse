@@ -22,8 +22,7 @@ Facts, assumptions and hypotheses are labelled as such.
 | [Runtime](runtime.md) | Memory, tasks, panics and unwinding, feature slices, embedded profile |
 | [Standard library and tree-shaking](stdlib-and-shaking.md) | Optional domain libraries, how builds include only what they use |
 | [First-party packages](first-party-packages.md) | API sketches for `finance`, `ml`, `web`, `gui`, `iot` |
-| [Plugins](plugins.md) | Sandboxed extension points and their safety model |
-| [Plugin interface](plugin-interface.md) | What a plugin sees: manifest, host interface, capabilities, limits |
+| [Plugins](plugins.md) | Native C-ABI libraries: `[plugins]`, `extern`, the type mapping, loading in script and compiled mode, `verse bind` |
 | [Debugging and MCP](debugging-and-mcp.md) | A debugger and compiler that LLMs can drive step by step |
 | [Performance](performance.md) | Budgets, benchmark suite, known spec-level performance risks |
 | [Testing and verification](testing-and-verification.md) | Conformance, differential testing, fuzzing, soundness checks |

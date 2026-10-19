@@ -173,43 +173,6 @@ The same events feed breakpoints, the trace and the recording:
 Each event has a stable `event` name and a one-line `text` rendering in the
 compiler's wording (section 8.7).
 
-#### Rendered values
-
-A `tool` plugin that declares `renders = ["TypeName"]` in `plugin.toml` can
-supply a short description of values of that type. The description is added to
-the value record next to the built-in one. It never replaces it.
-
-```json
-{
-  "name": "scores",
-  "type": "Histogram",
-  "state": "owned",
-  "summary": "Histogram(buckets: 12, total: 340)",
-  "rendered": "340 samples in 12 buckets, most in 40 to 50",
-  "rendered_by": "stats-view"
-}
-```
-
-- **Where it runs.** Only inside the debugger (`verse mcp`). It never runs in
-  the program and cannot change what the program does, so script and compile
-  modes stay identical.
-- **Input.** The value record of this section, cut to the depth and size that
-  the debug call asked for. It has no addresses and no pointers.
-- **Output.** One string of at most 25 words, plain and in the present tense.
-  The host checks it against the "don't say" table of §8.7. A string that fails
-  the check or is too long is dropped, the built-in `summary` is used, and the
-  user sees one warning for that type.
-- **Budget.** 1 million fuel units, 50 ms and 16 MiB per call. A call that stops
-  falls back to the built-in `summary`.
-- **No capabilities.** A renderer can read no file and no input.
-- **Recordings.** Record and replay stores raw values only, so a recording does
-  not depend on any renderer. Rendering happens when a value is asked for.
-- **Both lines are always present.** `summary` is always there, so a client that
-  does not know about renderers still reads a full description.
-
-Fields added to the value record: `rendered` (text, optional) and
-`rendered_by` (the plugin name, present exactly when `rendered` is).
-
 ## 8.5 Deterministic record and replay
 
 - **What is recorded**: capability results (with their arguments, for
@@ -311,7 +274,7 @@ error. A CI system or an LLM can read it with no tooling.
 | `borrowed` | `name`, `by` | "`{name}` borrowed by {by}" |
 | `dropped` | `name` | "`{name}` dropped" |
 | `cleaned_up` | `name` | "`{name}` cleaned up" |
-| `called`, `returned` | `function`, `value`; `called` adds `foreign: true` for a foreign call (0.2 `extern`) | "{function} called" / "{function} returned {value}"; a foreign call reads "{function} called (foreign code)" |
+| `called`, `returned` | `function`, `value`; `called` adds `foreign: true` for a foreign call (`extern`) | "{function} called" / "{function} returned {value}"; a foreign call reads "{function} called (foreign code)" |
 | `propagated` | `value`, `function` | "`?` left {function} with {value}" |
 | `panicked` | `kind`, `text` | "{text}" |
 | `spawned`, `finished` | `task`, `function` | "task {task} started {function}" / "task {task} finished" |
@@ -327,7 +290,7 @@ error. A CI system or an LLM can read it with no tooling.
 a call), `dropped`, `not_yet_bound`. A `mut` binding adds `mutable: true` and
 `reassigned_at`. An optional adds `presence: present or none`; a fallible
 value adds `result: ok or error`. A value that crossed a foreign call adds
-`note: from_foreign`, shown as "came from a foreign call" (0.2 `extern`, E10).
+`note: from_foreign`, shown as "came from a foreign call" ([07 §7.5](plugins.md#75-ownership-and-lifetime)).
 
 ### Stop reasons
 

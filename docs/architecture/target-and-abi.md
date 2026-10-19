@@ -22,8 +22,8 @@ Where this document changes or extends 03, 04, 05, 13 or 14, the change is a
 
 - **Fact** ([04 §4.5](backends-and-targets.md#45-calling-convention-and-abi)):
   the internal ABI is free to change between compiler versions. The only
-  stable ABIs are the C ABI for explicit `extern` items (0.2) and the Wasm
-  component ABI for components. Everything below is **internal**: it is
+  stable ABIs are the C ABI for `extern` calls and library exports, and the
+  Wasm component ABI for component exports. Everything below is **internal**: it is
   versioned with the compiler, it may change in any release, and no artifact
   outside one toolchain build may rely on it.
 - **Decision**: internal does not mean unspecified. Two backends, the runtime
@@ -38,8 +38,8 @@ Where this document changes or extends 03, 04, 05, 13 or 14, the change is a
   that a stock debugger, profiler and unwinder understand; **G3** the same
   observable behaviour of panics, `Cleanup`, cancellation and exit statuses on
   every tier; **G4** a new target of a known family is data only (R2).
-- Non-goals: a stable ABI for third parties, the `extern` section itself
-  (0.2), the instruction-level encoding of the VM
+- Non-goals: a stable ABI for third parties, the plugin rules themselves
+  ([07](plugins.md)), the instruction-level encoding of the VM
   ([14](bytecode-and-vm.md)), and the per-capability operation lists
   ([05 §5.6](runtime.md#56-the-sys-capability-interface)).
 
@@ -50,7 +50,7 @@ Where this document changes or extends 03, 04, 05, 13 or 14, the change is a
 | **A. Data layout** ([15.3](#153-data-layout)) | size, alignment, offsets, niches, header words | every tier, `verse-rt`, debuggers (via the debug map) | internal, `rev`-versioned with MIR ([13.9](mir-specification.md#139-versioning-policy)) |
 | **B. Verse call convention** ([15.4](#154-the-verse-call-convention), [15.5](#155-per-target-conventions)) | how a mono MIR `call` is lowered | compiled Verse code to compiled Verse code | internal |
 | **C. Runtime ABI** ([15.4](#154-the-verse-call-convention), [15.7](#157-unwinding-and-abort-abi)) | entry points of `verse-rt`, the panic record, the unwind state | compiled code and `verse-rt`, VM and `verse-rt` | internal; Rust `"C-unwind"` functions |
-| **D. External ABIs** ([15.11](#1511-foreign-call-boundary)) | C ABI, Wasm component ABI, WASI | a Verse program and the outside world | stable (0.2 for C and `extern`) |
+| **D. External ABIs** ([15.11](#1511-foreign-call-boundary)) | C ABI, Wasm component ABI, WASI | a Verse program and the outside world | stable |
 
 ## 15.2 Terms
 
@@ -434,7 +434,7 @@ operations (13.4, V23) and by the `sys` callees. Rules:
   are reached through `"C-unwind"` pointers (assumption).
 - **Symbols** of compiled Verse functions are internal (hidden visibility),
   named from the instance key ([02 §2.6](compiler-architecture.md#26-monomorphization)) and a hash; they carry no promise.
-  Names of `extern` exports are unmangled and are a 0.2 subject.
+  An `extern` function is called by its C name (spec §12.6).
 
 ## 15.5 Per-target conventions
 
@@ -830,9 +830,9 @@ The runtime owns every catch. There are exactly three:
 | **Program entry** | the runtime start function, around the main task | maps the main task's outcome to the exit status ([15.8](#158-exit-codes)) |
 
 Nothing else catches. In particular a **foreign frame is never unwound
-through**: `extern` functions (0.2) are `nounwind`, and callbacks from foreign
+through**: `extern` functions are `nounwind`, and callbacks from foreign
 code into Verse do not exist. A foreign
-function that unwinds is undefined behaviour in 0.1/0.2 and the process aborts.
+function that unwinds is undefined behaviour ([07 §7.5](plugins.md#75-ownership-and-lifetime)).
 
 ### 15.7.6 The `abort` profile and `unreachable`
 
@@ -1370,33 +1370,34 @@ Notes:
 
 ## 15.11 Foreign-call boundary
 
-**Pointer only.** The `extern` section is **0.2** (it is needed for
-`bindgen`). 0.1 has no `extern` syntax and no foreign ABI. What this document fixes now is
-what the 0.2 section can rely on:
+The rules for plugins and `extern` are in [07](plugins.md) and spec §12.6.
+This section fixes what they mean at the ABI level.
 
-- **The stable ABI is the platform C ABI.** A foreign call is a C-ABI call. Because
-  Verse-cc is the C convention over scalars and pointers (15.4), a foreign
-  function whose parameters are plain data (scalars and pointers; the 0.2
-  rule "takes and returns only plain data types") needs **no adapter**.
-  `Int` is `int64_t`, `Float` is `double`, `Bool` is a byte, `Char` is `uint32_t`.
-- **Aggregates and Verse headers never cross by value.** `Text`, `List` and the
-  other types of 15.3.3 are not C types; passing them is a `bindgen` job that
-  copies through pointers and lengths.
-- **No unwinding through foreign frames.** An `extern` function is `nounwind`
-  and may not call back into Verse (15.7.5).
-- **Capability.** Every call site is a capability use (E3, E9). Reachability
-  adds the capability's slice and the library; `--deny` and `verse check
-  --target` report it before the program starts. The same target-file
-  `[capabilities]` and the `V0902` message apply.
-- **Wasm components** are the other half of the 0.2 imports: on Wasm, a component
-  import uses the canonical ABI wrappers of 15.5.6; on native targets a Wasm
-  component is translated to mono MIR and is not foreign code at all
-  ([07 §7.4](plugins.md#74-wasm-implemented-packages-are-ordinary-packages)).
-- **Open for 0.2** (P15-19): whether a blocking foreign call runs on the task's
-  stack or on the blocking pool (stack size, 15.6.1); the symbol and linking
-  rules for `[library.native]`; whether a foreign call is `mayyield` on
-  state-machine targets (it cannot park a task, so it blocks the single thread);
-  how `Text` is passed (pointer and length, not NUL-terminated).
+- **The stable ABI is the platform C ABI.** A foreign call is a C-ABI call.
+  Verse-cc is the C convention over scalars and pointers (15.4), so a foreign
+  function whose parameters are plain data needs **no adapter** in compiled
+  code. The type mapping is [07 §7.4](plugins.md#74-values-across-the-boundary):
+  `Int` is `int64_t`, `Float` is `double`, `Bool` is a byte, `Char` is
+  `uint32_t`, `Pointer` is a pointer-width address, and a `Copy` record is a
+  C struct with the target's C layout, which may differ from its Verse layout
+  (15.3); the call copies it.
+- **Aggregates and Verse headers never cross.** `Text`, `List` and the other
+  types of 15.3.3 are not C types. A `Bytes` argument passes a pointer to its
+  data, followed by a zero byte; a slice that is not followed by one is copied
+  for the call.
+- **No unwinding through foreign frames.** A foreign call is `nounwind`
+  (`call foreign` with `unwind none`, 13.4), and foreign code never calls back
+  into Verse (15.7.5).
+- **Tasks.** A foreign call runs on the calling task's stack and thread and is
+  not a yield point. On a state-machine target it blocks the single thread
+  until it returns. The stack of a stackful task must hold the foreign
+  function's frames within the target file's `[tasks] stack_reserve`
+  ([15.6.1](#1561-stackful-targets)); the guard page turns an overflow there into R0004.
+- **Script mode.** The VM calls through a stub generated per signature by
+  `verse-ffi`, which moves VM registers into C-ABI arguments and back. The stub
+  follows the same mapping, so a call means the same in every tier.
+- **Capabilities.** A foreign call is not a capability use. `--deny` and
+  `[capabilities]` do not reach foreign code ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 ## 15.12 Conformance and tests
 
@@ -1463,14 +1464,14 @@ this document's.
 | P15-9 | The vtable layout `[drop_glue, size, align, slots...]`, owned `dyn` as a heap box, and the layout of `Error` as a boxed trait object | 03 §3.5, `std` | Accept; `std` confirms `Error` |
 | P15-10 | File names and lookup: `targets/<name>.toml` (toolchain), `targets/<name>.target`, `verse.target`, `host`, and `inherits` | 04 §4.3, 19 §19.3 | Accept 15.9.1; 19 adds `verse.target` to its file list and cache keys |
 | P15-11 | Schema extensions to 04 §4.3 (15.9.2) and diagnostics for target-file errors | 04 §4.3, 16 | **Codes closed**: V0911 to V0915, one per row of 15.9.4. Still open: fold the schema into 04 §4.3 |
-| P15-12 | Custom capabilities and providers for custom targets and boards (a CAN bus); a browser `net` client through `fetch` | 05 §5.6, 06 §6.5, 20 | Defer to 0.2 with `extern`; a capability needs a slice supplied by a package |
+| P15-12 | Custom capabilities and providers for custom targets and boards (a CAN bus); a browser `net` client through `fetch` | 05 §5.6, 06 §6.5, 20 | Not in 0.1. A board driver can be called through a plugin, outside the capability system (07 §7.1); a custom capability needs a slice supplied by a package |
 | P15-13 | The range of `exit(code)`, whether `exit` runs `Cleanup`, and `exit` from a non-main task | spec §12.5 and §15.1, 16 R0013 | **Closed, final**: the code is 0 to 255 and anything else is panic R0013 on every platform; `exit` works from any task, ends the program immediately, runs **no** `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes standard output and error |
 | P15-14 | WASI p2 `exit-with-code` is stable from 0.2.12; older hosts only have `exit(result)` | 15.8.2 | Use `exit-with-code`; fall back to `exit(err)` with a warning on a host that lacks it; verify in M3 |
 | P15-15 | On Wasm the engine's call-stack limit can trap before the shadow-stack check, so `stack_overflow` is not always a panic | 05 §5.3 | Document as a host-defined trap; give each recursive function a minimum shadow frame so the Verse check usually fires first |
 | P15-16 | Exit status of an internal error or trap (`unreachable`, VM bug) | 14.4 `TRAP`, 15.7.6, 16 §16.6.1 | **Closed** (ruling): status 3 where the runtime is the cause; a host trap Verse cannot control stays host-defined |
 | P15-17 | The `stack` of a panic record needs the debug map; a `debug = false` build has none | 05 §5.4, 14.12 | Print message and span only; the structured record carries `stack = null`; differential tests compare it only with debug on |
 | P15-18 | Targets not in 04 §4.2: ARM32 Linux, i686, RISC-V 32 Linux, big-endian | 04 §4.2 | Out of 0.1; each is a target file plus, for stackful targets, a context-switch row |
-| P15-19 | Items for the 0.2 `extern` section (15.11) | 15.11 | The 0.2 author settles them |
+| P15-19 | Foreign calls: stack, blocking, the `Text` form, symbols and linking | 15.11, 07 | **Closed**: on the task's stack, not a yield point, `Text` as `text.bytes()` with a trailing zero byte, C names, linking per `[plugins]` (15.11, 07 §7.4 to §7.6) |
 | P15-20 | Mixed-mode execution (a later hot-function JIT) needs adapters between the VM window and Verse-cc | 04 §4.1, 14 | Specify with the JIT; none in 0.1 |
 | P15-21 | Cranelift unwind information on Windows (x64 and ARM64) | 04 §4.1, 15.5.2 | Verify in M5; LLVM is the fallback |
 | P15-22 | The float ABI of binary64 on an FPU with single precision only (`fpv4-sp-d16`) | 15.5 | Verify in M7 that `verse-rt` and generated code agree; both are built with the same target ABI string |
