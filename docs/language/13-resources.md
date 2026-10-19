@@ -6,7 +6,7 @@ External resources, such as files, network connections, locks and channel
 ends, must be released promptly and reliably. Every value has one owner (§4.9), and a
 value is **dropped right after its owner's last use**. Dropping a resource
 releases it, however the code goes on from there: normally, by `return`,
-`break`, `continue`, `?` propagation, a panic or a cancellation. A use of
+`break`, `continue`, `try` propagation, a panic or a cancellation. A use of
 something that reads the value, such as the iterator of `file.lines()`,
 counts as a use of the value. A temporary that no name owns is dropped at the end of
 the statement that made it. A `Task` owned by a binding, or discarded by a bare `spawn`, is the one
@@ -16,7 +16,7 @@ ends (§11.3).
 ```verse
 import open from fs
 
-file = open("log.txt")?
+file = try open("log.txt")
 for line in file.lines()
     print(line)
 # `file` is closed here: the loop was its last use
@@ -28,9 +28,9 @@ later.
 
 A resource is an ordinary value. `File`'s write methods (`write_line`,
 `write`, `flush`) take `mut self`, so a file you write to is bound with
-`mut`: `mut target = create("out.txt")?`. Acquiring a resource can fail, and
+`mut`: `mut target = try create("out.txt")`. Acquiring a resource can fail, and
 the failure is handled like any other: `open` returns `File raises Error`, so it
-needs `?`, `otherwise` or `match` (§8).
+needs `try`, `otherwise` or `match` (§8).
 
 ### 13.2 Order of release
 
@@ -41,10 +41,10 @@ parts of one value drop in the order they were written (§4.10).
 ```verse
 import open, create from fs
 
-source = open("input.txt")?
-mut target = create("output.txt")?
+source = try open("input.txt")
+mut target = try create("output.txt")
 for line in source.lines()
-    target.write_line(line.upper())?
+    try target.write_line(line.upper())
 # the loop is the last use of both: `target` closes first, then `source`
 ```
 
@@ -60,9 +60,9 @@ returns the error:
 ```verse
 import create from fs
 
-mut writer = create("out.txt")?
-writer.write_line("done")?
-writer.finish()?                        # the fallible close: `writer` is consumed
+mut writer = try create("out.txt")
+try writer.write_line("done")
+try writer.finish()                     # the fallible close: `writer` is consumed
 ```
 
 | Operation | Signature | Meaning |
@@ -112,15 +112,15 @@ impl Unique for TempDir                    # one owner: no `.copy()`, so `remove
 impl TempDir
     fn create()                            # inferred: TempDir raises Error
         path = "/tmp/verse-{random.int(0..1_000_000)}"
-        fs.make_dir(path)?
+        try fs.make_dir(path)
         TempDir(path:)
 
     fn remove(take self)                   # inferred: Nothing raises Error
         fs.remove_all(self.path)
 
-dir = TempDir.create()?
-fs.write_text("{dir.path}/scratch.txt", "draft")?
-dir.remove()?
+dir = try TempDir.create()
+try fs.write_text("{dir.path}/scratch.txt", "draft")
+try dir.remove()
 ```
 
 ---

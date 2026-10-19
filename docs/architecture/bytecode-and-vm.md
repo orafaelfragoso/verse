@@ -268,7 +268,7 @@ native-code strategies. Observable behaviour is the same as the others.)
   jump to `cleanup_pc`; the cleanup block runs as ordinary code (`DROP`, flag
   writes, `JF`/`SWITCH` on flags and `ABANDON`, V15) until `RESUME`, which pops the call record and repeats with the
   caller's return pc. Not found: pop at once.
-- **Nothing intercepts.** `otherwise`, `match` and `?` are ordinary MIR and
+- **Nothing intercepts.** `otherwise`, `match` and `try` are ordinary MIR and
   never see the unwind state; only the task boundary turns it into a value
   (`TaskPanicked`, `Cancelled`) for `.wait()`. At the main task: panic gives
   exit 101.
@@ -423,7 +423,7 @@ capability fakes:
 | Observable | Detail |
 |------------|--------|
 | standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too, folded as 16.6 says: they come from the user-level call list below, which every build has (15 §15.7.1). The one exception is the R0004 text and its stack lines when a compiled task fills its stack before the call limit (May differ) |
-| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule and can report V9902 at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
+| exit status | 0; 1 (a top-level `try` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule and can report V9902 at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
 | panic record | `kind`, facts, span, task, and the **user-level** call list as the walk prints it in the structured record's `stack` (`VERSE_PANIC=json`, folded as 16.6 says; inlined calls reconstructed from spans, 13.7), since no tier stores the list (15 §15.7.1); which panic comes first; the R0004 exception of the row above applies here too |
 | call limit | the call at which the first form of R0004 fires, on every tier that reaches the limit before its stack fills: the count of calls of `recursive` functions is the same on every tier ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | order of drops | including on panic and cancellation |

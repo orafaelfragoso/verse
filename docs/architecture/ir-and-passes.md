@@ -20,7 +20,7 @@ language. The table gives the mapping. Source forms are from the spec. The core 
 | Surface form | HIR core |
 |--------------|----------|
 | `a otherwise b` (§3.8.2) | `match a { present(x) -> x; none -> b }` over the optional or fallible type, typed later |
-| `expr?` (§8.3) | early `return` of the absent or error case from the enclosing function or lambda |
+| `try expr` (§8.3) | early `return` of the absent or error case from the enclosing function or lambda |
 | `if x is p` (§6.2) | single-arm match with fallthrough |
 | `.name` key-path lambda (§5.4) | lambda with one parameter |
 | `x if cond` postfix guards (§6.7) | `if cond` block |

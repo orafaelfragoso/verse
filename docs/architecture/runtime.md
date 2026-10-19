@@ -13,7 +13,7 @@ the ones the reachability analysis asks for ([06](stdlib-and-shaking.md)).
 | `core` | allocator, drop and panic machinery (including the panic report: the stack walk, the trace map and folding, [15 §15.7.1](target-and-abi.md#1571-the-panic-record-and-the-unwind-state)), `Text`, `List`, `Map`, `Set` primitives, checked arithmetic helpers, formatting of scalars | no | none |
 | `unwind` | landing pads and cleanup running on panic and cancellation | no | `core` |
 | `tasks` | scheduler, `Task`, the `Sender` and `Receiver` made by `Channel.new<T>()`, `Shared`, `Guarded`, timers | scheduler primitives only | `core` |
-| `sys-stdio` | `print`, `input`, error reports of a failed top-level `?` | yes, per target | `core` |
+| `sys-stdio` | `print`, `input`, error reports of a failed top-level `try` | yes, per target | `core` |
 | `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-os`, `sys-env` | the platform capabilities of `time`, `random`, `fs`, `net` and `http`, `process`, `os`, `env` | yes, per target | `core` |
 | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | microcontroller peripherals | board | `core` |
 | `debug` | trace events, record and replay hooks, the `values` and `last_events` of a panic report | no | `core` |
@@ -130,7 +130,7 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   nothing, does not cancel the other tasks, and flushes standard output and
   error. A code outside 0 to 255 is a panic, R0013, on every platform. A
   program whose files must be written out returns from `main` or ends with a
-  failed `?` ([15 §15.8.1](target-and-abi.md#1581-statuses)).
+  failed `try` ([15 §15.8.1](target-and-abi.md#1581-statuses)).
 
 ## 5.4 Panics and unwinding
 

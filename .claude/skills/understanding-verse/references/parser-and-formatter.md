@@ -93,7 +93,9 @@ Examples of parser-relevant choices in the sketch:
   item. The trailing `from` on the same logical line decides.
 - A lowercase receiver never takes explicit type arguments, so
   `a.b < c > (d)` is always a chained comparison.
-- There is no `?.` token.
+- `try` is a prefix word below the postfix chain and above `**`, so
+  `try a.b(c)` parses as `try (a.b(c))`; `?` appears only in types and
+  patterns.
 
 **CST.** A green tree, structurally shared and cheap to re-parse after an
 edit. Printing it gives back the file byte for byte. Why: the formatter and
@@ -135,7 +137,7 @@ Why no options: every Verse file looks the same
 - Nothing in the front end ever sees a target triple
   ([02 §2.1](../../../../docs/architecture/compiler-architecture.md#21-pipeline)).
 - The formatter never removes semantically significant parentheses: those
-  that end a lifted chain, and those in `(a?).b`
+  that end a lifted chain, and those in `(try a).b`
   ([§16.1](../../../../docs/language/16-tooling.md#161-the-formatter)).
 - The formatter never inserts or removes type annotations, and never touches
   `verse.api`

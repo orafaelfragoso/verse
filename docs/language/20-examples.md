@@ -25,8 +25,8 @@ fn parse_args(raw: List<Text>)                   # returns Options raises Error 
     while i < raw.len()
         match raw[i]
             "--top" ->
-                value = raw.get(i + 1).or_error("--top needs a number")?
-                options.top = value.to_int().context("--top expects a number")?
+                value = try raw.get(i + 1).or_error("--top needs a number")
+                options.top = try value.to_int().context("--top expects a number")
                 i += 2
             flag if flag.starts_with("--") ->
                 return error("unknown option: {flag}")
@@ -48,12 +48,12 @@ fn count_words(text: Text): Map<Text, Int>
 
 # ---- program ----
 
-options = parse_args(args)?
+options = try parse_args(args)
 
 mut totals: Map<Text, Int> = {:}
 mut word_total = 0
 for path in options.files
-    text = fs.read_text(path).context("reading {path}")?
+    text = try fs.read_text(path).context("reading {path}")
     for (word, n) in count_words(text)
         totals[word] = totals.get(word, default: 0) + n
         word_total += n
@@ -79,7 +79,7 @@ test "counting ignores case and punctuation"
     assert "end!" not in counts
 
 test "parse_args reads --top and files"
-    options = parse_args(["--top", "3", "a.txt", "b.txt"])?
+    options = try parse_args(["--top", "3", "a.txt", "b.txt"])
     assert options.top == 3
     assert options.files == ["a.txt", "b.txt"]
 
@@ -119,7 +119,7 @@ type Report
 ## Takes `url` because the report keeps it.
 fn fetch(take url): Report raises Error
     started = time.now()
-    response = get(url, timeout: 10.seconds()).context("fetching {url}")?
+    response = try get(url, timeout: 10.seconds()).context("fetching {url}")
     Report(
         url:,
         status: response.status,
@@ -170,7 +170,7 @@ test "describe marks client errors as bad"
 ```
 
 Because `fetch` is an ordinary function, the same code works sequentially
-(`fetch(url)?`) or concurrently (`spawn fetch(url)`), with no `async` variant.
+(`try fetch(url)`) or concurrently (`spawn fetch(url)`), with no `async` variant.
 In both cases `fetch` gets its own copy of `url`, so the caller keeps the text.
 The three requests overlap, so the total time is close to the slowest single
 request.
@@ -248,7 +248,7 @@ shapes: List<Measurable> = [
     Circle(radius: 1.5),
     Square(side: 2.0),
     Rect(width: 3.0, height: 1.25),
-    Triangle.new(3.0, 4.0, 5.0)?,
+    try Triangle.new(3.0, 4.0, 5.0),
 ]
 
 print("Shapes")
@@ -267,7 +267,7 @@ test "a square of side 2 has area 4"
     assert Square(side: 2.0).area() == 4.0
 
 test "a 3-4-5 triangle has area 6"
-    t = Triangle.new(3.0, 4.0, 5.0)?
+    t = try Triangle.new(3.0, 4.0, 5.0)
     assert t.area() == 6.0
     assert t.perimeter() == 12.0
 

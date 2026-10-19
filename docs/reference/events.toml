@@ -48,7 +48,7 @@ text = "{function} returned {value}"
 
 [events.propagated]
 fields = ["value", "function"]
-text = "`?` left {function} with {value}"
+text = "`try` left {function} with {value}"
 
 [events.panicked]
 fields = ["kind", "text"]
@@ -114,7 +114,7 @@ text = "stopped in `{function}` at line {line}: {text}"
 [stops.assert_failed]
 text = "stopped in `{function}` at line {line}: assert {text} failed"
 [stops.propagated]
-text = "stopped in `{function}` at line {line}: `?` returned {value}"
+text = "stopped in `{function}` at line {line}: `try` returned {value}"
 [stops.moved]
 text = "stopped in `{function}` at line {line}: `{name}` moved to {to}"
 [stops.reassigned]

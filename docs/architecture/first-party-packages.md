@@ -89,14 +89,14 @@ type Roll = Following | ModifiedFollowing | Preceding | Unadjusted
 import Money, Calendar from finance
 import Date from time
 
-prices = [Money.parse("19.99", currency: "EUR")?, Money.parse("5.01", currency: "EUR")?]
+prices = [try Money.parse("19.99", currency: "EUR"), try Money.parse("5.01", currency: "EUR")]
 mut total = Money.zero("EUR")
 for price in prices
-    total = total.add(price)?
+    total = try total.add(price)
 print(total.round())                              # 25.00 EUR
 
-invoiced = Date.parse("2026-10-16")?              # assumed time constructor
-target = Calendar.named("TARGET")?
+invoiced = try Date.parse("2026-10-16")           # assumed time constructor
+target = try Calendar.named("TARGET")
 print(target.add_business_days(invoiced, 30))
 ```
 
@@ -180,10 +180,10 @@ import Tensor, Tape from ml
 
 mut tape = Tape.new()
 w = tape.param(Tensor.random([3, 1], seed: 7))
-x = tape.input(Tensor.from_list([[1.0, 2.0, 3.0]])?)
-y = tape.matmul(x, w)?
+x = tape.input(try Tensor.from_list([[1.0, 2.0, 3.0]]))
+y = try tape.matmul(x, w)
 loss = tape.mean(y)
-grads = tape.backward(loss)?
+grads = try tape.backward(loss)
 print(grads.get(w))
 ```
 
@@ -195,10 +195,10 @@ A `Var` used with a different tape is an error value naming both tapes
 ```verse
 import Tensor, open_gpu from ml
 
-mut gpu = open_gpu()?
-a = gpu.upload(Tensor.zeros([1024, 1024]))?
-b = gpu.matmul(a, a)?
-result = gpu.download(b)?                 # the last use: the device is released here
+mut gpu = try open_gpu()
+a = try gpu.upload(Tensor.zeros([1024, 1024]))
+b = try gpu.matmul(a, a)
+result = try gpu.download(b)              # the last use: the device is released here
 print(result.sum())
 ```
 
@@ -270,7 +270,7 @@ type User
     name: Text
 
 fn show_user(_request: Request, params: Params): Response raises Error
-    id = params.int("id")?
+    id = try params.int("id")
     json(User(id:, name: "Ana"))
 
 fn health(_request: Request, _params: Params): Response raises Error
@@ -279,7 +279,7 @@ fn health(_request: Request, _params: Params): Response raises Error
 router = Router.new()
     .get("/users/:id", show_user)
     .get("/health", health)
-serve(port: 8080, handler: router.handler())?
+try serve(port: 8080, handler: router.handler())
 ```
 
 The unused parameters start with `_`, which keeps them without the
@@ -350,7 +350,7 @@ fn view(model: Model): Widget<Msg>
         row([button("-", on_click: Decrement), button("+", on_click: Increment)]),
     ])
 
-run_app(title: "Counter", init: Model(), update:, view:)?
+try run_app(title: "Counter", init: Model(), update:, view:)
 ```
 
 ### Functions (sketch)
@@ -453,11 +453,11 @@ fn watch(take edges: Receiver<Edge>)
         if edge.rising
             print("pressed")
 
-mut board = Board.take()?
-mut led = board.output_pin(13)?
-button = board.input_pin(2)?
+mut board = try Board.take()
+mut led = try board.output_pin(13)
+button = try board.input_pin(2)
 (tx, rx) = Channel.new<Edge>(capacity: 4)
-button.send_edges(tx)?                    # the pin stays configured while `rx` is open
+try button.send_edges(tx)                 # the pin stays configured while `rx` is open
 spawn watch(rx)
 while true
     led.toggle()

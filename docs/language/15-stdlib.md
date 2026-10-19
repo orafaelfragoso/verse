@@ -80,12 +80,12 @@ import get from http
 
 started = time.now()
 
-response = get("https://api.example.com/items")?
-items = json.parse(response.body)?
+response = try get("https://api.example.com/items")
+items = try json.parse(response.body)
 
-fs.write_text("items.json", json.stringify(items, pretty: true))?
+try fs.write_text("items.json", json.stringify(items, pretty: true))
 
-names = fs.list_dir(".")?
+names = try fs.list_dir(".")
 for name in names.filter(n -> n.ends_with(".vs"))
     print(name)
 
@@ -102,7 +102,7 @@ type Item
 raw = r"""
     {"id": 1, "title": "Pen"}
     """                                   # raw: `{` is not interpolation
-item = Item.from_json(json.parse(raw)?)?
+item = try Item.from_json(json.parse(raw))
 print(json.stringify(item))
 ```
 
@@ -117,7 +117,7 @@ import serve, Request, Response from http
 fn hello(_request: Request): Response raises Error
     Response(status: 200, headers: {:}, body: b"hello")
 
-serve(port: 8080, handler: hello)?
+try serve(port: 8080, handler: hello)
 ```
 
 | Name | Signature | Meaning |
@@ -139,9 +139,9 @@ A body is `Bytes`, because a response does not have to be text. Read it with
 import get from http
 import json
 
-response = get("https://api.example.com/items")?
-print(response.body.text()?)
-items = json.parse(response.body)?
+response = try get("https://api.example.com/items")
+print(try response.body.text())
+items = try json.parse(response.body)
 ```
 
 ---

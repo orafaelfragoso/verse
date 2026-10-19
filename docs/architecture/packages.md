@@ -168,7 +168,7 @@ number below the required bump; it accepts a larger bump.
 | an exported item, module or field removed or renamed | major | callers stop compiling |
 | a parameter added without a default, removed, reordered or renamed | major | calls by position or by name break |
 | a parameter added *with* a default | major | the function's type `fn(…): R` changes, so uses as a function value break (spec §4.7); a changed function type is a changed promise |
-| a parameter or return type changed, including a new or removed `Error` or `?` in the return type | major | |
+| a parameter or return type changed, including a changed `raises` clause or a new or removed `?` in the return type | major | |
 | an inferred bound added or tightened (for example the inferred `Copy` bound of spec §4.2 rule 9) | major | callers that met the old bound may not meet the new one |
 | a bound removed or loosened | minor | every old caller still compiles |
 | a variant added to an exported variant type | major | exhaustive `match` in callers breaks (spec §7) |
@@ -557,8 +557,8 @@ explain: V0806 (run `verse explain V0806`)
 error: this program reaches the `net` capability, which verse.toml does not grant
   --> src/report.vs:22:5
    |
-22 |     palette = fetch_palette("warm")?
-   |               ^^^^^^^^^^^^^ `colors.fetch_palette` calls `http.get`
+22 |     palette = try fetch_palette("warm")
+   |                   ^^^^^^^^^^^^^ `colors.fetch_palette` calls `http.get`
    |
 help: add "net" to [capabilities] grant
 help: or see the whole chain: verse why net

@@ -126,7 +126,7 @@ export     extern     false      fn         for        from       if
 impl       import     in         is         let        match      mut
 none       not        or         otherwise  pass       raises     return
 self       Self       set        spawn      take       test       then
-trait      true       type       while      with
+trait      true       try        type       while      with
 ```
 
 `let` is reserved but not used: Verse has no `let` (bindings are written
@@ -299,26 +299,28 @@ From **highest** to **lowest** binding:
 
 | Level | Operators | Associativity | Notes |
 |-------|-----------|---------------|-------|
-| 1 | `f(x)` `a[i]` `a.b` `a?` | left | postfix, applied left to right (notes below) |
-| 2 | `**` | right | power; binds tighter than unary minus (§3.8.4) |
-| 3 | `-x` | right | numeric negation |
-| 4 | `*` `/` `%` | left | |
-| 5 | `+` `-` | left | `+` also concatenates `Text` and lists |
-| 6 | `..` `..=` | none | ranges |
-| 7 | `==` `!=` `<` `<=` `>` `>=` `in` `not in` `is` | chained | see §3.8.3 |
-| 8 | `not` | right | boolean negation |
-| 9 | `and` | left | boolean, short-circuit |
-| 10 | `or` | left | boolean, short-circuit |
-| 11 | `otherwise` | left | fallback, short-circuit; restricted right operand (§3.8.2) |
+| 1 | `f(x)` `a[i]` `a.b` | left | postfix, applied left to right (notes below) |
+| 2 | `try` | right | prefix; covers the whole postfix chain to its right (§8.3) |
+| 3 | `**` | right | power; binds tighter than unary minus (§3.8.4) |
+| 4 | `-x` | right | numeric negation |
+| 5 | `*` `/` `%` | left | |
+| 6 | `+` `-` | left | `+` also concatenates `Text` and lists |
+| 7 | `..` `..=` | none | ranges |
+| 8 | `==` `!=` `<` `<=` `>` `>=` `in` `not in` `is` | chained | see §3.8.3 |
+| 9 | `not` | right | boolean negation |
+| 10 | `and` | left | boolean, short-circuit |
+| 11 | `or` | left | boolean, short-circuit |
+| 12 | `otherwise` | left | fallback, short-circuit; restricted right operand (§3.8.2) |
 
-Notes on level 1:
+Notes on levels 1 and 2:
 
-- A second postfix `?` needs brackets: `(x?)?`.
 - `a.b` on an optional `a` follows the lifted-chain rule (§8.1).
-- Postfix `?` is an ordinary postfix operator. A `?` immediately followed by
-  `.` (`a?.b`) is a compile-time error: "`a?.b` is not part of Verse", with
-  the help "write `(a?).b`, or `a.b otherwise …`". `(find_user(id)?).email` is valid: propagate a missing user out
-  of the function, then read the field.
+- `try` covers the postfix chain to its right, calls inside that chain's
+  arguments included: `try json.parse(read_text(path))` propagates from both
+  calls, and `try find_user(id).email` from the lookup and the field. To
+  propagate first and then read, bracket it: `(try find_user(id)).email`.
+- `try try x` peels two layers, as in `try try scores[name]` on an
+  `Int??`.
 
 Three constructs are deliberately **not** operators in this table:
 
@@ -444,8 +446,8 @@ With a **fallible** left side, `otherwise return …` (or `break`/`continue`)
 *throws the error away*: the reason for the failure is lost. That is
 sometimes exactly right (skip a malformed line). A bare `otherwise return` in
 a function whose `raises` clause could carry the error is a compile-time
-error (V0422), because `?` would pass the reason on: write `?`,
-`.context("…")?` (§8.4), or a value after `return`. There is no `guard`
+error (V0422), because `try` would pass the reason on: write `try`,
+`try ….context("…")` (§8.4), or a value after `return`. There is no `guard`
 keyword: `x = … otherwise return` is the guard.
 #### 3.8.3 Comparison chaining
 
@@ -529,7 +531,7 @@ below guarantees is the first `x`).
 **Refinement.** A value that is transformed step by step keeps its name:
 
 ```verse
-text = read_text(path)?
+text = try read_text(path)
 text = text.trim()
 text = text.lines()            # a List<Text> now; the Text is gone
 text = "other"                 # error: `text` is not `mut`, and the right side does not use it

@@ -66,7 +66,7 @@ first use, and must be infallible. In the entry file it is a script local,
 not visible inside `fn` bodies
 ([§12.4](../../../../docs/language/12-modules.md#124-module-contents)).
 
-**HIR lowering.** It expands `otherwise`, `?`, `if … is`, key-path lambdas,
+**HIR lowering.** It expands `otherwise`, `try`, `if … is`, key-path lambdas,
 postfix guards, string interpolation, `for`, plain dots through
 optionals and uniform call syntax into a small core
 ([03 §3.2](../../../../docs/architecture/ir-and-passes.md#32-hir-the-desugared-core)).
@@ -85,7 +85,7 @@ structural constraints, solved per function and per module
   across a call cycle. Strongly connected components of the call graph are
   checked for an annotated entry.
 - Numeric literals default to `Int` or `Float` after solving.
-- Raise sets are inferred from `?` with the return type, exact as in §4.6, and
+- Raise sets are inferred from `try` with the return type, exact as in §4.6, and
   checked against a written `raises` clause in both directions (V0420, V0421).
 - Interned types make type equality integer equality
   ([02 §2.3](../../../../docs/architecture/compiler-architecture.md#23-data-structures)).

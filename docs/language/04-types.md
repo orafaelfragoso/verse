@@ -101,12 +101,12 @@ and leave the rest to the compiler.
    ```
 
 5. **Raise sets are inferred with the return type.** A function whose return
-   type is inferred and whose body uses `?` on fallible values (or returns an
+   type is inferred and whose body uses `try` on fallible values (or returns an
    error value) gets the raise set of the errors that can escape, exact as in
-   §4.6. A `fn load(path)` whose body is `text = read_text(path)?` followed by
+   §4.6. A `fn load(path)` whose body is `text = try read_text(path)` followed by
    `text.trim()` returns `Text raises Error`. A function whose return type is
    written declares its raise set too; with no `raises` clause it cannot fail
-   (§8.2). A `?` on an optional gives an optional return type.
+   (§8.2). A `try` on an optional gives an optional return type.
 6. **Inferred types are visible on demand.** Editors (through `verse lsp`) show
    inferred parameter and return types as inline hints. `verse fmt` never
    inserts or removes annotations.
@@ -291,7 +291,7 @@ Optionals nest: `Int??` is a different type from `Int?` (§8.1).
 
 **Union normalization.** Unions and raise sets are flattened and
 de-duplicated (`(A | B) | A` is `A | B`). A raise set is **exact**: it keeps
-every member through `?`, tasks and function types (§8.3, §11.1, §4.7), so a
+every member through `try`, tasks and function types (§8.3, §11.1, §4.7), so a
 caller sees what can fail as precisely as the function's body does. Only an
 open set hides the concrete type; a typed pattern in `match`
 (`err: FetchError -> …`) inspects it there.

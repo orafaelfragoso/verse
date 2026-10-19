@@ -226,11 +226,11 @@ results) never mentions ownership at all.
   anything missing?". *Why:* on a
   `Map<Text, Int?>`, "key missing" and "present but `none`" must stay
   distinguishable.
-- **Layers in written order.** `?` and `otherwise` act on the outermost layer:
-  for `Text? raises Error` the error side first, then a second `otherwise` (or `?`)
+- **Layers in written order.** `try` and `otherwise` act on the outermost layer:
+  for `Text? raises Error` the error side first, then a second `otherwise` (or `try`)
   handles `none`.
 - **Exact raise sets.** The errors a function can raise are a `raises`
-  clause on its signature, kept exact through `?`, tasks and function types,
+  clause on its signature, kept exact through `try`, tasks and function types,
   and checked both ways: an undeclared raise is an error (V0420) and a
   declared one that nothing raises is a warning (V0421). `raises Error` is the
   open set for application code; only there does `match` with a typed pattern
@@ -241,22 +241,28 @@ results) never mentions ownership at all.
   always a field. `p?` matches a present optional. There is no `if let`,
   and no `let` (§18.9). A catch-all lowercase
   arm that is not last makes later arms an *unreachable arm* error.
-- **No `?.` operator; the consumer decides.** A plain dot looks through an
-  optional only when the chain is immediately consumed by `otherwise`, a
-  postfix `?`, an `is`/`match`, or a position whose type is optional; anywhere
-  else it is an error. *Why:* `?.` added a symbol to every hop
-  (`order?.customer?.address?.city`) while the safety came from the place that
-  finally handles `none` — so that place now carries the decision, and the
-  chain reads as plain prose. The safety is the same: a missing value can
-  still never be used as if it were present, and the compiler points at the
-  hop that may be missing. The cost is that the meaning of a dot depends on
-  how its result is used, which the error messages explain. A `?`
-  immediately followed by a dot is an error, since readers from other
-  languages would take `a?.b` for safe access; "propagate, then access" is
-  written `(a?).b`.
-- `?` returns from the innermost function-like body: a lambda, a spawned
-  function, a test, or the script. `?` on `T raises E` in a function returning
-  `U?` is an error, as is `?` on an optional in a function with a `raises` clause
+- **No safe-access operator; the consumer decides.** A plain dot looks
+  through an optional only when the chain is in a `try`, is immediately
+  consumed by `otherwise`, an `is`/`match`, or a position whose type is
+  optional; anywhere else it is an error. *Why:* a safe-access operator adds
+  a symbol to every hop (`order?.customer?.address?.city`) while the safety
+  comes from the place that finally handles `none`, so that place carries the
+  decision, and the chain reads as plain prose. The safety is the same: a
+  missing value can still never be used as if it were present, and the
+  compiler points at the hop that may be missing. The cost is that the
+  meaning of a dot depends on how its result is used, which the error
+  messages explain.
+- **Propagation is the prefix word `try`.** `try` covers the whole postfix
+  chain to its right, as in Swift, so `try json.parse(read_text(path))` needs
+  one word, and "propagate, then access" is written `(try a).b`. *Why:* a
+  postfix `?` would give `?` three meanings (the type `T?`, the pattern `x?`,
+  and propagation), and keeping them apart would need three more rules:
+  refuse `a?.b` as safe access, bracket `(x?)?`, and forbid two postfix `?`
+  in a row. With `try`, `?` means only "may be missing"
+  ([ADR-0017](../decisions/0017-prefix-try.md)).
+- `try` returns from the innermost function-like body: a lambda, a spawned
+  function, a test, or the script. `try` on `T raises E` in a function returning
+  `U?` is an error, as is `try` on an optional in a function with a `raises` clause
   (`.or_error("why")` converts). *Why:* errors should carry a message, and an
   error should never silently become `none`.
 - **Discarding a fallible result is a compile-time error**, including values
@@ -270,7 +276,7 @@ results) never mentions ownership at all.
 dropped, right after its owner's last use, and no statement marks that point.
 A drop runs no code of the program: it frees memory and releases
 runtime-owned handles, and it never fails, panics or pauses the task. A close
-that can fail is a named method, such as `file.finish()?`. A lock guard is an
+that can fail is a named method, such as `try file.finish()`. A lock guard is an
 ordinary value too, read with `get()` and changed with `put()` (§13, §11.4).
 
 **Why:** One rule decides when every value ends, so a resource needs no second
@@ -382,7 +388,7 @@ project is formatted, tested and built the same way.
 including parameters and return types. Unannotated parameters become implicit
 generics with exactly the constraints their bodies need (trait and structural);
 numeric literals default to `Int`/`Float`; recursion requires annotations;
-fallible return types are inferred from `?`; ambiguity is a compile error at
+fallible return types are inferred from `try`; ambiguity is a compile error at
 the exact spot, listing the inferred constraints. Record fields keep
 annotations unless a default implies the type; `mut`/`take` are always
 written. Exported signatures may be inferred only with a committed `verse.api`
@@ -402,7 +408,7 @@ narrowed so that it has exactly one reading:
 
 | Sugar | Form in Verse | Narrowed how | Inspired by |
 |-------|---------------|--------------|-------------|
-| Early exit on missing | `v = x otherwise return 0` (also `break`, `continue`) | exit only as the whole right operand; refutable binding patterns only in this form; with a fallible left side the error is discarded (use `.context(…)?` to keep it) | Swift `guard let`, Rust `let … else` |
+| Early exit on missing | `v = x otherwise return 0` (also `break`, `continue`) | exit only as the whole right operand; refutable binding patterns only in this form; with a fallible left side the error is discarded (use `try .context(…)` to keep it) | Swift `guard let`, Rust `let … else` |
 | Uniform call syntax | `x.f(y)` calls `f(x, y)` | a method always wins; ambiguity is a compile error | D, Nim, Koka |
 | Subject-less `match` | `match` + `n < 0 -> …` arms | final `_ ->` required; an expression | Kotlin `when`, Lisp `cond` |
 | Spread in literals | `[0, ..rest]`, `{..defaults, "port": 80}` | prefix only; later map keys win | JavaScript, Python |
@@ -423,7 +429,7 @@ syntax.
 | Implicit lambda parameters (`$0`, `it`) | anonymous names hurt reading; key paths cover the common short case and named parameters cover the rest |
 | Leading-dot variant names (`.north`) | would make a leading dot mean two things (key path or variant); variants are short enough to write |
 | Multi-clause function heads (`fn fact(0) = 1`, `fn fact(n) = …`) | spreads one function over several declarations; `match` in one body is clearer and keeps one signature for inference and `verse.api` |
-| `?` on method names (`items.empty?()`) | `?` already has three related meanings about missing or failed values (§1.2); a fourth, unrelated one would undo that |
+| `?` on method names (`items.empty?()`) | `?` means "may be missing" in types and patterns (§1.2); a predicate suffix would give it a second, unrelated meaning |
 | A pipe operator (`\|>`) | uniform call syntax already gives left-to-right chains with the existing dot |
 | A `guard` keyword | `x = … otherwise return` does the same job with existing words |
 

@@ -120,12 +120,13 @@ gives every rule an identifier.
 | V0202 | error | this block is empty | a block needs at least one line | write `pass`, or remove the line | §6.6 |
 | V0203 | error | `{kw}` is a keyword and cannot be a name | rename it | try `{kw}_` or a more specific name | §3.6 |
 | V0204 | error | `let` is not part of Verse | a new binding is written `x = value` | write `{name} = {value}`; use `mut {name} = {value}` if it changes | §3.9 |
-| V0205 | error | `a?.b` is not part of Verse | a plain dot already looks through an optional where it is used | write `(a?).b`, or `a.b otherwise {fallback}` | §8.1 |
 | V0206 | error | `from` must come last in an import | the item list goes first | write `import {names} from {module}` | §12.2 |
 | V0207 | error | an import must be at the top of the file | imports come right after the doc comment | move this line up | §12.2 |
 | V0208 | error | a long import needs parentheses | the list continues on the next line | wrap the names in `( … )` | §12.2 |
 | V0209 | error | `{op}` cannot be in the right operand of `otherwise` without parentheses | `otherwise` binds more loosely than `{op}` (second form, when the operand holds `return`, `break` or `continue`: "an exit must be the whole right operand") | write `({left} otherwise {right}) {op} {rest}` or `{left} otherwise ({right} {op} {rest})` (shown when the operand holds no exit) | §3.8.2 |
 | V0210 | error | `{}` does not say whether it is a map or a set | this could be an empty map or an empty set | write `{:}` for an empty map, or `set{}` for an empty set | §3.7 |
+
+Code V0205 is intentionally unassigned: propagation is the prefix word `try`, so no `?` can be followed by a dot and read as safe access (§8.3).
 
 ### V03xx Names and imports
 
@@ -161,18 +162,18 @@ gives every rule an identifier.
 | V0408 | error | `{T}` cannot be compared with `{U}` | `==` needs two values of one type | convert one side | §9.6 |
 | V0409 | error | `{x}` does not fit in `{T}` | the largest `{T}` is {max} | use a larger type | §4.1 |
 | V0410 | error | `Int` and `Float` are not mixed implicitly | | write `{x}.to_float()` or `{y}.round().to_int()` | §4.1 |
-| V0411 | error | a fallible value cannot be ignored | `{f}` can raise `{E}` | handle it with `?`, `otherwise` or `match`, or discard it with `_ = …` | §8.4 |
-| V0412 | error | `{name}` might be missing | this is `{T}?`, not `{T}` | provide a fallback: `… otherwise {default}`; stop early: `…?`; branch: `if … is {name}?` | §8.1 |
-| V0413 | error | `?` can only be used in a function that returns an optional or raises | `{f}` returns `{T}` | change the return type to `{T}?`, or add `raises {E}` | §8.3 |
+| V0411 | error | a fallible value cannot be ignored | `{f}` can raise `{E}` | handle it with `try`, `otherwise` or `match`, or discard it with `_ = …` | §8.4 |
+| V0412 | error | `{name}` might be missing | this is `{T}?`, not `{T}` | provide a fallback: `… otherwise {default}`; stop early: `try …`; branch: `if … is {name}?` | §8.1 |
+| V0413 | error | `try` can only be used in a function that returns an optional or raises | `{f}` returns `{T}` | change the return type to `{T}?`, or add `raises {E}` | §8.3 |
 | V0414 | error | `otherwise` needs an optional or fallible value on its left | this is `{T}`, which is always there | remove `otherwise` | §3.8.2 |
-| V0415 | error | `{x}` is `{T}?` and cannot be used as `{T}` here | the dot looks through an optional only when the chain ends in `otherwise`, `?`, `is`, `match`, or an optional-typed position | add one of those at the end of the chain | §8.1 |
-| V0416 | error | the `Error` of `{f}` is not handled here | `{f}` can return `{E}` | add `?`, `otherwise` or a `match` arm for `{E}` | §8.4 |
+| V0415 | error | `{x}` is `{T}?` and cannot be used as `{T}` here | the dot looks through an optional only when the chain is in `try`, ends in `otherwise`, `is` or `match`, or is in an optional-typed position | add one of those at the end of the chain | §8.1 |
+| V0416 | error | the `Error` of `{f}` is not handled here | `{f}` can return `{E}` | add `try`, `otherwise` or a `match` arm for `{E}` | §8.4 |
 | V0417 | error | `{x}` is not a `Text`, so it cannot be indexed by character | | use `.bytes()` for the UTF-8 bytes | §4.1 |
 | V0418 | error | missing type for a public item | `export` items need types in `verse.api` | annotate the parameters and the result | §16.4 |
 | V0419 | error | `{f}` needs a new copy for every depth of this call | `{f}` calls itself with `{T}` wrapped in `{W}` | annotate the parameter with one concrete type | §4.2 rule 1 |
 | V0420 | error | `{f}` can raise `{E}`, which `{g}` does not declare | `{g}` declares `raises {set}` | add `{E}` to the `raises` clause of `{g}`, or handle it here | §8.2 |
 | V0421 | warning | `{E}` is declared, but nothing in `{f}` raises it | | remove `{E}` from the `raises` clause | §8.2 |
-| V0422 | error | `otherwise return` throws away the error of `{f}` | `{g}` could pass on `{E}` | pass it on with `?`, add context with `.context("…")?`, or return a value | §3.8.2 |
+| V0422 | error | `otherwise return` throws away the error of `{f}` | `{g}` could pass on `{E}` | pass it on with `try`, add context with `try ….context("…")`, or return a value | §3.8.2 |
 | V0423 | error | `Error` already includes `{E}` | a raise set that names `Error` names nothing else | write `raises Error`, or list only specific errors | §4.6 |
 | V0424 | error | `{E}` is an error type, so it goes after `raises` | an error type is not a member of a union | write `{T} raises {E}` | §4.6 |
 
@@ -347,7 +348,7 @@ Why Verse works this way
 
 Ways to fix it
   1. Use a fallback:   user.email.lower() otherwise ""
-  2. Stop early:       user.email.lower()?     (the function must return `Text?` or `Error`)
+  2. Stop early:       try user.email.lower()  (the function must return `Text?`)
 
 Example
   fn shout(user: User): Text
@@ -373,7 +374,7 @@ fixed here, so the bytecode VM and every compiled tier print identical words;
 the differential tests ([10](../architecture/testing-and-verification.md)) compare them.
 Codes are `R` and four digits and follow rules 1 and 2 of 16.1. `verse explain R0002` works like it does for a `V` code. A panic is
 printed at the moment it happens, to standard error, and the main program
-then exits with status 101 (spec §8.5). R0008 is the exception: a deadlock exits with status 70, so scripts can tell it from a failed `?` and from a panic.
+then exits with status 101 (spec §8.5). R0008 is the exception: a deadlock exits with status 70, so scripts can tell it from a failed `try` and from a panic.
 
 ```
 panic: index 7 is out of range, the list has 3 items
@@ -476,7 +477,7 @@ These are the others, so a script can tell the causes apart.
 | Status | Meaning |
 |--------|---------|
 | 0 | normal completion |
-| 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
+| 1 | a top-level `try` failed, or an unwaited task failed (spec §12.5) |
 | 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1), and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement |
 | 3 | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused. A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule |
 | 70 | a deadlock (R0008) |

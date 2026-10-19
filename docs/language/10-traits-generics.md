@@ -132,7 +132,7 @@ Generic arguments are usually inferred: `first([1, 2, 3])` is `Int?`, and
 
 Free generic functions do not take explicit type arguments in 0.1: their type
 arguments are inferred, or given by annotating the binding
-(`n: Int = parse(text)?`). `parse<Int>(text)` is a compile-time error whose
+(`n: Int = try parse(text)`). `parse<Int>(text)` is a compile-time error whose
 help suggests that annotation. Explicit type arguments are allowed only on an
 associated function called through a type name, such as
 `Channel.new<Int>(capacity: 10)` (§11.4).

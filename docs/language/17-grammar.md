@@ -96,7 +96,7 @@ exit_stmt     = exit [ "if" expr ] NEWLINE ;           (* postfix guard: one lin
                                                            `return (if c then a else b)` *)
 exit          = "return" [ expr ] | "break" [ IDENT ] | "continue" [ IDENT ] ;
                 (* (semantic) an `expr` statement may not have a fallible type
-                   or contain fallible results (§8.4); use `?`, handle it, or `_ =` *)
+                   or contain fallible results (§8.4); use `try`, handle it, or `_ =` *)
 binding       = [ "mut" ] pattern [ ":" type ] "=" expr NEWLINE
               | [ "mut" ] pattern [ ":" type ] "=" or_expr "otherwise" exit NEWLINE ;
                 (* (semantic) a refutable pattern is allowed only in the second form.
@@ -178,16 +178,17 @@ term          = unary { ( "*" | "/" | "%" ) unary } ;
 unary         = "-" unary
               | "spawn" postfix          (* (semantic) the postfix must end in a call *)
               | power ;
-power         = postfix [ "**" unary ] ; (* right-assoc; tighter than unary minus *)
+power         = tried [ "**" unary ] ;  (* right-assoc; tighter than unary minus *)
+tried         = "try" tried | postfix ; (* `try` covers the whole postfix chain, §8.3 *)
 postfix       = TYPE_IDENT "." IDENT type_args call { postfix_op }
               | primary { postfix_op } ;
-postfix_op    = call | index | "." ( IDENT | INT | TYPE_IDENT ) | "?" ;
+postfix_op    = call | index | "." ( IDENT | INT | TYPE_IDENT ) ;
                 (* (semantic) lifted chains: a "." on a `T?` looks through the
-                   optional only when the chain is consumed by `otherwise`, a
-                   postfix "?", an `is` / `match` subject, or a position whose
+                   optional only when the chain is under `try`, consumed by
+                   `otherwise`, an `is` / `match` subject, or a position whose
                    expected type is optional (§8.1); it short-circuits on the
                    first `none` and yields one flattened `?` level. Elsewhere a
-                   "." on a `T?` is an error. There is no `?.` token. *)
+                   "." on a `T?` is an error. *)
                 (* `. TYPE_IDENT`: qualified names such as `Shape.Circle(2.0)`
                    and `time.Duration` *)
                 (* `TYPE_IDENT . IDENT type_args call`: explicit type arguments
@@ -198,11 +199,8 @@ postfix_op    = call | index | "." ( IDENT | INT | TYPE_IDENT ) | "?" ;
                    explicit type arguments in 0.1 (§10.5). They are normally inferred
                    from an annotation instead:
                    `(tx, rx): (Sender<Int>, Receiver<Int>) = Channel.new(capacity: 10)` *)
-                (* (semantic) postfix "?" is an ordinary postfix operator applied
-                   left to right, but a "?" immediately followed by "." is an
-                   error ("`a?.b` is not part of Verse"): write `(f(x)?).email` to
-                   propagate then read *)
-                (* (semantic) no two postfix "?" in a row: write (x?)? *)
+                (* `try` applies to the postfix chain to its right, calls in its
+                   arguments included; `(try f(x)).email` propagates, then reads *)
                 (* x.f(y) may call a free function f(x, y) (uniform call syntax);
                    a method always wins; ambiguity is an error *)
 call          = "(" [ args ] ")" ;

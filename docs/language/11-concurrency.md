@@ -8,10 +8,10 @@ and immediately returns a `Task<T>`, where `T` is the call's return type.
 
 **Errors in a task surface at `.wait()`.** Because a task can panic or be
 cancelled, `.wait()` always returns a fallible value, which you handle like
-any other: with `?`, `otherwise`, or `match`. Its raise set is the spawned
+any other: with `try`, `otherwise`, or `match`. Its raise set is the spawned
 function's set plus `TaskPanicked` and `Cancelled`, kept exact (§4.6): for a
 function returning `Text raises FetchError`, `.wait()` returns
-`Text raises FetchError | TaskPanicked | Cancelled`. `?` inside the spawned
+`Text raises FetchError | TaskPanicked | Cancelled`. `try` inside the spawned
 function returns from that function, and the error is what `.wait()` later
 reports.
 
@@ -19,14 +19,14 @@ reports.
 import get from http
 
 fn fetch(url)
-    response = get("https://{url}")?
+    response = try get("https://{url}")
     response.body.text()   # the body is `Bytes`; this reads it as UTF-8 (§15.3)
 
 a = spawn fetch("a.com")
 b = spawn fetch("b.com")
 
 print(a.wait() otherwise "a failed")    # handle the failure here
-page_b = b.wait()?                      # or stop early and pass it up
+page_b = try b.wait()                   # or stop early and pass it up
 print(page_b)
 ```
 
@@ -80,7 +80,7 @@ tasks = urls.map(url -> spawn fetch(url))             # each task gets its own `
 pages = wait_all(tasks)                  # takes the tasks; a List of fallible results, in order
 
 mirrors = mirror_urls.map(url -> spawn fetch(url))
-fastest = wait_any(mirrors)?             # the first to finish; the others are cancelled
+fastest = try wait_any(mirrors)          # the first to finish; the others are cancelled
 ```
 
 | Operation | Signature | Meaning |
@@ -208,7 +208,7 @@ A `spawn` that can run without bound is a compile error.
 import Channel, wait_all from task
 
 fn worker(id, out)
-    out.send(id * id)?                   # `Closed` if the receiver is gone
+    try out.send(id * id)                # `Closed` if the receiver is gone
 
 fn start_workers(take tx, count)         # spawns and returns, without waiting
     (1..=count).map(id -> spawn worker(id, tx.copy()))   # a Sender per task
@@ -218,7 +218,7 @@ tasks = start_workers(tx, 20)            # `tx` moves; 20 values, room for 4
 for square in rx                         # consume while the producers run;
     print(square)                        #   ends when every Sender is gone
 for outcome in wait_all(tasks)
-    outcome?                             # stop if any worker failed
+    try outcome                          # stop if any worker failed
 ```
 
 Waiting for the producers before consuming can deadlock once the channel is
@@ -277,7 +277,7 @@ fn record(counter)
 
 tasks = (1..=100).map(_ -> spawn record(hits.copy()))       # one handle per task
 for outcome in wait_all(tasks)
-    outcome?                       # stop if any task failed
+    try outcome                    # stop if any task failed
 print("hits: {hits.lock().get()}")      # the guard is dropped after this line
 ```
 
@@ -312,7 +312,7 @@ stopped at its next *blocking point* — I/O, `wait`, `sleep`, `send`, or
 point, the task *unwinds* exactly as it would for a panic: it stops running
 ordinary code, every value it still owns is dropped in reverse declaration
 order, which releases its resources (§13.4), and nothing can intercept it:
-not `otherwise`, not `match`, not `?`. So
+not `otherwise`, not `match`, not `try`. So
 `get(url) otherwise "x"` cannot swallow a cancellation and keep going. Unlike a
 panic, a cancellation prints nothing. The *waiter* sees the outcome as a
 `Cancelled` error (from the `task` module) returned by `.wait()`, which it may handle

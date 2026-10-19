@@ -26,7 +26,7 @@ fn area(shape: Shape): Float
         Square(s) -> s * s
 
 fn parse_age(text: Text): Int raises Error
-    age = text.trim().to_int()?
+    age = try text.trim().to_int()
     if age < 0
         return error("age cannot be negative: {age}")
     age
@@ -75,7 +75,7 @@ test "greeting uses the given name"
 
 test "negative ages are rejected"
     assert parse_age("-3") is _: Error
-    assert parse_age(" 42 ")? == 42
+    assert try parse_age(" 42 ") == 42
 ```
 
 Run it with `verse tour.vs`; run its tests with `verse test tour.vs`.

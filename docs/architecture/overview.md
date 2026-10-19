@@ -97,7 +97,7 @@ The full pipeline, with each stage's contract, is in
 |------|---------|
 | **CST** | Concrete syntax tree. A lossless tree of the source, including comments and whitespace, used by the formatter and the language server. Printing it gives back the file byte for byte. |
 | **AST** | Abstract syntax tree. The structure of the program without trivia; every node has a stable id and a source span. |
-| **HIR** | High-level IR. The AST with names resolved and convenience syntax (`otherwise`, `?`, `if … is`, interpolation, `for`, lifted chains) expanded into a small core. |
+| **HIR** | High-level IR. The AST with names resolved and convenience syntax (`otherwise`, `try`, `if … is`, interpolation, `for`, lifted chains) expanded into a small core. |
 | **THIR** | Typed HIR: HIR with a type for every expression, still generic. |
 | **MIR** | Mid-level IR: a control-flow graph of basic blocks in which moves, copies, drops, checked arithmetic and unwind edges are explicit. *Generic MIR* still has type parameters. |
 | **Mono MIR** | MIR after monomorphization: every type is concrete and every call names a concrete function, an intrinsic or a trait-object slot. All backends consume it. |

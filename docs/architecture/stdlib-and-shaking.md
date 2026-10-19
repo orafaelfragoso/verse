@@ -67,10 +67,10 @@ import read_text from fs
 import parse, Json from json
 
 fn load_config(path: Text): Json raises Error
-    text = read_text(path)?
+    text = try read_text(path)
     parse(text)
 
-config = load_config("app.json")?
+config = try load_config("app.json")
 print(config)
 ```
 
@@ -194,7 +194,7 @@ directly, outside this table ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 
 | Capability | Typical source in the library | Runtime slice ([05 §5.1](runtime.md#51-feature-slices)) | Example target without it |
 |------------|-------------------------------|----------------------------|---------------------------|
-| `stdio` | `print`, `input` (prelude), `io`, error reports of a failed top-level `?` | `sys-stdio` | a headless board without UART console |
+| `stdio` | `print`, `input` (prelude), `io`, error reports of a failed top-level `try` | `sys-stdio` | a headless board without UART console |
 | `fs` | `fs` | `sys-fs` | `wasm32-unknown-unknown`, Cortex-M |
 | `net` | `net`, `http` | `sys-net` | Cortex-M without a network stack |
 | `clock` | `time` | `sys-clock` | none planned |
@@ -296,7 +296,7 @@ fn handle(request: Request): Response raises Error
         "/" -> Response(status: 200, headers: {:}, body: b"hello")
         _ -> Response(status: 404, headers: {:}, body: b"not found")
 
-serve(port: 8080, handler: handle)?
+try serve(port: 8080, handler: handle)
 ```
 
 ```
@@ -324,7 +324,7 @@ core                                   slice       <n>  always
 tasks                                  slice       <n>  spawn     http.serve
 unwind                                 slice       <n>  drop on unwind edge in http.serve
 sys-net                                slice       <n>  capability net <- sys.net.accept
-sys-stdio                              slice       <n>  capability stdio <- error report of a failed top-level `?` (spec §12.5)
+sys-stdio                              slice       <n>  capability stdio <- error report of a failed top-level `try` (spec §12.5)
 
 CAPABILITIES  net, stdio
 
@@ -345,7 +345,7 @@ this program reaches `net` because:
   sys.net.accept                    intrinsic
   <- net.TcpListener.accept         std/net/tcp.vs
   <- http.serve                     std/http/server.vs
-  <- server.vs:8                    serve(port: 8080, handler: handle)?
+  <- server.vs:8                    try serve(port: 8080, handler: handle)
   <- root: entry statements of server.vs
 ```
 
@@ -450,7 +450,7 @@ import Money from finance
 fn total(prices: List<Money>): Money raises Error
     mut sum = Money(amount: Decimal.zero(), currency: "EUR")
     for price in prices
-        sum = sum.add(price)?
+        sum = try sum.add(price)
     sum
 ```
 
@@ -484,5 +484,5 @@ finance package API is not designed yet.)
 | R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (§6.5); a pure-Verse widget library on top; the web target uses `std-web` |
 | R-5 | **Names of first-party packages** | the rule: one obvious name per idea | `finance`, `ml`, `web`, `gui`, `iot` (§6.2) |
 | R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](plugins.md#71-what-a-plugin-is)); there are no transforming plugins |
-| R-7 | **`print` pulls in `stdio` and the failed-`?` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `?` prints (spec §12.5) | acceptable; the report shows why |
+| R-7 | **`print` pulls in `stdio` and the failed-`try` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `try` prints (spec §12.5) | acceptable; the report shows why |
 | R-8 | **Test builds and fakes** | capability fakes must not leak into release builds | fakes live in a test-only slice selected only in `verse test` |

@@ -210,19 +210,19 @@ each place:
 
 - **In an imported module**, a top-level binding is a *constant*. It is
   initialized once, on first use, and its initializer **must be infallible**:
-  `?` is not allowed, and its type may not be fallible, because a lazy
+  `try` is not allowed, and its type may not be fallible, because a lazy
   initializer has no caller to return an error to. (`mut` is not allowed
   at module level.)
 
   ```verse
   export max_retries = 3                            # fine
   export default_port = 8080                        # fine
-  config = read_text("config.toml")?                # error: module constants cannot fail
+  config = try read_text("config.toml")             # error: module constants cannot fail
   ```
 
 - **In the entry file**, a top-level binding is an *ordinary statement*: it runs
-  in order, top to bottom, like every other statement there, and may use `?`
-  (see §8.3 for what a failed top-level `?` does). Such a binding is a **script
+  in order, top to bottom, like every other statement there, and may use `try`
+  (see §8.3 for what a failed top-level `try` does). Such a binding is a **script
   local**: it is visible to the top-level statements after it, but **not
   inside `fn` bodies** (nor in `impl` methods or `test` blocks). A function
   that needs the value takes it as an argument. This keeps every function
@@ -231,7 +231,7 @@ each place:
   constants in imported modules are the only module-wide values.
 
   ```verse
-  config = load_config("app.toml")?
+  config = try load_config("app.toml")
 
   fn port(config)                     # takes it as an argument
       config.port
@@ -261,7 +261,7 @@ print("Hello, {args.first() otherwise "world"}!")
   | Status | Meaning |
   |--------|---------|
   | `0` | normal completion |
-  | `1` | a top-level `?` failed (the error message is printed to standard error), or an unwaited task failed (§11.3) |
+  | `1` | a top-level `try` failed (the error message is printed to standard error), or an unwaited task failed (§11.3) |
   | `2` | the compiler found errors in the source, or a capability check failed, so the program did not start (when running a file as in `verse build`) |
   | `3` | a bug in Verse, not in the program: a compiler bug, or a trap inside the runtime that Verse itself caused ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses) says when each can happen after a passing `verse check`) |
   | `70` | a deadlock: every task is waiting and none can continue |
@@ -274,7 +274,7 @@ print("Hello, {args.first() otherwise "world"}!")
   **`exit` drops nothing** and does not wait for or cancel the other tasks:
   the process just ends, so a file's unwritten buffer is lost. A program
   whose files must be written out ends by finishing the entry file or with a
-  failed `?` instead. An explicit `exit(code)` always
+  failed `try` instead. An explicit `exit(code)` always
   overrides the failed-unwaited-task status, which applies only when the
   program ends naturally.
 

@@ -288,14 +288,15 @@ report = ages.entries().map((name, age) -> "{name} is {age}")
 Spreading happens only when the arity matches exactly; a one-parameter lambda
 receives the whole tuple (`pair -> pair.0`).
 
-#### `?` inside a lambda
+#### `try` inside a lambda
 
-`?` inside a lambda returns from the *lambda*, not from the enclosing function,
-so the lambda's own return type becomes fallible
-(see [§8.3](08-errors.md#83-propagation-with-)):
+`try` inside a lambda returns from the *lambda*, not from the enclosing function:
+a lambda body is a function of its own and needs its own `try`, so the
+lambda's own return type becomes fallible
+(see [§8.3](08-errors.md#83-propagation-with-try)):
 
 ```verse
-doubled = inputs.map(text -> text.trim().to_int()? * 2)       # List<Int raises ParseError>
+doubled = inputs.map(text -> try text.trim().to_int() * 2)    # List<Int raises ParseError>
 ```
 
 ### 5.5 Generic functions

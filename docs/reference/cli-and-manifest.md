@@ -130,7 +130,7 @@ apart. The table is the one of
 | Status | Meaning |
 |--------|---------|
 | 0 | normal completion |
-| 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
+| 1 | a top-level `try` failed, or an unwaited task failed (spec §12.5) |
 | 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1), and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement |
 | 3 | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused. A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule |
 | 70 | a deadlock (R0008) |

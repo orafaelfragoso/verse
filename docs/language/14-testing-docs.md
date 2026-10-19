@@ -25,7 +25,7 @@ test "slugify of empty text is empty"
   that a test needs must therefore live in a function, not in top-level
   statements.
 - A test passes if its body finishes without a failed `assert`, a panic, or a
-  failed `?`. Inside a test, `?` returns from the test (which then fails with
+  failed `try`. Inside a test, `try` returns from the test (which then fails with
   the error's message): test bodies behave like functions returning
   `Nothing raises Error`.
 - Tests can access private items of their module.
@@ -53,7 +53,7 @@ Patterns combine with `is` for expressive checks:
 ```verse
 test "parsing rejects letters"
     assert parse_age("abc") is _: Error
-    assert parse_age("42")? == 42
+    assert try parse_age("42") == 42
 ```
 
 ### 14.3 Doc comments

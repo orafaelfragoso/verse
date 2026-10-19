@@ -89,7 +89,7 @@ filters below in `exceptionBreakpointFilters`.
 | `setBreakpoints` | line breakpoints, with `condition` (a pure Verse expression), `hitCondition` and `logMessage` (a text template with `{expr}` parts) |
 | `setFunctionBreakpoints` | break when a function is called, by its qualified name |
 | `setDataBreakpoints` | watch a binding or a field: stop when it is reassigned, changed or moved |
-| `setExceptionBreakpoints` | the filters `panicked`, `propagated` (a `?` left a function with an error value) and `assert_failed` |
+| `setExceptionBreakpoints` | the filters `panicked`, `propagated` (a `try` left a function with an error value) and `assert_failed` |
 | `continue`, `next`, `stepIn`, `stepOut`, `pause` | run and step; `next` steps over a call |
 | `stepBack`, `reverseContinue` | step or run backward in a recorded session (§8.5) |
 | `threads` | one thread per live Verse task; the name says the task id, its function and what it waits for |
@@ -270,7 +270,7 @@ with the same report, and `stepBack` walks to its cause.
 DAP's own field and request names (`threads`, `exceptionInfo`,
 `variablesReference`) are protocol names, not wording. The rules apply to the
 text the adapter writes into them. The exception filters are labelled
-"Panics", "Error values leaving a function (`?`)" and "Failed asserts".
+"Panics", "Error values leaving a function (`try`)" and "Failed asserts".
 
 ### Event list (the vocabulary file's keys)
 
@@ -287,7 +287,7 @@ panic report's `last_events`, in log points and in the recording.
 | `dropped` | `name` | "`{name}` dropped" |
 | `cleaned_up` | `name` | "`{name}` cleaned up" |
 | `called`, `returned` | `function`, `value`; `called` adds `foreign: true` for a foreign call (`extern`) | "{function} called" / "{function} returned {value}"; a foreign call reads "{function} called (foreign code)" |
-| `propagated` | `value`, `function` | "`?` left {function} with {value}" |
+| `propagated` | `value`, `function` | "`try` left {function} with {value}" |
 | `panicked` | `kind`, `text` | "{text}" |
 | `spawned`, `finished` | `task`, `function` | "task {task} started {function}" / "task {task} finished" |
 | `waited` | `task`, `on` | "task {task} waited for {on}" |
@@ -313,7 +313,7 @@ value adds `result: ok or error`. A value that crossed a foreign call adds
 
 - The summary is one sentence, 25 words at most, present tense, about the
   program, with names in backticks and a position. It says what happened and its
-  cause: "Stopped in `parse_args` at line 44: `?` returned an error because
+  cause: "Stopped in `parse_args` at line 44: `try` returned an error because
   `--top` has no value." It does not say "paused" and does not use "you".
 - Debugger errors use codes `D0xxx` (never reused) and the same sentence rules.
   A DAP error response carries the code in `message` and in `body.error.id`

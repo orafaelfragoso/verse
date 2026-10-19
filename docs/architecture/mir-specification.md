@@ -142,7 +142,7 @@ scalar, or a constant), a text, or a word.
 | record `P<T>` | named fields | fields by name |
 | enum `P<T>` | variant type; cases numbered in declaration order | boxed recursion is explicit in the field type |
 | `T?` | enum with case `#0` = none, `#1` = present | niche packed by `layout` |
-| `A \| B \| E` | union type, and the MIR form of the fallible type `A \| B raises E` (spec §4.6): success cases first, then the raise set, each in normalized written order; the raise set stays exact | `?` and `match` read the case with `discriminant` |
+| `A \| B \| E` | union type, and the MIR form of the fallible type `A \| B raises E` (spec §4.6): success cases first, then the raise set, each in normalized written order; the raise set stays exact | `try` and `match` read the case with `discriminant` |
 | `Task<T>`, `Sender<T>`, `Receiver<T>`, `Shared<T>`, `Guarded<T>` | runtime handles | none is `Copy`; `Sender`, `Shared` and `Guarded` are `Copyable` (spec §10.4) |
 | `dyn Trait` | `(data ptr, vtable ptr)` (03 §3.5) | only callee form is `dyn #slot` |
 | `&T`, `&mut T` | shared and exclusive borrow | **MIR only**, second-class, see V7 |
@@ -217,7 +217,7 @@ unwind).
 |------------|----------|-----------|------------|
 | `goto bb` | block | jump | V2 |
 | `switch op [c -> bb, ...] otherwise bb` | scalar, `Bool`, flag or discriminant | multi-way branch; `otherwise` is mandatory; a case is a literal | V2 V10 V11 V12 V13 |
-| `return [propagated]` | none | return `_0`; `propagated` marks a `?` exit (event `propagated`) | V2 V6 |
+| `return [propagated]` | none | return `_0`; `propagated` marks a `try` exit (event `propagated`) | V2 V6 |
 | `panic KIND {facts} unwind u` | kind and facts ([table](#panic-kinds)) | stop the task, record a panic, start unwinding | V10 V14 V24 |
 | `call f(ops) -> p, next bb, unwind u` | callee, operands | call, store result, continue; borrow operands end at the call | V1 V7 V8 V14 V19 V23 |
 | `spawn f(ops) -> p, next bb, unwind u` | callee, owned operands | evaluate arguments, move them into a new task, store `Task<T>`; the task starts after the move (spec §11.1) | V16 V17 |
@@ -239,7 +239,7 @@ surface syntax in 0.1; it is emitted only for the polling rule of
 harnesses.
 
 **Implicit waits and conditional spawns.** At every exit of the scope that
-holds a `Task` local (normal end, `?` exit, `return`), MIR build emits one
+holds a `Task` local (normal end, `try` exit, `return`), MIR build emits one
 `yield join(move _t)` per task not yet waited, in reverse declaration order
 (spec §11.3). `join` behaves like `wait`, except that the runtime reports a
 failed outcome on standard error and counts it for the exit status (spec
@@ -538,19 +538,19 @@ rewritten to `unwind continue`. A
 later pass, not monomorphization, turns `move _1` into `copy`
 ([13.6](#136-generic-mir-and-mono-mir)).
 
-### Example 3: `?`, a file, an exclusive borrow and a cleanup block
+### Example 3: `try`, a file, an exclusive borrow and a cleanup block
 
 ```verse
 import create from fs
 
-fn save(path: Text, line: Text): Nothing | Error
-    mut target = create(path)?
-    target.write_line(line)?
+fn save(path: Text, line: Text): Nothing raises Error
+    mut target = try create(path)
+    try target.write_line(line)
 ```
 
 ```mir
 mir mono rev 1
-fn save(_1, _2) -> Nothing | Error caps(fs) @3:1-5:29 {
+fn save(_1, _2) -> Nothing | Error caps(fs) @3:1-5:32 {
   local _0: Nothing | Error = ret
   local _1: &Text = param borrowed "path" @3:9-3:19
   local _2: &Text = param borrowed "line" @3:21-3:31
@@ -558,29 +558,29 @@ fn save(_1, _2) -> Nothing | Error caps(fs) @3:1-5:29 {
   local _6: File = binding owned mut "target" @4:5-4:15
   temps _7: &Text, _8: &mut File, _9: Nothing | Error, _10: Int
 bb0:
-  _3 = ref (*_1)                                  ; borrowed "path" -> "create" @4:25-4:29
-  call fs.create(move _3) -> _4, next bb1, unwind continue ; called "create" @4:18-4:30
+  _3 = ref (*_1)                                  ; borrowed "path" -> "create" @4:29-4:33
+  call fs.create(move _3) -> _4, next bb1, unwind continue ; called "create" @4:22-4:34
 bb1:
-  _5 = discriminant(_4)                           ; <?> @4:18-4:31
-  switch copy _5 [0 -> bb2] otherwise bb6         ; <?> @4:18-4:31
+  _5 = discriminant(_4)                           ; <try> @4:18-4:34
+  switch copy _5 [0 -> bb2] otherwise bb6         ; <try> @4:18-4:34
 bb2:
   _6 = move (_4 as #0)                            ; bound "target" @4:5-4:15
-  _7 = ref (*_2)                                  ; borrowed "line" -> "write_line" @5:23-5:27
-  _8 = ref mut _6                                 ; "target" @5:5-5:11
-  call File::write_line(move _8, move _7) -> _9, next bb3, unwind bb7 ; called "write_line" @5:5-5:28
+  _7 = ref (*_2)                                  ; borrowed "line" -> "write_line" @5:27-5:31
+  _8 = ref mut _6                                 ; "target" @5:9-5:15
+  call File::write_line(move _8, move _7) -> _9, next bb3, unwind bb7 ; called "write_line" @5:9-5:32
 bb3:
   drop _6                                         ; dropped "target" @4:5-4:15
-  _10 = discriminant(_9)                          ; <?> @5:5-5:29
-  switch copy _10 [0 -> bb4] otherwise bb5        ; <?> @5:5-5:29
+  _10 = discriminant(_9)                          ; <try> @5:5-5:32
+  switch copy _10 [0 -> bb4] otherwise bb5        ; <try> @5:5-5:32
 bb4:
-  _0 = aggregate case (Nothing | Error)#0(Nothing) ; <ok> @5:5-5:29
-  return                                          ; returned @5:5-5:29
+  _0 = aggregate case (Nothing | Error)#0(Nothing) ; <ok> @5:5-5:32
+  return                                          ; returned @5:5-5:32
 bb5:
-  _0 = aggregate case (Nothing | Error)#1(move (_9 as #1)) ; <?> @5:5-5:29
-  return propagated                               ; propagated @5:5-5:29
+  _0 = aggregate case (Nothing | Error)#1(move (_9 as #1)) ; <try> @5:5-5:32
+  return propagated                               ; propagated @5:5-5:32
 bb6:
-  _0 = aggregate case (Nothing | Error)#1(move (_4 as #1)) ; <?> @4:18-4:31
-  return propagated                               ; propagated @4:18-4:31
+  _0 = aggregate case (Nothing | Error)#1(move (_4 as #1)) ; <try> @4:18-4:34
+  return propagated                               ; propagated @4:18-4:34
 cleanup bb7:
   drop _6                                         ; dropped "target" @4:5-4:15
   resume_unwind                                   ; <unwind> @4:5-4:15
@@ -590,7 +590,7 @@ cleanup bb7:
 `line` is borrowed first and `target` second: all operands are evaluated, then
 the exclusive borrow starts (V8; spec §5.3). The payload of `_4` is moved only
 on the edge for case 0 (V13). The call to `write_line` is the last use of
-`target`, so `bb3` drops it before the `?` test, once for both of its edges
+`target`, so `bb3` drops it before the `try` test, once for both of its edges
 (13.4). `File` has the `cleanup` fact, so that drop closes the file and the VM
 emits `cleaned_up` before `dropped`; like every drop it cannot unwind or yield.
 If `write_line` panics, `target` is still owned and `bb7` drops it (V14). `bb6`
@@ -601,8 +601,8 @@ needs no drop: `target` is not bound yet (V6 passes).
 ```verse
 import Channel, Sender, Closed from task
 
-fn square_one(id: Int, take out: Sender<Int>): Nothing | Closed
-    out.send(id * id)?
+fn square_one(id: Int, take out: Sender<Int>): Nothing raises Closed
+    try out.send(id * id)
 
 fn run(): Int?
     (tx, rx) = Channel.new<Int>(capacity: 1)
@@ -614,11 +614,11 @@ fn run(): Int?
 
 ```mir
 mir mono rev 1
-fn square_one(_1, _2) -> Nothing | Closed mayyield @3:1-4:23 {      # fragment
+fn square_one(_1, _2) -> Nothing | Closed mayyield @3:1-4:26 {      # fragment
   ...
 bb1:
-  _4 = ref _2                                     ; borrowed "out" -> "send" @4:5-4:13
-  yield send(move _4, copy _3.0) -> _5, resume bb2, unwind bb6 ; sent "out" @4:5-4:22
+  _4 = ref _2                                     ; borrowed "out" -> "send" @4:9-4:17
+  yield send(move _4, copy _3.0) -> _5, resume bb2, unwind bb6 ; sent "out" @4:9-4:26
   ...
 cleanup bb6:
   drop _2                                         ; dropped "out" @3:24-3:45
@@ -629,7 +629,7 @@ cleanup bb6:
 `yield send` is where cancellation arrives: `bb6` drops the `Sender`, which
 closes the channel if it is the last one (the runtime's glue, 13.4). `send` takes its value by move; a
 `copy` of an `Int` is an owned value (V16). The rest of `square_one` is
-Example 1 (`checked_mul`, an overflow `panic ... unwind bb6`) and the `?`
+Example 1 (`checked_mul`, an overflow `panic ... unwind bb6`) and the `try`
 pattern of Example 3. The listing of `run` uses the same file:
 
 ```mir
@@ -639,7 +639,7 @@ fn run() -> Int? mayyield @6:1-11:10 {
   local _2: Receiver<Int> = binding owned "rx" @7:10-7:12
   local _3: Task<Nothing | Closed> = binding owned "task" @8:5-8:9
   local _4: Int? = binding owned "value" @9:5-9:10
-  temps _5: (Sender<Int>, Receiver<Int>), _6: Sender<Int>, _7: &Receiver<Int>, _8: Nothing | Closed | Error
+  temps _5: (Sender<Int>, Receiver<Int>), _6: Sender<Int>, _7: &Receiver<Int>, _8: Nothing | Closed | TaskPanicked | Cancelled
 bb0:
   call Channel::new<Int>(Int(1)) -> _5, next bb1, unwind continue ; called "new" @7:16-7:45
 bb1:

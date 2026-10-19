@@ -44,7 +44,7 @@ trailing commas in multi-line lists; wraps long method chains one call per
 line; sorts imports; enforces the blank line after a module doc (§14.3); and
 drops the redundant `)` that the lambda closing rule makes unnecessary (§5.4). It
 never removes semantically significant parentheses — those that end a lifted
-chain, and those in `(a?).b`, where `a?.b` would be an error (§8.1). It
+chain, and those in `(try a).b`, which propagates before the field is read (§8.3). It
 **never inserts or removes type annotations**: whether to spell out a type is
 the author's choice, and inferred types are shown by the editor as inline hints
 instead. A file that passes `verse fmt --check` looks the same as every other

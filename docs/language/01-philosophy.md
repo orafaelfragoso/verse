@@ -29,7 +29,7 @@ lists every use honestly:
 | `< >`  | "type parameter": generics |
 | `->`   | "produces": lambdas and match arms (nothing else) |
 | `\|`   | "one of": variants, unions, raise sets (`raises FetchError \| Timeout`), pattern alternatives |
-| `?`    | "maybe missing or failed": `T?` (a type that may be missing), postfix `expr?` (stop early on error or missing), and the pattern `x?` (match a present value) |
+| `?`    | "maybe missing": `T?` (a type that may be missing) and the pattern `x?` (match a present value); stopping early on an error or a missing value is the word `try` |
 | `:`    | "has type" or "is named": type annotations, return types, record fields, named arguments, map entries, supertraits and generic constraints (`T: Order`), typed patterns (`n: Int`), field patterns (`age: 18`), loop labels (`outer:`), and interpolation format specifiers (`{price:.2}`) |
 
 ### 1.3 Safe by default
@@ -38,7 +38,7 @@ lists every use honestly:
   and the compiler makes you handle the absence.
 - Errors are **values in the type**: a function that can fail says so in its
   signature (`Int raises Error`), and failure must be handled or explicitly
-  propagated with `?`. Silently discarding a fallible result is a compile-time
+  propagated with `try`. Silently discarding a fallible result is a compile-time
   error; `_ = …` is the visible way to ignore one on purpose.
 - Types are **static but visually optional**: the compiler infers them —
   including function parameters and return types — and when it cannot decide,

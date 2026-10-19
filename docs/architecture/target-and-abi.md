@@ -885,7 +885,7 @@ names the mechanism for **ordinary Verse-cc functions**.
 Details that each backend must follow:
 
 - **Native.** Verse code has **no catch clauses**: a landing pad only runs a
-  cleanup block and resumes, because `otherwise`, `match` and `?` never see an
+  cleanup block and resumes, because `otherwise`, `match` and `try` never see an
   unwind (14.8). The only catches are the runtime's ([15.7.5](#1575-catch-points)). The
   exception object is a small struct with a class tag `VERSE` and a pointer to the
   panic record (or null for cancellation). The unwind is **two-phase** only
@@ -971,7 +971,7 @@ function that unwinds is undefined behaviour ([07 §7.5](plugins.md#75-ownership
 ## 15.8 Exit codes
 
 Spec §12.5 fixes the exit status of a program: `0` on normal completion; `1` if
-a top-level `?` fails or an unwaited task failed (§11.3); `101` on a panic; or
+a top-level `try` fails or an unwaited task failed (§11.3); `101` on a panic; or
 the value passed to `exit(code)`, which overrides the unwaited-task status. This
 section adds the cases the spec does not cover and says how the status reaches
 the host on each platform layer. It agrees with spec §12.5 and §15.1,
@@ -983,7 +983,7 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 | Status | Meaning | Source |
 |--------|---------|--------|
 | `0` | normal completion; the main task finished and all its tasks were waited | spec §12.5 |
-| `1` | a top-level `?` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 |
+| `1` | a top-level `try` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 |
 | `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or when running a file, and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement: the program did not start | [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses), [14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) |
 | `3` | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused (`unreachable`, an internal runtime error, a VM `TRAP`) (15.7.6). A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule | 16 §16.6.1, 14.4, 14.6 |
 | `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); also the `abort` profile (15.7.6) and a guard-page fault, which prints the second form of R0004 (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 |
@@ -998,7 +998,7 @@ standard error, writes the `debug` end event, and delivers `code`. A code
 outside 0 to 255 is not an exit: it is a panic, **R0013**, on every platform
 (status 101, unwinding as for any panic), so the same call means the same
 on every target. A program whose files must be written out returns from `main` or
-ends with a failed `?`. There is no second exit that drops: those two paths
+ends with a failed `try`. There is no second exit that drops: those two paths
 already drop every value and wait for the other tasks (spec §11.3).
 
 **Deadlock detection** is the same predicate on every tier and is computed by
@@ -1017,7 +1017,7 @@ program starts, so they never compete with the others.
 **When more than one applies.**
 An explicit `exit(code)` always wins (spec §12.5); otherwise `70` if the
 run ended by deadlock; otherwise `101` if the main task or any unwaited task
-panicked; otherwise `1` if a top-level `?` failed or an unwaited task failed
+panicked; otherwise `1` if a top-level `try` failed or an unwaited task failed
 with an error; otherwise `0`.
 
 ### 15.8.2 Delivery by platform layer
