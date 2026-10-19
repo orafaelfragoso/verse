@@ -28,3 +28,4 @@ were accepted on 2026-10-18.
 | [0020](0020-object-key.md) | Object code is keyed by the instance's optimized body | accepted (2026-10-19) |
 | [0021](0021-task-panicked-without-heap.md) | `TaskPanicked` without a heap | accepted (2026-10-19) |
 | [0022](0022-drop-stack.md) | Drop glue frees data of any depth in bounded stack | accepted (2026-10-19) |
+| [0023](0023-stack-headroom-per-target.md) | The stack-check headroom is set per target | accepted (2026-10-19) |

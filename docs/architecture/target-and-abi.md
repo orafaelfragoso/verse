@@ -786,9 +786,16 @@ reservation is a backstop behind it, and on some targets it fills first
   the limit less the count. The prologue of a `recursive` function first takes
   one call from it and branches to the cold block of the first form when none
   was left; its normal return gives the call back. The
-  stack limit is set `headroom` above the real end of the stack (assumption:
-  4 KiB on small targets, 16 KiB on large ones, tuned in M2) so that cleanup
-  blocks and the panic path run in the reserve. Cost target, measured in M2
+  stack limit is set `headroom` above the real end of the stack so that
+  cleanup blocks and the panic path run in the reserve. The headroom is
+  `[tasks] headroom` of the target file (15.9.2): 16 KiB by default, 512
+  bytes on the Cortex-M target of 15.9.3. It must hold the cold block,
+  `rt_panic` with its streaming report (15.7.1), and the glue that cleanup
+  blocks call, whose depth the types bound (15.3.6). Assumption: 512 bytes
+  holds that path on Cortex-M, measured in M7, and 16 KiB on hosted targets,
+  measured in M2. A `max_stack` under twice the headroom is refused when the
+  target file loads (V0911, 15.9.4), so the limit never sits at the start of
+  the stack. Cost target, measured in M2
   on x86-64 and AArch64: at most 3 instructions per call for the stack check,
   and in a `recursive` function at most 4 more in the prologue and 3 on the
   return path.
@@ -1140,6 +1147,7 @@ with `K`, `M`, `G` suffixes (powers of 1024) or integers (bytes).
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
 | `max_stack` | size | `"8M"` | the stack reserved per task on a compiled target, the backstop behind the call limit of 15.6.4. Pages are committed on first touch on a stackful target, where this is the address space reserved per task, so the reservation costs nothing until used. The VM has no reservation (14.3). On a `cooperative` or `state-machine` target the tasks run on one shared stack, and the target file sets its own value, at most `[memory] stack`. On a `--no-heap` build a stackful target reserves this much static memory per task slot (15.3.7) |
+| `headroom` | size | `"16K"` | how far above the real end of each task's stack the stack check fires, so that cleanup blocks and the panic path run in the reserve (15.6.4). At most half of `max_stack`, and of `[memory] stack` when the target has one |
 | `workers` | `"cores"` \| integer | `"cores"` | stackful with `threads = true`; ignored otherwise |
 
 **`[exit]`**
@@ -1326,6 +1334,7 @@ heap  = "16K"              # a default; a project overrides it with [targets.<na
 
 [tasks]
 max_stack = "4K"           # not the hosted 8M: tasks share the one stack of [memory]
+headroom  = 512            # not the hosted 16K, which would be the whole stack
 
 [exit]
 on_exit = "halt"
@@ -1375,6 +1384,7 @@ below are those of 16. Like any source error, each ends the run with status 2.
 | `tasks = "stackful"` needs an architecture with a context-switch row in 15.5.8 | V0912 | 05 §5.3 |
 | `tasks = "state-machine"` or `"cooperative"` forbids `threads = true` | V0911 | no workers are specified for them in 0.1 |
 | `atomics = "none"` forbids `threads = true` | V0911 | 15.5.4, 15.5.5 |
+| `[tasks] headroom` is at most half of `max_stack`, and of `[memory] stack` when it is set | V0911 | 15.6.4 |
 | `unwind = "wasm-eh"` needs `backend = "wasm"` (V0911) and `"exception-handling"` in `[wasm] features` (V0912) | V0911, V0912 | 15.7.2 |
 | `unwind = "native"` needs a backend that emits unwind tables for the architecture | V0911 | 15.7.2 |
 | every capability key has a provider in the platform layer's menu ([15.10.3](#15103-the-capability-table)); a detail value is one the provider knows | V0913 | no capability without code |
