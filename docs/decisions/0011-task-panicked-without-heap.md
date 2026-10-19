@@ -1,13 +1,12 @@
-# ADR-0021: `TaskPanicked` without a heap
+# ADR-0011: `TaskPanicked` without a heap
 
 Status: accepted (2026-10-19).
 
 ## Context
 
 `TaskPanicked.message()` and `trace()` return `Text` (spec §11.1). A
-`--no-heap` build forbids building a `Text` (05 §5.7), and no doc said what
-those methods do there, or whether a program that handles a task panic can be
-built for `--no-heap` at all. 15 §15.7.1 left it as an **Open:** sentence.
+`--no-heap` build forbids building a `Text` (05 §5.7), so a program that
+handles a task panic needs a rule for what those methods do there.
 
 ## Decision
 
@@ -22,8 +21,7 @@ built for `--no-heap` at all. 15 §15.7.1 left it as an **Open:** sentence.
 3. A `--no-heap` runtime keeps no stored copy of the stack lines; the
    fixed-size panic record is all it keeps (15 §15.7.1).
 4. The report printed at the moment of the panic is unchanged in every
-   build, because it streams and needs no heap
-   ([ADR-0012](0012-one-call-limit-and-trace.md)).
+   build, because it streams and needs no heap.
 
 ## Alternatives
 

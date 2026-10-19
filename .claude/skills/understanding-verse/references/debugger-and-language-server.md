@@ -208,9 +208,8 @@ Downstream:
    - Recording format and hooks in [14](../../../../docs/architecture/bytecode-and-vm.md).
    - Names, templates and `D0xxx` codes in
      [`events.toml`](../../../../docs/reference/events.toml).
-   - A change to the decision itself is a new ADR, and
-     [ADR-0006](../../../../docs/decisions/0006-debugging-over-dap.md) becomes
-     `superseded` ([decisions](../../../../docs/decisions/README.md)).
+   - A change to the decision itself amends
+     [ADR-0006](../../../../docs/decisions/0006-debugging-over-dap.md).
    - The `verse debug` and `verse lsp` rows of
      [19 §19.2](../../../../docs/reference/cli-and-manifest.md#192-commands).
 4. Commit as `<type>(tooling): …`. Use `vm` when the change is in the VM's

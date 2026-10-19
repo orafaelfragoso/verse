@@ -1,15 +1,14 @@
-# ADR-0019: A cycle among constant initializers is an error
+# ADR-0010: A cycle among constant initializers is an error
 
 Status: accepted (2026-10-19).
 
 ## Context
 
 Spec §12.4 makes a module constant lazy: it is initialized once, on first
-use. No doc said what happens when two constants of one module read each
-other (`low = high - 10`, `high = low + 10`). A lazy initializer that
-re-enters itself either loops or reads a half-built value. V0310 covers
-cycles between modules, and [ADR-0010](0010-import-cycles-are-an-error.md)
-makes those impossible, so a cycle inside one module is the only one left.
+use. Two constants of one module can read each other (`low = high - 10`,
+`high = low + 10`), and a lazy initializer that re-enters itself either
+loops or reads a half-built value. Spec §12.2 makes cycles between modules
+impossible (V0310), so a cycle inside one module is the only one possible.
 
 ## Decision
 
@@ -40,7 +39,7 @@ makes those impossible, so a cycle inside one module is the only one left.
   evaluating the initializer. The rule above over-approximates: a lambda
   that is never called still counts. A refused program has a one-line fix,
   giving one constant a value that does not read the other.
-- **A V03xx code, as the issue proposed.** Name resolution does not know
+- **A V03xx code.** Name resolution does not know
   which method a call reaches, so it could not see a cycle through a method.
 
 ## Consequences

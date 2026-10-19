@@ -118,7 +118,7 @@ the unit for resolution
 - Every identifier resolves to a `Def` id or a local id
   ([02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts)).
 - No shadowing among locals; a refinement (`x = f(x)` on an immutable `x` of
-  the same block) is the one rebinding; `let` is reserved, with a friendly error
+  the same block) is the one rebinding
   ([§3.9](../../../../docs/language/03-lexical.md#bindings-and-assignment),
   [§18.9](../../../../docs/language/18-design-notes.md#189-immutability-ownership-no-shadowing)).
 - Inference never crosses a module boundary
@@ -130,7 +130,6 @@ the unit for resolution
   annotation; it never guesses (rule 4,
   [§4.2](../../../../docs/language/04-types.md#inference-rules)).
 - `mut` and `take` are never inferred (rule 8).
-- Structural constraints cannot be written by hand in 0.1 (rule 1).
 - Errors about a body appear at the definition. The only call-site errors are
   unmet bounds, and they name the bound (rule 9).
 - Name resolution reports V03xx and V1006. Type inference reports V04xx,

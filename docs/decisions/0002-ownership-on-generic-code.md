@@ -31,5 +31,6 @@ inference. The result drives drop elaboration and explains errors.
   analysis keeps the liveness evidence for diagnostics.
 - A bug here is a soundness bug in the language. It gets a model-based
   differential test and a poisoning-allocator fuzzer ([10](../architecture/testing-and-verification.md)).
-- The inferred `Copy` bound for getters is an output of this pass, written into
-  the function's signature record and into `verse.api`.
+- The pass infers no bound. A generic body that copies a `T` writes
+  `T: Copy`, and the pass reports a missing one at the definition (spec §4.2
+  rule 9), so `verse.api` records signatures as written.

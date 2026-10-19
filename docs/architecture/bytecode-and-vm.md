@@ -70,7 +70,7 @@ pushes the callee's call record, so the stack lines start at the caller.
 `RET` takes the call back; unwinding pops call records and keeps their calls
 in the count. Compiled code counts the same
 calls, so a compiled task whose stack does not fill first stops at the same
-call ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
+call.
 
 **Frame layout** of one call, from the base: `[ return place | parameters | named
 locals | temporaries ]`, where the return place is MIR `_0` and the parameters
@@ -164,8 +164,7 @@ All three are explicit MIR control flow; the VM executes it.
 
 ## 14.6 Calls and lazy bytecode generation
 
-Verification is eager and bytecode generation is lazy
-([ADR-0011](../decisions/0011-verify-before-first-statement.md)).
+Verification is eager and bytecode generation is lazy.
 
 - **Before the first instruction**, script mode runs the reachability pre-pass
   of [02 §2.6](compiler-architecture.md#26-monomorphization). It monomorphizes

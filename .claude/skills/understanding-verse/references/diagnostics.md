@@ -66,8 +66,6 @@ and warnings share the number space. Debugger codes are `D0xxx`, panic codes
 Source: [16 §16.2](../../../../docs/reference/diagnostics-catalog.md#162-families).
 A new code goes in the family of the pass that finds the problem
 ([16 §16.2.1](../../../../docs/reference/diagnostics-catalog.md#1621-families-by-pass)).
-V0701, V0704 and V0706 are intentionally unassigned
-([16 §16.5](../../../../docs/reference/diagnostics-catalog.md#165-verse-explain)).
 
 **Wording.** The message is one sentence of at most 15 words, in the form
 "`x` is not Y" or "cannot Z because W", in the program's words, never naming
@@ -123,7 +121,8 @@ outside this rule.
 
 ## Rules that must hold
 
-- A code never changes meaning and is never reused
+- A code never changes meaning and is never reused once 0.1 is released;
+  until then it is deleted with its rule
   ([16 §16.1 rule 1](../../../../docs/reference/diagnostics-catalog.md#161-rules)).
 - Every error has a place, a reason and, where one exists, a fix (rule 4).
 - Each pass reports only the codes of its row in the families-by-pass table.

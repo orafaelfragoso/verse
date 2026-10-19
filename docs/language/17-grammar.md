@@ -113,8 +113,7 @@ binding       = [ "mut" ] pattern [ ":" type ] "=" expr NEWLINE
                    so `(a, b) = (b, a)` swaps); mixing new and existing names
                    is an error.
                    Constructor patterns start with an uppercase name (§3.5), so
-                   `Circle(r) = …` is a pattern and `f(r) = …` is not valid.
-                   `let` is reserved: "`let` is not part of Verse" *)
+                   `Circle(r) = …` is a pattern and `f(r) = …` is not valid. *)
 assign_stmt   = place assign_op expr NEWLINE ;
 assign_op     = "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
 place         = ( IDENT | "self" ) { "." IDENT | "[" expr "]" } ;

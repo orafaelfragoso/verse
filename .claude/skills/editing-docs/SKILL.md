@@ -38,6 +38,9 @@ Put the reason for a larger choice in an ADR.
 - State the design as decided. Write what is true now.
 - No change notes. Do not write "was", "now", "previously", "we changed",
   or "new". History lives in `git log`.
+- Nothing is built yet, so a removed feature leaves no trace: no reserved
+  word for it, no error that names it ("`x` is not part of Verse"), no
+  unassigned code kept for it.
 - No people's names, no ownership notes, no review files, no review labels.
 - A sentence that starts with **Open:** is a design question that is not
   decided. Use it only for that. When the question is decided, rewrite the
@@ -144,8 +147,8 @@ decision needs no ADR.
    ## Consequences
    ```
 
-   Some ADRs add `## Risks` or `## References`. Status is `proposed`,
-   `accepted (YYYY-MM-DD)` or `superseded`. A status line may add one
+   Some ADRs add `## Risks` or `## References`. Status is `proposed` or
+   `accepted (YYYY-MM-DD)`. A status line may add one
    sentence of caveat, as [ADR-0009](../../../docs/decisions/0009-cargo-disk-budget.md) does.
 3. Add a row to the table in
    [docs/decisions/README.md](../../../docs/decisions/README.md):
@@ -155,8 +158,10 @@ decision needs no ADR.
    ```
 
 4. Link the ADR from the architecture section it explains.
-5. To reverse an accepted ADR, write a new one and set the old status to
-   `superseded`. Do not rewrite an accepted ADR's decision.
+5. To change a decision, amend the ADR that holds it, and edit the docs that
+   state the rule. Do not write a new ADR that replaces an older ruling, in an
+   ADR or in the docs. Write a new ADR only for a decision no doc or ADR has
+   made yet.
 
 ## Adding or changing a diagnostic code
 
@@ -165,8 +170,8 @@ Wording and placement in depth are in
 `.claude/skills/understanding-verse/references/diagnostics.md`. The short
 form:
 
-- A code never changes meaning and is never reused. Retire a code by leaving
-  it unassigned and saying why, as 16.5 does for V0704 and V0706.
+- Until 0.1 is released, delete a code together with the rule it reports.
+  Do not keep it as unassigned.
 - `V` codes go in the family of the pass that finds the problem
   ([16 §16.2.1](../../../docs/reference/diagnostics-catalog.md#1621-families-by-pass)).
   Add the row to the family table in

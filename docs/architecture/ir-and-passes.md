@@ -97,8 +97,7 @@ Notes on the shape (details and examples in [13](mir-specification.md)):
 - **Drop flags** are written with `SetFlag`.
 - **One drop form.** `Drop` is a statement: drop glue runs no user code, so it
   cannot unwind or yield. It frees the value and releases the runtime-owned
-  handles in it ([13.4](mir-specification.md#134-statements-and-terminators),
-  [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)).
+  handles in it ([13.4](mir-specification.md#134-statements-and-terminators)).
 
 ### Invariants (checked by the verifier)
 

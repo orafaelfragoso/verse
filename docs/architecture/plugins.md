@@ -153,8 +153,7 @@ model and selects it with `[targets.<t>.files]`.
 | a result | owned by the caller. A `Pointer` result is only an address: Verse never frees what it points to |
 
 Foreign memory is released by calling the library's own function. A drop runs
-no user code and never calls foreign code (spec §13.4,
-[ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)), so the usual
+no user code and never calls foreign code (spec §13.4), so the usual
 shape is a Verse record that holds the `Pointer` and offers a named close
 method; a value dropped without it leaks the foreign resource:
 

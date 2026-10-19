@@ -127,7 +127,7 @@ parameters, `self`. Every value has exactly one owner, and assignment gives
 the new owner its own value: a `Copy` value is copied, with its storage
 shared until one side writes, and any other value moves. Moves are checked
 per control-flow path. A plain parameter is read in place for the call.
-**Shadowing is removed:** a name is bound once per function; parameters, loop
+**No shadowing:** a name is bound once per function; parameters, loop
 variables and pattern bindings may not reuse a visible name, though sibling
 blocks may reuse one. **A refinement** `x = f(x)` on an immutable `x` bound in
 the same block is the one rebinding: the right side consumes the old value,
@@ -135,8 +135,7 @@ so the name always refers to one live value. Only locals count: a local may hide
 or module-level name. Patterns always bind new names, except that a tuple of
 visible `mut` names is a parallel assignment, so `(a, b) = (b, a)` swaps. An
 unused binding warns, and so does a new binding one
-edit away from a visible `mut` name. `let` stays reserved, with a friendly
-error.
+edit away from a visible `mut` name.
 
 **Why:** With deep immutability and single ownership, a reader can understand a
 function by reading only that function: nothing it borrows can change behind
@@ -234,8 +233,7 @@ results) never mentions ownership at all.
   and checked both ways: an undeclared raise is an error (V0420) and a
   declared one that nothing raises is a warning (V0421). `raises Error` is the
   open set for application code; only there does `match` with a typed pattern
-  recover a specific type
-  ([ADR-0016](../decisions/0016-raises-clause.md)).
+  recover a specific type.
 - **Patterns.** `match` on a union uses typed patterns (`n: Int`,
   `err: Error`) at the top level only; inside parentheses `name: pattern` is
   always a field. `p?` matches a present optional. There is no `if let`,
@@ -258,8 +256,7 @@ results) never mentions ownership at all.
   postfix `?` would give `?` three meanings (the type `T?`, the pattern `x?`,
   and propagation), and keeping them apart would need three more rules:
   refuse `a?.b` as safe access, bracket `(x?)?`, and forbid two postfix `?`
-  in a row. With `try`, `?` means only "may be missing"
-  ([ADR-0017](../decisions/0017-prefix-try.md)).
+  in a row. With `try`, `?` means only "may be missing".
 - `try` returns from the innermost function-like body: a lambda, a spawned
   function, a test, or the script. `try` on `T raises E` in a function returning
   `U?` is an error, as is `try` on an optional in a function with a `raises` clause
@@ -402,8 +399,7 @@ brevity of a dynamic language with static checking; the "never guess" rule and
 the exact-spot errors keep inference predictable. A public signature is
 written in full because it is a contract: inferring it would need a notation
 for structural constraints that users cannot write, and `verse.api` would
-record a signature nobody wrote
-([ADR-0018](../decisions/0018-exported-signatures-in-full.md)).
+record a signature nobody wrote.
 Editors show inferred types inline, so the information is one glance away.
 
 ### 18.18 Borrowed sugar

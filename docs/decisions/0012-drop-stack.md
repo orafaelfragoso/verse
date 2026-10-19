@@ -1,4 +1,4 @@
-# ADR-0022: Drop glue frees data of any depth in bounded stack
+# ADR-0012: Drop glue frees data of any depth in bounded stack
 
 Status: accepted (2026-10-19).
 
@@ -8,8 +8,8 @@ A recursive enum's recursive field is a `Box<T>` freed by the drop glue
 (15 §15.3.4, §15.3.6), and a nested `List` or `Map` is freed by its owner's
 glue in the same way. Glue that calls glue recurses once per level of the
 data, so dropping a 100,000-cell list nests 100,000 native frames. The call
-limit ([ADR-0012](0012-one-call-limit-and-trace.md)) counts only `recursive`
-MIR functions, so nothing bounded that recursion except the stack itself.
+limit counts only `recursive` MIR functions, so nothing bounds that recursion
+except the stack itself.
 
 ## Decision
 

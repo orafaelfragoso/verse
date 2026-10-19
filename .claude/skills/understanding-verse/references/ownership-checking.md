@@ -8,9 +8,7 @@ borrow, finds every drop point, and explains every ownership error.
 1. [02 §2.4 The ownership pass](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass).
    This is the pass's contract.
 2. [ADR-0002](../../../../docs/decisions/0002-ownership-on-generic-code.md):
-   why a local dataflow pass on generic code, and
-   [ADR-0014](../../../../docs/decisions/0014-assignment-copies.md): why
-   assignment copies and storage is shared until written.
+   why a local dataflow pass on generic code.
 3. Spec [§4.9 Ownership, moves and copies](../../../../docs/language/04-types.md#49-ownership-moves-and-copies)
    and [§4.10 Memory model](../../../../docs/language/04-types.md#410-memory-model).
 4. Spec [§4.2 rule 9](../../../../docs/language/04-types.md#inference-rules):
@@ -148,8 +146,7 @@ The analysis is linear-time per function and parallel across functions.
   Moves and flags in generic MIR are decided by this pass
   ([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir)).
 - `verse.api` records exported signatures as written, so this pass never
-  changes a public signature
-  ([ADR-0018](../../../../docs/decisions/0018-exported-signatures-in-full.md)).
+  changes a public signature.
 - The debugger shows ownership state and the same explanations
   ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass),
   [08 §8.4](../../../../docs/architecture/debugging.md#values)).

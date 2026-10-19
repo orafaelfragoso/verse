@@ -82,8 +82,7 @@ status codes) from the same edges
 use. Drop glue runs no user code, so a drop cannot unwind or yield; the
 `cleanup` fact only says that the glue releases a runtime-owned handle, and
 `drop-opt` never moves such a drop
-([13 §13.4](../../../../docs/architecture/mir-specification.md#drop-order),
-[ADR-0013](../../../../docs/decisions/0013-drop-glue-runs-no-user-code.md)).
+([13 §13.4](../../../../docs/architecture/mir-specification.md#drop-order)).
 
 **Tasks.** `spawn` and `yield` are terminators with operands, a destination, a
 continuation and an unwind edge. Cancellation arrives at a `yield` and takes
@@ -120,8 +119,7 @@ exactly as a compiled build does, with the same `caps(...)`, `mayyield` and
 `recursive`. It builds no bytecode, runs no optimizer pass, and caches each
 verified instance. Only bytecode generation waits for the first call, so
 verification after monomorphization never fails mid-run
-([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir),
-[ADR-0011](../../../../docs/decisions/0011-verify-before-first-statement.md)).
+([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir)).
 
 **Optimizer.** Fourteen mono MIR passes run in order: `verify`,
 `simplify-cfg`, `inline`, `sroa`, `const-prop` and `fold`, `move-elim`,

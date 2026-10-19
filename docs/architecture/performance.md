@@ -62,8 +62,7 @@ Rules:
    `fn double(n)` over `Int` is just a multiply. Iterator chains inline into
    loops because the collection API is written in Verse ([05](runtime.md),
    section 5.5), except an instance that is `recursive`
-   ([13 §13.3](mir-specification.md#133-types-and-layout-facts),
-   [ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
+   ([13 §13.3](mir-specification.md#133-types-and-layout-facts)).
 2. **No garbage collector.** No pauses, no write barriers, no tracing.
    Deterministic frees map to `free` calls the allocator handles in a few
    nanoseconds.
@@ -91,7 +90,7 @@ mitigation that **does not change semantics**.
 |----|------|-------|----------------------------|
 | P1 | `Text` is indexed by characters, so `text[i]`, `slice` and `len()` are O(n) on non-ASCII text | §4.1 | cache an "is ASCII" flag and a character count in the header; ASCII text indexes in O(1); §4.1 states the cost, and `.bytes()` gives constant-time byte access |
 | P2 | `Int` is 64-bit everywhere, with overflow checks | §4.1 | range analysis; wide ops lowered to 32-bit when provable; sized types exist |
-| P3 | Assignment copies, so a copy of a `Text` or a collection costs a count, and a write to shared storage costs a duplicate | §4.9, §18.10 | `move-elim` turns a copy at the source's last use into a move; `copy-elide` reads a copy that is never written in place; counts are non-atomic when no spawn is reachable, as for `Shared` (P5); chains collect once ([ADR-0014](../decisions/0014-assignment-copies.md)) |
+| P3 | Assignment copies, so a copy of a `Text` or a collection costs a count, and a write to shared storage costs a duplicate | §4.9, §18.10 | `move-elim` turns a copy at the source's last use into a move; `copy-elide` reads a copy that is never written in place; counts are non-atomic when no spawn is reachable, as for `Shared` (P5); chains collect once |
 | P5 | `Shared` is reference counted, atomic when tasks exist | §4.10 | non-atomic when no spawn is reachable; copy elision; `Guarded` uses a lock with spin-then-park |
 | P6 | Unannotated generics are specialized per type, so compile time and code size can grow | §4.2 | identical code folding; lazy bytecode generation in script mode; size report |
 | P7 | Every task can unwind, dropping what it owns | §11.5 | unwind tables cost no run time on the success path; status-code mode costs a branch per call that can unwind; panics clean up on every target |

@@ -261,7 +261,7 @@ ptr)` with a non-null niche, so that `Nothing raises Error` is 16 bytes with no 
 ### 15.3.6 Drop glue and runtime-owned handles
 
 Every type that needs dropping has a **drop glue function**, and glue runs no
-user code (spec §13.4, [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)):
+user code (spec §13.4):
 
 - **Symbol and signature.** `drop<T>(p: ptr)`: one pointer to the value, no
   result, `nounwind`, and never *may-yield*. The MIR `drop` statement calls it,
@@ -761,7 +761,7 @@ Nothing in this document applies beyond the unwinding and exit rules.
 ### 15.6.4 Stack bounds and overflow
 
 Deep recursion stops at a **call limit**, one number on every tier and every
-target ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). The stack
+target. The stack
 reservation is a backstop behind it, and on some targets it fills first
 (the reservation, below).
 
@@ -859,8 +859,7 @@ struct PanicRecord {            // allocated by verse-rt; layout private, shown 
   Wording comes from `events.toml`, never from the ABI.
 - **Cancellation** has state `cancel`, no record, and **prints nothing**
   (spec §11.5). It is raised only at a `yield` ([13.4](mir-specification.md#134-statements-and-terminators)).
-- The **user-level call list** of the record is built in **every build**
-  ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). `rt_panic`
+- The **user-level call list** of the record is built in **every build**. `rt_panic`
   walks the task's stack and maps each call site through the **trace map**,
   the part of the debug map (13.7) that the list needs: the user-level name of
   each function, the span of each call site, and the parent spans of inlined

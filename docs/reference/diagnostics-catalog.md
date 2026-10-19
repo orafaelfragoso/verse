@@ -7,7 +7,9 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 
 ## 16.1 Rules
 
-1. **A code never changes meaning and is never reused.**
+1. **A code never changes meaning and is never reused once Verse 0.1 is
+   released.** Until then the docs define the language, and a code is deleted
+   with the rule it reports.
 2. **Codes are `V` and four digits.** The first two digits are the family
    (16.2). Errors and warnings share the number space; the record's `severity`
    says which one it is. Debugger codes are `D0xxx` ([`events.toml`](events.toml), 08 §8.7). Run-time panic codes are `R0xxx` (16.6). Lints are
@@ -119,14 +121,11 @@ gives every rule an identifier.
 | V0201 | error | expected {what} here | found {found} | | §3 |
 | V0202 | error | this block is empty | a block needs at least one line | write `pass`, or remove the line | §6.6 |
 | V0203 | error | `{kw}` is a keyword and cannot be a name | rename it | try `{kw}_` or a more specific name | §3.6 |
-| V0204 | error | `let` is not part of Verse | a new binding is written `x = value` | write `{name} = {value}`; use `mut {name} = {value}` if it changes | §3.9 |
 | V0206 | error | `from` must come last in an import | the item list goes first | write `import {names} from {module}` | §12.2 |
 | V0207 | error | an import must be at the top of the file | imports come right after the doc comment | move this line up | §12.2 |
 | V0208 | error | a long import needs parentheses | the list continues on the next line | wrap the names in `( … )` | §12.2 |
 | V0209 | error | `{op}` cannot be in the right operand of `otherwise` without parentheses | `otherwise` binds more loosely than `{op}` (second form, when the operand holds `return`, `break` or `continue`: "an exit must be the whole right operand") | write `({left} otherwise {right}) {op} {rest}` or `{left} otherwise ({right} {op} {rest})` (shown when the operand holds no exit) | §3.8.2 |
 | V0210 | error | `{}` does not say whether it is a map or a set | this could be an empty map or an empty set | write `{:}` for an empty map, or `set{}` for an empty set | §3.7 |
-
-Code V0205 is intentionally unassigned: propagation is the prefix word `try`, so no `?` can be followed by a dot and read as safe access (§8.3).
 
 ### V03xx Names and imports
 
@@ -178,8 +177,6 @@ Code V0205 is intentionally unassigned: propagation is the prefix word `try`, so
 | V0425 | error | `{p}` of `{f}` gets `{T}` here and `{U}` at {position} | `{f}` reads `{p}.{field}`, so `{p}` has one concrete type | annotate `{p}`, or make `{f}` generic with a trait bound | §4.2 rule 1 |
 | V0426 | error | the constants `{a}` and `{b}` are initialized from each other (other forms: "the constant `{a}` is initialized from itself through `{b}`" for a cycle of three or more constants, "the constant `{a}` is initialized from itself" for one constant) | `{b}` reads `{a}` on line {n} (or "`{b}` reads `{a}` through `{f}` on line {n}") | give one of them a value that does not read the other | §12.4 |
 
-Code V0419 is intentionally unassigned: a recursive function is annotated (§4.2 rule 3), and a parameter that would be wrapped deeper on each call has one written type, so no call needs a new instance per depth.
-
 ### V05xx Ownership
 
 Messages carry the structured explanation required by spec §18.10. The labels
@@ -198,14 +195,6 @@ fact has a position.
 | V0514 | error | `{name}` is not `mut`, so `{place}` cannot be changed | bound without `mut` at {position} | write `mut {name} = …` at the first binding | §4.9 |
 
 V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
-
-Codes V0502, V0503, V0504, V0510 and V0512 are intentionally unassigned:
-assignment gives every owner its own value, so no binding is a view that
-could be stored, returned or sent to a task, and no later use changes what a
-line means (§4.9). A move made in one branch is V0501, whose label names the
-condition.
-
-Code V0508 is intentionally unassigned: no `Copy` bound is inferred. A generic body that copies a `T` writes `T: Copy`, and the definition reports it (§4.2 rule 9).
 
 ### V06xx Patterns
 
@@ -363,14 +352,6 @@ Format of every long form: the four headings above, in this order, at most 25
 lines, one example that compiles. The long form is part of the catalog and has
 its own test (16.1 rule 9).
 
-Codes V0701, V0702, V0703, V0704, V0706 and V0707 are intentionally unassigned:
-a resource is released at its owner's last use, so there is no
-release to check (§13.1); acquiring a resource is an ordinary fallible call
-(§13.1); a task gets its own copy of every `Copy` argument, so no argument is
-a view it cannot use (§11.1); the spec has no `Sendable` rule (sharing uses `Shared` and `Guarded`, §11.4); an
-unwaited task is waited for automatically (§11.3); and a `Guarded` value is
-reached only through its lock guard (§11.4). None needs a diagnostic.
-
 ## 16.6 Run-time panics
 
 A panic is not a compiler diagnostic, but it is the same voice. Its text is
@@ -455,8 +436,7 @@ same placeholders from them).
 A panic kind with no row here is a bug in the compiler, and the build's
 verifier reports it as V9902. `what` is `list` or `text`; `unit` is `items` or
 `characters`. R0008 and R0013 are not MIR panic kinds: the runtime raises them
-(`exit` is 15 §15.8). R0009 is intentionally unassigned: a drop runs no user
-code, so nothing can panic while a task unwinds (spec §13.4, 15 §15.7.4). A full stack found by the guard page, not by the prologue check, prints the second form of R0004.
+(`exit` is 15 §15.8). A full stack found by the guard page, not by the prologue check, prints the second form of R0004.
 
 Rules for panic wording:
 
@@ -506,5 +486,4 @@ Verification after an optimizer pass, which runs only in debug builds of
 call, so a failure there is V9902 at a first call
 ([13 §13.5](../architecture/mir-specification.md#135-verifier-rules)).
 After a passing check, status 3 means a bug in code generation (V9901 from a backend), a trap inside the runtime,
-or, in debug builds of `verse` and in CI, V9902 from verification after an optimizer pass
-([ADR-0011](../decisions/0011-verify-before-first-statement.md)).
+or, in debug builds of `verse` and in CI, V9902 from verification after an optimizer pass.

@@ -41,9 +41,9 @@ runs in every build of `verse`: in `build`, when running a file and in
 | Lexer | valid UTF-8 | balanced `INDENT`/`DEDENT`, tabs rejected, every byte covered by a token or trivia | bad indentation, unterminated text, invalid escapes |
 | Parser | token stream | CST whose text round-trips byte for byte; error nodes where parsing failed, never a panic | syntax errors, with recovery at line and block boundaries |
 | AST lowering | CST | each node has a stable `NodeId` and span; trivia discarded | none |
-| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing and refinement rules (§3.9, [ADR-0015](../decisions/0015-refine-a-binding.md)) enforced; a refinement is a new local id; import graph acyclic (§12.2, [ADR-0010](../decisions/0010-import-cycles-are-an-error.md)) | unknown name, hidden name, an import cycle (V0310), visibility |
+| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing and refinement rules (§3.9) enforced; a refinement is a new local id; import graph acyclic (§12.2) | unknown name, hidden name, an import cycle (V0310), visibility |
 | HIR lowering | resolved AST | no sugar: `otherwise`, `try`, `if…is`, key-path lambdas, postfix guards, string interpolation and `for` are expanded to a small core. Optional-lifting positions (§8.1) are marked but not yet typed | none |
-| Type inference | HIR | every expression has a type or a recorded unresolved variable; unresolved variables become the "cannot infer, annotate here" error (§4.2 rule 4) | type errors, missing annotations, optional misuse, non-exhaustive patterns, a cycle among a module's constant initializers (V0426, §12.4, [ADR-0019](../decisions/0019-constant-initialization-cycles.md)) |
+| Type inference | HIR | every expression has a type or a recorded unresolved variable; unresolved variables become the "cannot infer, annotate here" error (§4.2 rule 4) | type errors, missing annotations, optional misuse, non-exhaustive patterns, a cycle among a module's constant initializers (V0426, §12.4, [ADR-0010](../decisions/0010-constant-initialization-cycles.md)) |
 | Ownership | THIR | every use is classified as move, copy, borrow or mut borrow; every drop point is known; see 2.4 | use after move, borrow rules, `Copy` bound errors, task rules (`mut` borrows sent to tasks, one owner per `Receiver`) |
 | MIR build | THIR plus ownership facts | CFG of basic blocks; locals typed; explicit `Move`, `Copy`, `Drop`, unwind edges | none |
 | Monomorphization | generic MIR | no type parameters, no structural constraints, no `Show` or `Eq` left abstract; trait calls resolved except calls through a trait name used as a type; every instance carries `recursive` exactly when it is on a cycle of the call graph ([13 §13.3](mir-specification.md#133-types-and-layout-facts)) | none |
@@ -120,8 +120,7 @@ unmet bound (§4.2 rule 9, final paragraph).
 solves lifetimes across stored references. Verse has none, so a full
 region-inference engine would be unused complexity ([ADR-0002](../decisions/0002-ownership-on-generic-code.md) explains why we
 do not copy it; compare Hylo and Swift's ownership model, where
-second-class values also make the analysis local). Value semantics and
-shared storage are [ADR-0014](../decisions/0014-assignment-copies.md).
+second-class values also make the analysis local).
 
 ## 2.5 Type inference
 
@@ -130,8 +129,7 @@ solved **per function** and **per module**.
 
 - **Exported items are written in full** (spec §4.2 rule 1): parameter types,
   return type and `raises` clause. A missing one is V0418, reported before
-  inference, so an export's signature is known without its body
-  ([ADR-0018](../decisions/0018-exported-signatures-in-full.md)).
+  inference, so an export's signature is known without its body.
 - **Unannotated parameters of private functions** used only through trait
   operations become implicit generics with `Trait(T)` and
   `Callable(T, args, ret)` constraints.
@@ -151,7 +149,7 @@ solved **per function** and **per module**.
   compile packages independently and in parallel.
 - **Raise sets** are inferred from `try` with the return type, exact as in §4.6,
   and checked against a written `raises` clause in both directions (V0420,
-  V0421; [ADR-0016](../decisions/0016-raises-clause.md)).
+  V0421).
 
 ## 2.6 Monomorphization
 
@@ -167,8 +165,7 @@ Spec §4.2 requires "specialized code for each concrete type used".
   (spec §10.3) is the user-visible escape hatch for compile-time-sensitive
   code: it is one shared body instead of one copy per type.
 - **Script mode** verifies eagerly and generates **bytecode** lazily at first
-  call, so bytecode generation and optimization scale with what runs
-  ([ADR-0011](../decisions/0011-verify-before-first-statement.md)). Before
+  call, so bytecode generation and optimization scale with what runs. Before
   tier 0 starts, running a file performs a whole-program **reachability
   pre-pass** from the entry statements. It monomorphizes every reachable
   instance (resolving trait calls and vtable slots) and verifies each one with
@@ -222,8 +219,7 @@ Spec §4.2 requires "specialized code for each concrete type used".
   body or a new `spawn` elsewhere changes the key. The optimizer reruns on
   each verified instance and code generation is skipped on a hit
   (assumption: optimizing costs a small part of code generation; measured
-  in M2). [ADR-0020](../decisions/0020-object-key.md) records the
-  decision.
+  in M2).
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.

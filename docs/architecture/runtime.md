@@ -75,8 +75,7 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   `stack_overflow` (R0004, "recursion is too deep in task {n}: {limit} calls
   in progress, the limit, in `{f}`", [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)).
   The VM counts the same calls, so a native task whose stack does not fill
-  first stops at the same call
-  ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
+  first stops at the same call.
 - **The stack reservation is a backstop.** An explicit check in the prologue
   of each non-leaf function raises the second form of R0004, "task {n} ran out
   of stack in `{f}`", when the stack fills before the call limit. A fault
@@ -125,8 +124,7 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
 - A panic in a task becomes `TaskPanicked` at `.wait()`.
 - Cancellation unwinds the task like a panic, dropping what it owns (§11.5).
   A drop runs no user code and never switches tasks, so the unwinding has no
-  switch point and needs no cancel protection (spec §13.4,
-  [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)).
+  switch point and needs no cancel protection (spec §13.4).
 - Unwaited failed tasks set the exit status (§12.5).
 - `exit(code)` ends the program **immediately**, from any task. It drops
   nothing, does not cancel the other tasks, and flushes standard output and
@@ -160,14 +158,13 @@ a debugger is attached ([08](debugging.md)).
   UTF-8 validation with SIMD where the target supports it).
 - Everything else in the collections API (§9.5) is **written in Verse** on top
   of these primitives, so it is monomorphized and inlined into user code,
-  except an instance that is `recursive` ([13 §13.3](mir-specification.md#133-types-and-layout-facts),
-  [ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). That is how
+  except an instance that is `recursive` ([13 §13.3](mir-specification.md#133-types-and-layout-facts)). That is how
   iterator chains reach the performance of a hand-written loop.
 - **Shared storage.** The heap storage of `Text`, `Bytes`, `List`, `Map` and
   `Set` starts with a count. A copy adds one (spec §4.9); a drop takes one
   away and frees the storage at zero. A write into storage whose count is
   above one first copies it (copy on write), so every owner sees its own
-  value (spec §4.10, [ADR-0014](../decisions/0014-assignment-copies.md)). The
+  value (spec §4.10). The
   count is atomic when a `spawn` is reachable and a plain word otherwise, as
   for `Shared` (09 P5). Inline `Text`, static literals and storage that never
   allocated have no count, and copying them copies their words.

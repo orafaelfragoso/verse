@@ -77,8 +77,6 @@ nothing after the name does
 letter (Unicode Lu or Lt) is a type-level name. Every other identifier is a
 value-level name. A single `_` is a wildcard
 ([§3.5](../../../../docs/language/03-lexical.md#35-identifiers-and-naming)).
-`let` is a reserved keyword with no use
-([§3.6](../../../../docs/language/03-lexical.md#36-keywords)).
 
 **Comments.** `#` starts a comment. `##` starts a doc comment. A `##` block at
 the top of a file followed by a blank line is the module doc. There are no
