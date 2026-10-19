@@ -85,7 +85,8 @@ structural constraints, solved per function and per module
   across a call cycle. Strongly connected components of the call graph are
   checked for an annotated entry.
 - Numeric literals default to `Int` or `Float` after solving.
-- Fallible returns are inferred from `?` and normalized as in §4.6.
+- Raise sets are inferred from `?` with the return type, exact as in §4.6, and
+  checked against a written `raises` clause in both directions (V0420, V0421).
 - Interned types make type equality integer equality
   ([02 §2.3](../../../../docs/architecture/compiler-architecture.md#23-data-structures)).
 

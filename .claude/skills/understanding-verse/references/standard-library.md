@@ -67,7 +67,7 @@ Reasons for `sys`: small ports, exact reachability, natural denial, and fake
 capabilities for tests
 ([05 §5.6](../../../../docs/architecture/runtime.md#56-the-sys-capability-interface)).
 
-**Conventions.** A function that can fail returns `T | Error` or a module
+**Conventions.** A function that can fail returns `T raises Error` or a module
 error type. A function that may find nothing returns `T?`. Resources close
 when they are dropped, and a close that can fail is a named method
 ([spec §15](../../../../docs/language/15-stdlib.md#15-standard-library-overview)).

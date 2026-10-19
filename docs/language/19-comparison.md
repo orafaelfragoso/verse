@@ -5,7 +5,7 @@
 | Blocks | indentation | indentation | braces | braces | braces | braces |
 | Typing | static; annotations optional, even on parameters | dynamic (optional hints) | static, inferred | static, light inference | static, inferred | static, inferred |
 | Missing values | `T?`, no null | `None` anywhere | `Option<T>` | `nil` pointers | `T?` | `T?` |
-| Errors | `T \| E` + `?` | exceptions | `Result<T, E>` + `?` | `(T, error)` returns | `throws` / `try` | exceptions / `Result` |
+| Errors | `T raises E` (exact sets) + `?` | exceptions | `Result<T, E>` + `?` | `(T, error)` returns | `throws` / `try` | exceptions / `Result` |
 | Default mutability | immutable (`x = …` / `mut x = …`) | mutable | immutable (`let` / `let mut`) | mutable | `let` / `var` | `val` / `var` |
 | Data semantics | values: assignment copies, storage shared until written; `mut` / `take`; handles shared with `.copy()` | references | ownership & borrowing | values + pointers | structs by value, classes by ref | references |
 | Memory | ownership, no GC; second-class borrows, no lifetimes | automatic (RC + GC) | ownership, no GC | tracing GC | ARC | tracing GC (JVM) |

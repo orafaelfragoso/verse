@@ -142,7 +142,9 @@ constraints, solved **per function** and **per module**.
   with `verse.api`. Importers use only `verse.api` (§16.4), so a module can be
   checked without the source of its dependencies. This is what lets us
   compile packages independently and in parallel.
-- **Fallible returns** are inferred from `?` and normalized as in §4.6.
+- **Raise sets** are inferred from `?` with the return type, exact as in §4.6,
+  and checked against a written `raises` clause in both directions (V0420,
+  V0421; [ADR-0016](../decisions/0016-raises-clause.md)).
 
 ## 2.6 Monomorphization
 

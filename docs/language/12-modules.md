@@ -165,8 +165,9 @@ This is safe because of three guarantees:
 
 1. **(a) A generated interface file is committed.** `verse api update` writes
    `verse.api` at the package root, recording every exported item with its
-   full inferred signature (including inferred constraints and parameter
-   modes). The file is committed with the code.
+   full inferred signature (including inferred constraints, parameter modes
+   and the exact raise set, §8.2). The file is committed with the code. A
+   change to the raise set is a change to the signature.
 2. **(b) The public API cannot drift silently.** Every build re-infers the
    exported signatures and compares them with `verse.api`. If one differs, the
    build fails and shows the old and new signature, until someone runs

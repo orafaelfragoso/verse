@@ -16,7 +16,7 @@ compiler privileges and no syntax.
 |------|--------|
 | **One obvious name.** No second spelling of a standard library idea: `finance` uses `math.Decimal`, `web` builds on `http.serve`, every package uses `time` for dates and durations | 06 §6.2 |
 | **No stored references.** Values are owned; borrows are second-class (spec §5.3, §9.3). Long-lived structures refer to parts by `Int` index (the arena pattern of spec §4.10) or by `Shared`/`Guarded` handles (spec §11.4) | spec |
-| **Failure in the type.** Anything that can fail returns `T \| Error` or a named error type (spec §8, §15) | spec |
+| **Failure in the type.** Anything that can fail returns `T raises Error` or a named error type (spec §8, §15) | spec |
 | **Resources are runtime-owned handles** (spec §13): files, devices, windows and pins are released when they are dropped, at their owner's last use; a close that can fail is a named method | spec |
 | **Capabilities are declared** in `[library] capabilities` and are the most any module may reach; a program pays only for what it reaches (06 §6.5) | 06 |
 | **Per-target availability is data** in `[library.targets]`, never conditions in source | 06 §6.9 |
@@ -64,17 +64,17 @@ type Roll = Following | ModifiedFollowing | Preceding | Unadjusted
 
 | Signature | Notes |
 |-----------|-------|
-| `fn Money.parse(text: Text, currency: Text): Money \| Error` | `"19.99"`; rejects more decimals than the currency allows |
+| `fn Money.parse(text: Text, currency: Text): Money raises Error` | `"19.99"`; rejects more decimals than the currency allows |
 | `fn Money.zero(currency: Text): Money` | |
-| `fn add(self, other: Money): Money \| Error` | different currencies are an error, so `Money` does **not** implement `Add`: `+` would have to panic or hide a conversion |
-| `fn sub(self, other: Money): Money \| Error` | |
+| `fn add(self, other: Money): Money raises Error` | different currencies are an error, so `Money` does **not** implement `Add`: `+` would have to panic or hide a conversion |
+| `fn sub(self, other: Money): Money raises Error` | |
 | `fn times(self, factor: Decimal): Money` | full precision; round explicitly |
 | `fn round(self, places: Int = 2, mode: Rounding = HalfEven): Money` | the rounding rule is always visible at the call or defaulted to banker's rounding |
 | `fn allocate(self, parts: List<Int>): List<Money>` | splits by ratio so the parts sum exactly to the whole (largest-remainder) |
 | `fn convert(self, to: Text, rate: Decimal): Money` | conversion only with an explicit rate; no hidden rate source |
 | `fn Rate.annual(percent: Decimal): Rate` | |
 | `fn accrue(self, principal: Money, from: Date, to: Date, basis: DayCount): Money` | `Rate` method; `Date` from `time` |
-| `fn Calendar.named(name: Text): Calendar \| Error` | `"TARGET"`, `"NYSE"`, … from bundled holiday data |
+| `fn Calendar.named(name: Text): Calendar raises Error` | `"TARGET"`, `"NYSE"`, … from bundled holiday data |
 | `fn is_business_day(self, day: Date): Bool` | |
 | `fn add_business_days(self, day: Date, count: Int): Date` | |
 | `fn roll(self, day: Date, rule: Roll): Date` | |
@@ -150,23 +150,23 @@ expensive duplicate happens at a call the source marks as a change.
 | Signature | Notes |
 |-----------|-------|
 | `fn Tensor.zeros(dims: List<Int>, dtype: DType = F32): Tensor` | |
-| `fn Tensor.from_list(values: List<List<Float>>): Tensor \| Error` | ragged rows are an error |
+| `fn Tensor.from_list(values: List<List<Float>>): Tensor raises Error` | ragged rows are an error |
 | `fn Tensor.random(dims: List<Int>, seed: Int): Tensor` | always seeded: same seed, same tensor, on every tier (replay, 08 §8.5) |
-| `fn matmul(self, other: Tensor): Tensor \| Error` | shapes are checked at run time; the error names both shapes |
-| `fn add(self, other: Tensor): Tensor \| Error` | broadcasting as in NumPy |
+| `fn matmul(self, other: Tensor): Tensor raises Error` | shapes are checked at run time; the error names both shapes |
+| `fn add(self, other: Tensor): Tensor raises Error` | broadcasting as in NumPy |
 | `fn map(self, f: fn(Float): Float): Tensor` | |
 | `fn sum(self): Float`, `fn argmax(self): Int` | |
 | `fn row(self, index: Int): Tensor` | a tensor of its own with the row's values, read in place when it is only read (spec §9.3) |
 | `fn scale(mut self, factor: Float)` | in-place variants take `mut self`, so the change is visible at the call |
-| `fn load_model(path: Text): Model \| Error` | a documented subset of ONNX (Assumption; the format is chosen in M9) |
-| `fn run(self, input: Tensor): Tensor \| Error` | `Model` method; inference only |
+| `fn load_model(path: Text): Model raises Error` | a documented subset of ONNX (Assumption; the format is chosen in M9) |
+| `fn run(self, input: Tensor): Tensor raises Error` | `Model` method; inference only |
 | `fn Tape.new(): Tape` | autodiff, below |
 | `fn param(mut self, value: Tensor): Var`, `fn input(mut self, value: Tensor): Var` | |
-| `fn matmul(mut self, a: Var, b: Var): Var \| Error`, `fn mean(mut self, x: Var): Var` | each operation records a node |
-| `fn backward(mut self, loss: Var): Gradients \| Error` | |
-| `fn open_gpu(index: Int = 0): Gpu \| Error` | `Gpu` is a runtime-owned handle (spec §13.4); needs `gpu` |
-| `fn upload(mut self, value: Tensor): GpuTensor \| Error` | `Gpu` method |
-| `fn download(mut self, value: GpuTensor): Tensor \| Error` | |
+| `fn matmul(mut self, a: Var, b: Var): Var raises Error`, `fn mean(mut self, x: Var): Var` | each operation records a node |
+| `fn backward(mut self, loss: Var): Gradients raises Error` | |
+| `fn open_gpu(index: Int = 0): Gpu raises Error` | `Gpu` is a runtime-owned handle (spec §13.4); needs `gpu` |
+| `fn upload(mut self, value: Tensor): GpuTensor raises Error` | `Gpu` method |
+| `fn download(mut self, value: GpuTensor): Tensor raises Error` | |
 
 ### Autodiff without stored references
 
@@ -227,7 +227,7 @@ served, `clock` only if a time-based middleware is reached. **Targets:** OS
 targets and WASI with sockets; not the browser target (it serves nothing),
 not microcontrollers without a network stack (06 §6.8).
 
-`http.serve(port: Int, handler: fn(Request): Response | Error)` runs each
+`http.serve(port: Int, handler: fn(Request): Response raises Error)` runs each
 request in its own task, turns an `Error` from the handler into a 500 response
 and logs it with `log` (spec §15.3). A router's `handler()` is that `handler`.
 
@@ -236,9 +236,9 @@ and logs it with `log` (spec §15.3). A router's `handler()` is that `handler`.
 ```verse
 import Request, Response from http
 
-alias Handler = fn(Request): Response | Error              # as spec §4.8
-alias Route = fn(Request, Params): Response | Error
-alias Middleware = fn(Request, Handler): Response | Error
+alias Handler = fn(Request): Response raises Error              # as spec §4.8
+alias Route = fn(Request, Params): Response raises Error
+alias Middleware = fn(Request, Handler): Response raises Error
 ```
 
 `Request` and `Response(status, headers, body)` are `http`'s types (spec
@@ -252,7 +252,7 @@ alias Middleware = fn(Request, Handler): Response | Error
 | `fn get(take self, pattern: Text, route: Route): Router` | also `post`, `put`, `delete`; builder methods take and return the router |
 | `fn wrap(take self, middleware: Middleware): Router` | applied in the order written |
 | `fn handler(take self): Handler` | the router moves into the returned function value (spec §5.4: an escaping lambda moves its captures) |
-| `fn int(self, name: Text): Int \| Error` | `Params` method: `/users/:id` → `params.int("id")` |
+| `fn int(self, name: Text): Int raises Error` | `Params` method: `/users/:id` → `params.int("id")` |
 | `fn text(self, name: Text): Text?` | |
 | `fn json(value: ToJson): Response` | status 200, `content-type: application/json` |
 | `fn text_response(body: Text, status: Int = 200): Response` | |
@@ -269,11 +269,11 @@ type User
     id: Int
     name: Text
 
-fn show_user(_request: Request, params: Params): Response | Error
+fn show_user(_request: Request, params: Params): Response raises Error
     id = params.int("id")?
     json(User(id:, name: "Ana"))
 
-fn health(_request: Request, _params: Params): Response | Error
+fn health(_request: Request, _params: Params): Response raises Error
     text_response("ok")
 
 router = Router.new()
@@ -357,7 +357,7 @@ run_app(title: "Counter", init: Model(), update:, view:)?
 
 | Signature | Notes |
 |-----------|-------|
-| `fn run_app<M, E>(title: Text, take init: M, update: fn(mut model: M, msg: E): List<Command<E>>, view: fn(M): Widget<E>): Nothing \| Error` | owns the model; returns when the window closes; `E` is the program's message type |
+| `fn run_app<M, E>(title: Text, take init: M, update: fn(mut model: M, msg: E): List<Command<E>>, view: fn(M): Widget<E>): Nothing raises Error` | owns the model; returns when the window closes; `E` is the program's message type |
 | `fn command<E>(take work: fn(): E): Command<E>` | long work: the runtime spawns `work` as a task, and its result comes back to `update` as a message |
 | `fn label<E>(text: Text): Widget<E>` | `E` is inferred from where the widget is used (no explicit type arguments, spec §10.5) |
 | `fn button<E>(text: Text, on_click: E): Widget<E>` | |
@@ -431,15 +431,15 @@ none of the peripherals it gave out: each is released by its own drop.
 
 | Signature | Notes |
 |-----------|-------|
-| `fn Board.take(): Board \| Error` | once per program; a second call is an error value |
-| `fn output_pin(mut self, number: Int): Pin \| Error` | `Board` method; a pin already taken is an error naming its first owner |
-| `fn input_pin(mut self, number: Int): Pin \| Error` | |
+| `fn Board.take(): Board raises Error` | once per program; a second call is an error value |
+| `fn output_pin(mut self, number: Int): Pin raises Error` | `Board` method; a pin already taken is an error naming its first owner |
+| `fn input_pin(mut self, number: Int): Pin raises Error` | |
 | `fn set(mut self, level: Level)`, `fn toggle(mut self)`, `fn read(self): Level` | `Pin` methods; no heap |
-| `fn send_edges(take self, take tx: Sender<Edge>): Nothing \| Error` | interrupts arrive as channel messages on the program's own channel; the pin moves to the runtime, which releases it when the channel closes |
-| `fn i2c(mut self, bus: Int, speed_hz: Int): I2c \| Error` | |
-| `fn read_register(mut self, address: Int, register: Int): Int \| Error` | `I2c`; one byte, no buffer |
-| `fn write_bytes(mut self, address: Int, data: Bytes): Nothing \| Error` | data from a `b"…"` literal or `.bytes()` (spec §4.1) |
-| `fn uart(mut self, port: Int, baud: Int): Uart \| Error` | also `spi(…)` |
+| `fn send_edges(take self, take tx: Sender<Edge>): Nothing raises Error` | interrupts arrive as channel messages on the program's own channel; the pin moves to the runtime, which releases it when the channel closes |
+| `fn i2c(mut self, bus: Int, speed_hz: Int): I2c raises Error` | |
+| `fn read_register(mut self, address: Int, register: Int): Int raises Error` | `I2c`; one byte, no buffer |
+| `fn write_bytes(mut self, address: Int, data: Bytes): Nothing raises Error` | data from a `b"…"` literal or `.bytes()` (spec §4.1) |
+| `fn uart(mut self, port: Int, baud: Int): Uart raises Error` | also `spi(…)` |
 
 ### Example: blinky and a button
 

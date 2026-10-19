@@ -1,7 +1,7 @@
 ## 15. Standard library overview
 
 The standard library is small, consistent, and readable. Every module follows
-the same conventions: functions that can fail return `T | Error` (or a
+the same conventions: functions that can fail return `T raises Error` (or a
 module-specific error type); functions that may find nothing return `T?`;
 resources close when they are dropped, and a close that can fail is a named
 method (§13).
@@ -23,11 +23,11 @@ file-level import may hide one (an import warns); see §3.9.
 | Traits | `Show`, `Eq`, `Order`, `Hash`, `Iterable`, `Index`, `Default`, `Copy`, `Copyable`, `Unique`, `Error`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` |
 
 `Error` is a trait, not a type. Written where a type is expected, as in
-`T | Error`, a trait name means "any type that implements it" (§8.2, §10.3),
+`T raises Error`, a trait name means "any type that implements it" (§8.2, §10.3),
 which is why `Error` appears in return types throughout this spec.
 
-`ParseError` is the error returned by `Text.to_int()` (`Int | ParseError`)
-and `Text.to_float()` (`Float | ParseError`). It is in the prelude because
+`ParseError` is the error returned by `Text.to_int()` (`Int raises ParseError`)
+and `Text.to_float()` (`Float raises ParseError`). It is in the prelude because
 those methods are.
 
 `print` and `input` are the everyday way to use standard output and input.
@@ -35,8 +35,8 @@ The `io` module has the streams themselves, for writing to standard error,
 reading bytes, and buffering.
 
 File access is **not** in the prelude: there is exactly one name for each idea,
-and it lives in `fs` — `open(path): File | Error` (read),
-`create(path): File | Error` (write), and `read_text(path): Text | Error`
+and it lives in `fs` — `open(path): File raises Error` (read),
+`create(path): File raises Error` (write), and `read_text(path): Text raises Error`
 (whole file at once). Import them with `import open, read_text from fs`.
 
 ### 15.2 Core modules
@@ -53,7 +53,7 @@ cannot use one (§12.2).
 | `http` | HTTP client and server | `get`, `post`, `put`, `delete`, `Request`, `Response(status, headers, body)` with a `Bytes` body, `serve(port, handler)` (§15.3) |
 | `text` | text processing | `words`, `lines`, `pad`, `wrap`, `similarity`, `Regex`, `Builder`, Unicode normalization |
 | `time` | dates, times and durations | `now()`, `today()`, `sleep(d)`, `Duration` (`5.seconds()`, `200.millis()`, `2.hours()`), `Instant`, `Date`, `DateTime`, time zones, `format` |
-| `json` | JSON | `parse(source: Text \| Bytes): Json \| Error` (bytes are read as UTF-8), `stringify(value, pretty: false)`, the `Json` variant type, `ToJson` / `FromJson` traits with automatic implementations for records and variants |
+| `json` | JSON | `parse(source: Text \| Bytes): Json raises Error` (bytes are read as UTF-8), `stringify(value, pretty: false)`, the `Json` variant type, `ToJson` / `FromJson` traits with automatic implementations for records and variants |
 | `task` | concurrency | `Channel` (`Channel.new<T>()` returns a `Sender<T>` and a `Receiver<T>`), `Shared`, `Guarded` (whose `lock()` returns a `Guard`), `Weak`, `wait_all`, `wait_any`, and the named error types `Timeout`, `Cancelled`, `TaskPanicked` and `Closed` (returned by `Sender.send` once the channel is closed); `.copy()` on `Sender`, `Shared`, `Guarded` and `Weak` copies the handle, explicitly, also when passing it to `spawn`; `Receiver` is not copyable and moves (§11.4) |
 | `math` | mathematics and numeric types | `pi`, `e`, `sqrt`, `sin`, `cos`, `log`, `clamp`, sized integers, `BigInt`, `Decimal`, `OrderedFloat`, parsing |
 | `random` | randomness | `int(range)`, `float()`, `choice(list)`, `shuffle(list)`, seeded generators |
@@ -114,7 +114,7 @@ request to a response:
 ```verse
 import serve, Request, Response from http
 
-fn hello(_request: Request): Response | Error
+fn hello(_request: Request): Response raises Error
     Response(status: 200, headers: {:}, body: b"hello")
 
 serve(port: 8080, handler: hello)?
@@ -122,9 +122,9 @@ serve(port: 8080, handler: hello)?
 
 | Name | Signature | Meaning |
 |------|-----------|---------|
-| `serve` | `serve(port: Int, handler: fn(Request): Response \| Error): Nothing \| Error` | listen on `port` and answer every request with `handler`; returns only when the server cannot go on, with the error (for example, the port is taken) |
+| `serve` | `serve(port: Int, handler: fn(Request): Response raises Error): Nothing raises Error` | listen on `port` and answer every request with `handler`; returns only when the server cannot go on, with the error (for example, the port is taken) |
 | `Response` | `Response(status: Int, headers: Map<Text, Text>, body: Bytes)` | the record a handler returns and `get` gives back |
-| `body.text()` | `text(self): Text \| Error` | a `Bytes` method: the body read as UTF-8; an error if it is not valid UTF-8 |
+| `body.text()` | `text(self): Text raises Error` | a `Bytes` method: the body read as UTF-8; an error if it is not valid UTF-8 |
 
 Each request runs in a task of its own (§11.1), so a slow request does not hold
 up the others. An `Error` returned by the handler becomes a response with status

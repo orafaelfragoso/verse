@@ -21,3 +21,4 @@ were accepted on 2026-10-18.
 | [0013](0013-drop-glue-runs-no-user-code.md) | Values close at their last use, and drop glue runs no user code | accepted (2026-10-19) |
 | [0014](0014-assignment-copies.md) | Assignment copies, and storage is shared until written | accepted (2026-10-19) |
 | [0015](0015-refine-a-binding.md) | A binding can be refined by consuming it | accepted (2026-10-19) |
+| [0016](0016-raises-clause.md) | A `raises` clause keeps error sets exact | accepted (2026-10-19) |

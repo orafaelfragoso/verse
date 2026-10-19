@@ -190,7 +190,7 @@ hash seed is process-wide and fixed in record and replay mode (14.10).
 ### 15.3.4 Enums, `Option` and fallible types
 
 Every sum type is an enum to the layout function: user `enum`s, `T?` (case
-`#0` none, `#1` present), and `A | B | E` (cases in normalized written order,
+`#0` none, `#1` present), and `A | B | E`, the MIR form of `A | B raises E` (cases in normalized written order,
 [13.3](mir-specification.md#133-types-and-layout-facts)). The
 `layout` line records one of three **tag kinds** (13.2): `none`, `byte`,
 `niche @OFFSET`.
@@ -222,9 +222,9 @@ recursive field has the internal type `Box<T>`, one non-null word that owns a
 heap allocation of `size_of(T)` bytes, freed by the drop glue. `Box<T>` is not
 nameable from Verse.
 
-**`Error`** in `A | Error` is the standard library's error type; its layout is defined by
+**`Error`** in `A raises Error` is the standard library's error type; its layout is defined by
 the standard library, and this document assumes it is a boxed trait object `(data ptr, vtable
-ptr)` with a non-null niche, so that `Nothing | Error` is 16 bytes with no tag
+ptr)` with a non-null niche, so that `Nothing raises Error` is 16 bytes with no tag
 (assumption, until the standard library fixes `Error`).
 
 ### 15.3.5 Closures, function values and `dyn`
@@ -302,7 +302,7 @@ operations.
 
 | Type | Word points to | Drop | Notes |
 |------|----------------|------|-------|
-| `Task<T>` | task cell: state, result slot for `T \| TaskPanicked \| Cancelled`, join list, panic record pointer | never dropped directly: consumed by `yield wait` or `task.abandon` (V17). Inside another value, that value's glue cancels it and hands its join to the scheduler (15.7.3); the glue does not yield | not `Copy`. In tier 0 the slot holds an opaque 64-bit value, not necessarily a pointer, and the debugger shows `t<N>` |
+| `Task<T>` | task cell: state, result slot for `T raises TaskPanicked \| Cancelled`, join list, panic record pointer | never dropped directly: consumed by `yield wait` or `task.abandon` (V17). Inside another value, that value's glue cancels it and hands its join to the scheduler (15.7.3); the glue does not yield | not `Copy`. In tier 0 the slot holds an opaque 64-bit value, not necessarily a pointer, and the debugger shows `t<N>` |
 | `Sender<T>` | channel core: sender count, receiver flag, bounded buffer, wait queues | decrements the sender count; closes the channel at zero | `Channel.new<T>()` returns a pair `(Sender<T>, Receiver<T>)` of size 2W |
 | `Receiver<T>` | the same channel core | closes the receiving side | not `Copy` |
 | `Shared<T>` | allocation `{ strong: usize, weak: usize, value: T }` | strong count down; at zero run `T`'s glue, then weak count down and free | counts are **atomic** when the program can spawn tasks and plain otherwise (`refcount-opt`, 05 §5.2): two code shapes, **one layout** |
@@ -343,7 +343,7 @@ runs without bound is a compile error (V0917). Slots are never reused, so a
 unrolls a loop, so the counts are the same at every `opt` level.
 
 A task slot holds the task cell of the table above (state, result slot for
-`T | TaskPanicked | Cancelled`, join list), the TCB, and the task's own memory:
+`T raises TaskPanicked | Cancelled`, join list), the TCB, and the task's own memory:
 
 - On a `state-machine` or `cooperative` target, the `F_State` of the spawned
   function (15.6.2). The `layout` pass knows its size, because a waiting
@@ -626,7 +626,7 @@ with, which both sides share (assumption, verified in M7).
   component export gets a generated wrapper that lowers and lifts values by the
   canonical ABI: `Int` to `s64`, `Float` to `f64`, `Bool` to `bool`, `Char` to
   `char`, `Text` to `string` (UTF-8, which matches the `Text` encoding so lifting
-  is one copy), `List<T>` to `list<T>`, `T?` to `option<T>`, `A | Error` to
+  is one copy), `List<T>` to `list<T>`, `T?` to `option<T>`, `A raises Error` to
   `result<A, error>`, records to `record`, enums to `variant`, tuples to
   `tuple`, `Map<K,V>` to `list<tuple<K,V>>` and `Set<T>` to `list<T>` in
   insertion order (assumption). `Task`, channels, `Shared`, `Guarded`,

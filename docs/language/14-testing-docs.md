@@ -27,7 +27,7 @@ test "slugify of empty text is empty"
 - A test passes if its body finishes without a failed `assert`, a panic, or a
   failed `?`. Inside a test, `?` returns from the test (which then fails with
   the error's message): test bodies behave like functions returning
-  `Nothing | Error`.
+  `Nothing raises Error`.
 - Tests can access private items of their module.
 - Tests run in parallel, each in its own task; they must not depend on each
   other's order.

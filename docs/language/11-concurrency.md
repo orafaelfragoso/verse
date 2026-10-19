@@ -6,15 +6,14 @@
 and immediately returns a `Task<T>`, where `T` is the call's return type.
 `.wait()` blocks the current task until the result is ready.
 
-**Errors in a task surface at `.wait()`.** Because anything can go wrong in
-another task — including a panic — `.wait()` always returns a fallible value,
-`T | Error`, which you handle like any other: with `?`, `otherwise`, or `match`.
-If the spawned function is itself fallible, its errors arrive on the same
-error side. For a function returning `Text | FetchError`, `.wait()` would
-return `Text | FetchError | Error`, which normalizes to `Text | Error`
-(§4.6); use `match` with `err: FetchError ->` to recover the specific type.
-`?` inside the spawned function returns from that function, and the error is
-what `.wait()` later reports.
+**Errors in a task surface at `.wait()`.** Because a task can panic or be
+cancelled, `.wait()` always returns a fallible value, which you handle like
+any other: with `?`, `otherwise`, or `match`. Its raise set is the spawned
+function's set plus `TaskPanicked` and `Cancelled`, kept exact (§4.6): for a
+function returning `Text raises FetchError`, `.wait()` returns
+`Text raises FetchError | TaskPanicked | Cancelled`. `?` inside the spawned
+function returns from that function, and the error is what `.wait()` later
+reports.
 
 ```verse
 import get from http
@@ -78,7 +77,7 @@ block of work, give it a name with `fn` and spawn the call.
 import wait_all, wait_any from task
 
 tasks = urls.map(url -> spawn fetch(url))             # each task gets its own `url`
-pages = wait_all(tasks)                  # takes the tasks; List<Text | Error>, in order
+pages = wait_all(tasks)                  # takes the tasks; a List of fallible results, in order
 
 mirrors = mirror_urls.map(url -> spawn fetch(url))
 fastest = wait_any(mirrors)?             # the first to finish; the others are cancelled
@@ -86,15 +85,21 @@ fastest = wait_any(mirrors)?             # the first to finish; the others are c
 
 | Operation | Signature | Meaning |
 |-----------|-----------|---------|
-| `task.wait()` | `wait(take self): T \| Error` | block until done; consumes the task |
-| `task.wait(timeout: d)` | `wait(take self, timeout: Duration): T \| Error` | the same, failing with a `Timeout` error if it takes too long |
+| `task.wait()` | `wait(take self): T raises E \| TaskPanicked \| Cancelled` | block until done; consumes the task |
+| `task.wait(timeout: d)` | `wait(take self, timeout: Duration): T raises E \| TaskPanicked \| Cancelled \| Timeout` | the same, failing with a `Timeout` error if it takes too long |
 | `task.is_done()` | `is_done(self): Bool` | never blocks |
 | `task.cancel()` | `cancel(self)` | request cancellation (§11.5) |
-| `wait_all(tasks)` | `wait_all<T>(take tasks: List<Task<T>>): List<T \| Error>` | results in task order |
-| `wait_any(tasks)` | `wait_any<T>(take tasks: List<Task<T>>): T \| Error` | the first result to complete; the rest are cancelled |
+| `wait_all(tasks)` | `wait_all(take tasks: List<Task<T raises E>>): List<T raises E \| TaskPanicked \| Cancelled>` | results in task order |
+| `wait_any(tasks)` | `wait_any(take tasks: List<Task<T raises E>>): T raises E \| TaskPanicked \| Cancelled` | the first result to complete; the rest are cancelled |
 
-Remember that `List<T | Error>` contains fallible results, so the value of
-`wait_all` cannot be discarded (§8.4) — loop over it, or `_ =` it on
+A task keeps the exact raise set of the function it runs: `spawn fetch(url)`
+with `fetch(url): Text raises FetchError | Timeout` is a
+`Task<Text raises FetchError | Timeout>`, and its `wait()` returns
+`Text raises FetchError | Timeout | TaskPanicked | Cancelled` (§4.6). A task
+that cannot fail waits as `T raises TaskPanicked | Cancelled`.
+
+Remember that a `List<T raises E>` contains fallible results, so the value of
+`wait_all` cannot be discarded (§8.4): loop over it, or `_ =` it on
 purpose.
 
 **Panics in tasks.** If a task panics, the panic message and stack trace are
@@ -105,12 +110,13 @@ with `message()` and `trace()`), which `match` can tell apart from ordinary
 errors:
 
 ```verse
-import TaskPanicked from task
+import TaskPanicked, Cancelled from task
 
-match task.wait()
+match task.wait()                    # `task` runs a function that raises `FetchError`
     page: Text -> show(page)
     crash: TaskPanicked -> alert_on_call(crash.message())
-    err: Error -> print("fetch failed: {err.message()}")
+    err: FetchError -> print("fetch failed: {err.message()}")
+    _: Cancelled -> print("fetch was cancelled")
 ```
 
 The task boundary is the one place where a panic becomes a value, so one
@@ -229,7 +235,7 @@ receiving until the producers are done, as the loop above does.
 | Operation | Signature | Meaning |
 |-----------|-----------|---------|
 | `Channel.new<T>(…)` | `new<T>(capacity: Int = 16): (Sender<T>, Receiver<T>)` | a new channel and its two ends; `capacity: 0` is unbuffered (rendezvous) |
-| `tx.send(v)` | `send(self, take value: T): Nothing \| Closed` | blocks while the channel is full; returns the error `Closed` if the `Receiver` was dropped or the channel was closed — including for a sender already blocked on a full channel, which wakes with `Closed` |
+| `tx.send(v)` | `send(self, take value: T): Nothing raises Closed` | blocks while the channel is full; returns the error `Closed` if the `Receiver` was dropped or the channel was closed — including for a sender already blocked on a full channel, which wakes with `Closed` |
 | `tx.close()` | `close(self)` | an early shortcut: closes the channel for everyone, even while other `Sender`s exist; the receiver drains what is left |
 | `rx.recv()` | `recv(self): T?` | blocks until a value arrives; `none` once the channel is closed and drained |
 
@@ -323,7 +329,7 @@ operations keep simple signatures:
 |-----------|-----------|
 | `time.sleep(d)` | `sleep(duration: Duration)` — returns `Nothing`; pauses only the current task |
 | `rx.recv()` | `recv(self): T?` |
-| `task.wait()` | `wait(take self): T \| Error` (a cancelled *child* shows up here as `Cancelled`) |
+| `task.wait()` | `wait(take self): T raises E \| TaskPanicked \| Cancelled` (a cancelled *child* shows up here as `Cancelled`) |
 
 ---
 
