@@ -26,7 +26,7 @@ the AST and the ownership pass.
 
 | Stage | Input | Output |
 |-------|-------|--------|
-| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule enforced; modules may import each other, but module-level constants initialise without a cycle (V0310) |
+| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule enforced; import graph acyclic (V0310) |
 | HIR lowering | resolved AST | no sugar; optional-lifting positions marked but not yet typed |
 | Type inference | HIR | every expression has a type or a recorded unresolved variable; an unresolved variable becomes the "cannot infer, annotate here" error |
 

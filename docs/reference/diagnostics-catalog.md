@@ -140,7 +140,7 @@ gives every rule an identifier.
 | V0307 | warning | `{name}` is never used | imported here; unused imports cannot be silenced | delete the name or the line | §12.2 |
 | V0308 | error | `{name}` is private to `{module}` | `{module}` does not `export` it | ask the owner to `export` it, or use `{public_name}` | §12.3 |
 | V0309 | error | `{module}` has no item called `{name}` | it exports {list, up to 5} | did you mean `{near}`? | §12.2 |
-| V0310 | error | modules `{a}` and `{b}` import each other at startup | the constants initialise in a cycle | move the shared constant to a third module | §12.2 |
+| V0310 | error | modules `{a}` and `{b}` import each other (other forms: "module `{a}` imports itself through `{b}`" for a cycle of three or more modules, "module `{a}` imports itself" for a self-import) | `{back_edge}` imports `{a}` | move what they share into a module none of them imports | §12.2 |
 | V0311 | error | `{case}` is a case of `{Type}` | cases are not imported with the type | write `{Type}.{case}(…)`, or add `import {case} from {module}` | §12.2, §4.4 |
 | V0312 | error | a renamed type needs a capitalised name | `{x}` is a value name | write `as {X}` | §3.5 |
 | V0313 | warning | new binding `{name}` looks like the `mut` binding `{near}` | this creates a new binding | did you mean to reassign `{near}`? `{near} = {value}` | §3.9 |
