@@ -1,0 +1,6 @@
+# Pin both dirs to the repo's target/. A user-level ~/.cargo/config.toml with its own
+# build.target-dir would otherwise move the artifacts out of reach of tools/cargo-budget.sh.
+# The CARGO_TARGET_DIR env var still overrides this, so leave it unset.
+[build]
+target-dir = "target"
+build-dir = "target"

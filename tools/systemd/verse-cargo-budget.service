@@ -1,0 +1,7 @@
+[Unit]
+Description=Cap the verse Cargo target/ directory
+
+[Service]
+Type=oneshot
+# @REPO@ is replaced with the absolute repo path at install time (see ADR-0009).
+ExecStart=@REPO@/tools/cargo-budget.sh 15
