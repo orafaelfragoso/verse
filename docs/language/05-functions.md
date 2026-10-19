@@ -66,7 +66,7 @@ written explicitly (it is never inferred):
 and changed in place (§3.9, §4.9), a `mut` parameter may change the caller's
 value, and a `mut self` method may change its receiver (§5.6). Parameter names
 count as bindings of the function, so a body cannot bind a parameter's name
-again (§3.9). A `mut` parameter is the caller's place under an exclusive
+again, except to refine it (`name = name.trim()`, §3.9). A `mut` parameter is the caller's place under an exclusive
 borrow, so assigning to it replaces the caller's value in place:
 
 ```verse

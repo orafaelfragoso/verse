@@ -516,7 +516,31 @@ The rule for `name = expr` depends only on what is already visible:
 |------------|---------------------|
 | not yet bound in this function | a **new immutable binding** |
 | a visible `mut` binding | **reassignment** |
-| a visible immutable binding or immutable parameter | a compile-time error: "`total` is not `mut`, so it cannot be reassigned", with the help "write `mut total = …` at the first binding" |
+| a visible immutable binding or immutable parameter, and `expr` uses `name` | a **refinement**: a new immutable binding made from the old value, which is consumed (below) |
+| a visible immutable binding or immutable parameter, and `expr` does not use `name` | a compile-time error: "`total` is not `mut`, so it cannot be reassigned", with the help "write `mut total = …` at the first binding, or use `total` on the right side to refine it" |
+
+Every `x = …` line therefore reads one of three ways, all decided by the
+text: the right side mentions `x` (a refinement), `mut x` was bound earlier
+(a reassignment), or neither (a new binding, which the no-shadowing rule
+below guarantees is the first `x`).
+
+**Refinement.** A value that is transformed step by step keeps its name:
+
+```verse
+text = read_text(path)?
+text = text.trim()
+text = text.lines()            # a List<Text> now; the Text is gone
+text = "other"                 # error: `text` is not `mut`, and the right side does not use it
+```
+
+The right side is evaluated with the old `x`; that is the old value's last
+use, so it moves into the right side (§4.9). Then `x` names the new value,
+which may have another type. A refinement is not shadowing, because the old
+value is gone, and not reassignment, because `x` was never `mut`. Only a
+plain name, with or without a type annotation, can be refined; the name must
+be bound in the same block as the refinement, so a name bound before a loop
+or an `if` cannot be refined inside it (the old value would be consumed on
+one path only). A `mut` name is reassigned instead, as the table says.
 
 `mut name = expr` always declares a new mutable binding. In a pattern, a name
 starting with an uppercase letter is a constructor or variant and a lowercase
@@ -553,7 +577,7 @@ explain: V0315 (run `verse explain V0315`)
 ```
 
 **No shadowing.** The rule is: **you cannot bind a name that is currently
-visible**, where *visible* means **locals only**: parameters, earlier
+visible**, except by a refinement, where *visible* means **locals only**: parameters, earlier
 bindings, and loop, pattern and lambda names in scope. Parameters (of functions and of lambdas), `for` loop variables,
 and pattern bindings in `match` arms and `if … is` all
 count: each lives in its own block, but it may not reuse a name that is
@@ -573,9 +597,10 @@ fn report(items)
     items.map(count -> count + 1)  # error: lambda parameter reuses `count`
 ```
 
-Without `let`, a second `x = …` would otherwise be impossible to tell apart
-from an assignment, so Verse does not allow it at all; a transformed value
-gets a new name (`raw = read_text(path)?` then `text = raw.trim()`).
+Without `let`, a second `x = …` that does not use `x` would be impossible to
+tell apart from an assignment, so Verse does not allow it. A transformed value
+keeps its name through a refinement (`text = text.trim()`, above), whose right
+side names the old value.
 Entry-file top-level bindings follow the script-local rules of §12.4.
 
 Names from outside the function are not locals. A local may **hide a prelude
@@ -599,11 +624,6 @@ assigning to it replaces the caller's value in place (§5.3):
 fn reset(mut list)
     list = []                      # the caller's list is now empty
 ```
-
-There is still one form, `x = …`, for both meanings, so tools carry the
-difference: editors and `verse fmt --check` tooling must render a
-reassignment distinctly from a new binding (for example an inlay hint
-"reassign" before the name). This is a tooling requirement, not syntax.
 
 Two warnings catch the usual slips:
 

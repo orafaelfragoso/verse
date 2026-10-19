@@ -26,7 +26,7 @@ the AST and the ownership pass.
 
 | Stage | Input | Output |
 |-------|-------|--------|
-| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule enforced; import graph acyclic (V0310) |
+| Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing and refinement rules enforced; import graph acyclic (V0310) |
 | HIR lowering | resolved AST | no sugar; optional-lifting positions marked but not yet typed |
 | Type inference | HIR | every expression has a type or a recorded unresolved variable; an unresolved variable becomes the "cannot infer, annotate here" error |
 
@@ -43,9 +43,11 @@ Crates ([02 §2.9](../../../../docs/architecture/compiler-architecture.md#29-cra
 
 **Resolution and scopes.** A name is introduced by writing it. `name = expr`
 is a new immutable binding when the name is not yet bound in the function,
-a reassignment when it names a visible `mut` binding, and an error when it
-names a visible immutable binding. You cannot bind a name that is currently
-visible, where visible means locals only. Sibling blocks may reuse a name. A
+a reassignment when it names a visible `mut` binding, a refinement when it
+names a visible immutable binding of the same block and `expr` uses the name
+(a new local that consumes the old value), and an error otherwise. You cannot
+bind a name that is currently visible, except by a refinement, where visible
+means locals only. Sibling blocks may reuse a name. A
 local may hide a prelude, imported or module name; hiding an import warns
 only when the function also uses that import
 ([§3.9](../../../../docs/language/03-lexical.md#bindings-and-assignment)).
@@ -109,7 +111,8 @@ the unit for resolution
 
 - Every identifier resolves to a `Def` id or a local id
   ([02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts)).
-- No shadowing among locals; `let` is reserved, with a friendly error
+- No shadowing among locals; a refinement (`x = f(x)` on an immutable `x` of
+  the same block) is the one rebinding; `let` is reserved, with a friendly error
   ([§3.9](../../../../docs/language/03-lexical.md#bindings-and-assignment),
   [§18.9](../../../../docs/language/18-design-notes.md#189-immutability-ownership-no-shadowing)).
 - Inference never crosses a module boundary
