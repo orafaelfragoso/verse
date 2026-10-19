@@ -1,0 +1,160 @@
+# events.toml: the single source of event names and wording (08 §8.7).
+# The compiler fails the build if an event, a stop reason, a value state or a
+# diagnostic template refers to a name that has no entry here.
+# Rules: event names are past-tense snake_case verbs; templates use {field}
+# placeholders; a template never contains a word from the "don't say" table.
+
+[meta]
+version = 1
+language = "en"
+max_summary_words = 25
+
+[events.bound]
+fields = ["name", "value"]
+text = "`{name}` bound to {value}"
+
+[events.reassigned]
+fields = ["name", "from", "to"]
+text = "`{name}` reassigned from {from} to {to}"
+
+[events.copied]
+fields = ["name", "how"]          # how: implicit | copy
+text = "`{name}` copied"
+
+[events.moved]
+fields = ["name", "to"]
+text = "`{name}` moved to {to}"
+
+[events.borrowed]
+fields = ["name", "by"]
+text = "`{name}` borrowed by {by}"
+
+[events.dropped]
+fields = ["name"]
+text = "`{name}` dropped"
+
+[events.cleaned_up]
+fields = ["name"]
+text = "`{name}` cleaned up"
+
+[events.called]
+fields = ["function", "foreign"]  # foreign: true for a foreign call (0.2 extern)
+text = "{function} called"
+text_foreign = "{function} called (foreign code)"
+
+[events.returned]
+fields = ["function", "value"]
+text = "{function} returned {value}"
+
+[events.propagated]
+fields = ["value", "function"]
+text = "`?` left {function} with {value}"
+
+[events.panicked]
+fields = ["kind", "text"]
+text = "{text}"
+
+[events.spawned]
+fields = ["task", "function"]
+text = "task {task} started {function}"
+
+[events.finished]
+fields = ["task"]
+text = "task {task} finished"
+
+[events.waited]
+fields = ["task", "on"]
+text = "task {task} waited for {on}"
+
+[events.sent]
+fields = ["channel", "value"]
+text = "sent {value}"
+
+[events.received]
+fields = ["channel", "value"]
+text = "received {value}"
+
+[events.closed]
+fields = ["channel"]
+text = "channel closed"
+
+[events.overflowed]
+fields = ["op", "type"]
+text = "{op} overflowed `{type}`"
+
+[events.asserted]
+fields = ["text", "passed"]
+text = "assert {text}: {passed}"
+
+# Value states (08 §8.4 and §8.7). Extra fields are named per state.
+[states.owned]
+text = "owned"
+[states.moved]
+fields = ["moved_at", "moved_to"]
+text = "moved to {moved_to} at {moved_at}"
+[states.view]
+fields = ["of", "until"]
+text = "a view of `{of}` until {until}"
+[states.borrowed]
+text = "borrowed for this call"
+[states.exclusive]
+text = "exclusively borrowed for this call"
+[states.dropped]
+text = "dropped"
+[states.not_yet_bound]
+text = "not bound yet"
+
+[notes.from_foreign]
+text = "came from a foreign call"
+
+# Stop reasons (08 §8.7). `summary` is built from `text` plus the position.
+[stops.breakpoint]
+text = "stopped at a breakpoint at line {line} in `{function}`, task {task}"
+[stops.step_done]
+text = "stepped to line {line} in `{function}`, task {task}"
+[stops.panicked]
+text = "stopped in `{function}` at line {line}: {text}"
+[stops.assert_failed]
+text = "stopped in `{function}` at line {line}: assert {text} failed"
+[stops.propagated]
+text = "stopped in `{function}` at line {line}: `?` returned {value}"
+[stops.moved]
+text = "stopped in `{function}` at line {line}: `{name}` moved to {to}"
+[stops.reassigned]
+text = "stopped in `{function}` at line {line}: `{name}` reassigned to {to}"
+[stops.watch_changed]
+text = "stopped in `{function}` at line {line}: `{name}` changed to {to}"
+[stops.deadlocked]
+text = "every task is waiting; none can continue"
+[stops.exited]
+text = "the program ended with status {status}"
+[stops.paused]
+text = "stopped at line {line} in `{function}`, task {task}, on request"
+
+# Debugger errors (D0xxx). Same sentence rules as diagnostics.
+[errors.D0101]
+text = "no program is running; start one with `debug_launch`"
+[errors.D0102]
+text = "session {session} does not exist or has ended"
+[errors.D0103]
+text = "`debug_back` needs a recorded session; launch with `record: true`"
+[errors.D0104]
+text = "`evaluate` accepts only pure expressions; {call} is not pure"
+[errors.D0105]
+text = "value {id} is not part of session {session}"
+[errors.D0106]
+text = "step {step} was not recorded"
+[errors.D0107]
+text = "the file {file} is not part of this program"
+[errors.D0108]
+text = "the program does not use the `{capability}` capability, which the request names"
+
+# `verse why` answers (19 §19.11). One opener per kind of question.
+[why.package]
+text = "{package} {version} is selected because:"
+[why.item]
+text = "{item} is included because:"
+[why.file]
+text = "{file} was written by {plugin}"
+[why.capability]
+text = "this program reaches `{capability}` because:"
