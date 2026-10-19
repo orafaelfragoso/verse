@@ -22,6 +22,7 @@ Facts, assumptions and hypotheses are labelled as such.
 | [Runtime](runtime.md) | Memory, tasks, panics and unwinding, feature slices, embedded profile |
 | [Standard library and tree-shaking](stdlib-and-shaking.md) | Optional domain libraries, how builds include only what they use |
 | [First-party packages](first-party-packages.md) | API sketches for `finance`, `ml`, `web`, `gui`, `iot` |
+| [Packages](packages.md) | What a package is, how `import` finds one, naming, versioning from `verse.api`, `verse.lock`, resolution, the registry, workspaces |
 | [Plugins](plugins.md) | Native C-ABI libraries: `[plugins]`, `extern`, the type mapping, loading in script and compiled mode, `verse bind` |
 | [Debugging and MCP](debugging-and-mcp.md) | A debugger and compiler that LLMs can drive step by step |
 | [Performance](performance.md) | Budgets, benchmark suite, known spec-level performance risks |

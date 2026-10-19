@@ -945,8 +945,8 @@ All three have the same schema. A name is resolved in this order: project
 matches, then the toolchain. The reserved name `host` is not a file: it is the
 shipped target of the machine running the compiler. A project-local target may
 not reuse the name of a shipped one (a build error). The target file is read
-as data: it runs no code, in line with the rest of the manifest (19 §19.1, point 2).
-Its blake3 hash is part of every cache key ([19 §19.9](../reference/cli-and-manifest.md#199-reproducible-builds-and-caching),
+as data: it runs no code, in line with the rest of the manifest (21 §21.2, point 2).
+Its blake3 hash is part of every cache key ([21 §21.10](packages.md#2110-reproducible-builds-and-caching),
 02 §2.7).
 
 `[target] inherits = "<name>"` starts from another target and overrides

@@ -6,7 +6,7 @@ carries: `verse.toml` (what the author asks for), `verse.lock` (what was
 chosen), and `verse.api` (what a package promises). Labels follow the
 [README](../architecture/README.md) conventions: **Fact** (stated by the spec or a ruled
 document), **Decision** (chosen here, inside the spec's room), **Assumption**,
-**Target**, **Proposal** (needs a ruling, collected in §19.14).
+**Target**, **Proposal** (needs a ruling, collected in §19.6).
 
 Nothing here changes what a Verse program means. The spec (§12, §16.3, §16.4)
 wins wherever this document disagrees with it.
@@ -23,17 +23,10 @@ covers the package manager). The codes shown below are in
 
 ## 19.1 Summary
 
-1. **Three files, three jobs.** `verse.toml` is written by people, `verse.lock`
-   and `verse.api` are written by the tool and committed. A reviewer reads a
-   diff of any of them and knows what changed (Fact: spec §16.3, §16.4).
-2. **No code runs to build a dependency.** No build scripts, no install
-   hooks, no plugin `build` commands from dependencies (Fact: spec §16.3, 07 §7.2).
-3. **Minimal version selection** picks versions, so the same manifests give
-   the same graph without a solver and without the lock (Decision, §19.7).
-4. **The required version bump is computed** from the `verse.api` diff, and
-   `verse publish` refuses a version that understates it (Decision, §19.5).
-5. **Everything is content-addressed** with blake3, the same hash family the
-   compiler and the shaking cache use (Fact: 02 §2.7, 06 §6.10).
+This is the reference for the commands, the `verse.toml` keys and the exit
+statuses. What a package is, how `import` finds one, and how versions are
+chosen, locked and published are in
+[21. Packages](../architecture/packages.md).
 
 ## 19.2 Commands
 
@@ -46,12 +39,12 @@ behaviour. Commands marked *new* are proposals (P19-1).
 | `verse add pkg[@req]` | adds a dependency at the newest release (or `req`), resolves, updates the lock | toml, lock, index | toml, lock | yes (cached) |
 | `verse add --dev pkg` | the same, into `[dev-dependencies]` | | | |
 | `verse remove pkg` | removes it; the lock drops what nothing else needs | toml, lock | toml, lock | no |
-| `verse update [pkg…]` | raises locked versions to the newest allowed by `verse.toml` (§19.7); shows each change and each capability change | toml, lock, index | lock | yes |
+| `verse update [pkg…]` | raises locked versions to the newest allowed by `verse.toml` (21 §21.8); shows each change and each capability change | toml, lock, index | lock | yes |
 | `verse lock` *new* | resolves and writes `verse.lock` without building; `--check` fails if the lock is stale (for CI) | toml, lock, index | lock | yes, unless `--offline` |
-| `verse vendor` *new* | copies every locked package into `vendor/` and records it in the lock (§19.9) | lock | `vendor/`, lock | yes, unless cached |
-| `verse publish` | checks, computes the required bump, packs and uploads (§19.5, §19.8) | everything | registry | yes |
-| `verse yank pkg@ver` *new* | marks a published version yanked (§19.8); `--undo` reverses | — | registry | yes |
-| `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the `verse generate` entry that wrote it (spec §16.6); this document adds package names and capabilities (§19.11, P19-8) | build graph, lock | — | no |
+| `verse vendor` *new* | copies every locked package into `vendor/` and records it in the lock (21 §21.9) | lock | `vendor/`, lock | yes, unless cached |
+| `verse publish` | checks, computes the required bump, packs and uploads (21 §21.6, §21.9) | everything | registry | yes |
+| `verse yank pkg@ver` *new* | marks a published version yanked (21 §21.9); `--undo` reverses | — | registry | yes |
+| `verse why <item-or-path>` | spec §16: for an item, the chain from a root (06 §6.6); for a file path, the `verse generate` entry that wrote it (spec §16.6); this document adds package names and capabilities (§19.4, P19-8) | build graph, lock | — | no |
 | `verse api update` / `verse api check` | as spec §16.4 | sources | `verse.api` | no |
 | `verse generate [name]` | runs the `[generate]` entries (spec §16.6): empties `generated/<name>/` and runs the entry's tool | toml, lock, the inputs the tool reads | `generated/` | only if resolving |
 | `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
@@ -104,7 +97,7 @@ uses them.
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `name` | text | required | the package name, also its root module name (§19.4) |
+| `name` | text | required | the package name, also its root module name (21 §21.3) |
 | `version` | text, semver | required | `MAJOR.MINOR.PATCH`, optional pre-release (`1.0.0-rc.1`), no build metadata |
 | `verse` | text, version requirement | required | toolchain versions the package supports, same syntax as dependencies (`"0.1"` means `>= 0.1.0, < 0.2.0` while the major is 0) |
 | `description` | text | `""` | one line, shown by the registry |
@@ -122,7 +115,7 @@ colors = "1.2"                                   # registry, >= 1.2.0, < 2.0.0
 finance = "1.0"                                  # first-party, same rules
 http_extra = { git = "https://example.com/http_extra.git", tag = "v0.4.1" }
 shapes = { path = "../shapes" }                  # local, for workspaces and development
-term = { version = "0.3", registry = "corp" }    # a named alternative registry (§19.8)
+term = { version = "0.3", registry = "corp" }    # a named alternative registry (21 §21.9)
 ```
 
 | Form | Meaning |
@@ -199,7 +192,7 @@ link  = "static"
 | `targets` | list of target names | every target | where the plugin is available ([07 §7.8](../architecture/plugins.md#78-targets)) |
 
 A dependency may declare plugins with `lib` only. A dependency that uses
-`path` or `build` is rejected at resolution (V0834, §19.12).
+`path` or `build` is rejected at resolution (V0834, 21 §21.13).
 
 ### `[generate]` and `[tool]`
 
@@ -283,7 +276,7 @@ is data and runs no code. `[targets.<t>]` (above) holds what the project asks
 of the platform, and the target file holds what the platform is; which of the
 two owns a key is the table in
 [15 §15.9.5](../architecture/target-and-abi.md#1595-how-the-target-file-relates-to-the-manifest).
-The hash of the resolved target file is part of every cache key (§19.9).
+The hash of the resolved target file is part of every cache key (21 §21.10).
 
 ### `[profile.dev]`, `[profile.release]`, `[profile.test]`
 
@@ -298,7 +291,7 @@ The hash of the resolved target file is part of every cache key (§19.9).
 There is deliberately no key that turns off overflow or bounds checks: they
 are part of what a program means (spec §4.1, §9.3), so a profile cannot change
 them. A custom profile is `[profile.name]` with `inherits = "release"`. The profile
-is part of every cache key (§19.9).
+is part of every cache key (21 §21.10).
 
 ### `[run]`, `[build]`, `[test]`
 
@@ -315,418 +308,18 @@ Command-line flags win.
 | `[test]` | `fakes` | list of capabilities | `["clock", "random"]`: tests get the virtual clock and a seeded random source ([05 §5.6](../architecture/runtime.md#56-the-sys-capability-interface)) |
 | `[test]` | `timeout` | duration text (`"10s"`) | `"60s"` |
 
-### Feature selection
+### Features
 
-**Decision: there is no `[features]` section in 0.1.** Cargo-style features
-exist mainly to avoid compiling and linking unused code. In Verse that is
-already free: an import costs nothing and only reached code is built
-([06](../architecture/stdlib-and-shaking.md)). The remaining uses are covered by data
-that does not change what a source file means:
-
-| Need | Verse answer |
-|------|--------------|
-| Leave out heavy code | do not reach it; the size report shows what is in |
-| Optional dependency | a separate small package (`charts` and `charts_svg`), imported only where needed |
-| Different code per target | `[targets.<t>.files]` (P6-7) |
-| Different behaviour per build | values read at run time (`env`, `args`, a config file), or a separate entry file |
-
-Why: a feature flag that changes which declarations exist is conditional
-compilation, which P6-7 ruled out. It also makes "what does this file mean?"
-depend on the whole graph's feature union. If real programs need more,
-P19-5 proposes the smallest addition: named sets of optional dependencies,
-never of source.
+There is no `[features]` section. Why, and what to use instead, is in
+[21 §21.11](../architecture/packages.md#2111-features).
 
 ### `[workspace]`
 
-See §19.10.
-
-## 19.4 Package identity and naming
-
-**A package name is its root module name** (Fact: spec §16.3,
-`import red, bold from colors`). So a name must be a valid module path
-segment:
-
-| Rule | Why |
-|------|-----|
-| `[a-z][a-z0-9_]*`, at most 64 characters | a lowercase value identifier (spec §3.5); no hyphens, which cannot appear in `import … from name` |
-| not a keyword, not `std`, `verse`, `prelude`, `generated`, `vendor` | they already mean something |
-| not a prelude name (`print`, `args`, …) | an import of it would hide the prelude name (spec §3.9) |
-| reserved first-party names: `finance`, `ml`, `web`, `gui`, `iot` (Fact: P6-1, spec §16.3) | published only by the Verse project |
-| no name that differs from an existing one only by `_` or by one of `0`/`o`, `1`/`l` | confusable names are a supply-chain attack (registry rule, Decision) |
-| first come, first served, never reused after deletion | a name always means the same package |
-
-Fact: spec §16.3 states this rule and its example is `word_tools`.
-
-The registry refuses a name that is taken, reserved, too close to an existing
-one, or used before by another owner (wording as in
-[16](diagnostics-catalog.md#v08xx-packages-and-api)):
-
-```
-error: the package name `finance` is not available
-  --> verse.toml:2:8
-   |
- 2 | name = "finance"
-   |        ^^^^^^^^^ reserved
-   |
-help: choose another name
-explain: V0833 (run `verse explain V0833`)
-```
-
-```
-error: the package name `co1ors` is not available
-  --> verse.toml:2:8
-   |
- 2 | name = "co1ors"
-   |        ^^^^^^^^ too close to `colors`
-   |
-help: choose another name
-explain: V0833 (run `verse explain V0833`)
-```
-
-**Module paths inside a package.** A package `colors` with `src/colors.vs`
-and `src/colors/term.vs` exports modules `colors` and `colors.term`
-(spec §12.1 applied per package). Every module path a package exports starts
-with the package name, so two packages can never export the same module, and
-a module name tells the reader which package it came from (one obvious name,
-06 §6.2).
-
-**First-party packages** are ordinary packages: same registry, same lock, same
-`verse.api` rules, no compiler privileges (Fact: 06 §6.2). They are published
-by the Verse project's registry account; the registry refuses those names from
-anyone else.
-
-## 19.5 Versioning from `verse.api`
-
-Every package follows semver, and the tool **computes the smallest correct
-bump** by comparing the new `verse.api` with the one in the latest published
-version of the same major (Decision). `verse publish` refuses a version
-number below the required bump; it accepts a larger bump.
-
-| Change in `verse.api` | Required bump | Why it breaks or not |
-|-----------------------|---------------|----------------------|
-| an exported item, module or field removed or renamed | major | callers stop compiling |
-| a parameter added without a default, removed, reordered or renamed | major | calls by position or by name break |
-| a parameter added *with* a default | major | the function's type `fn(…): R` changes, so uses as a function value break (spec §4.7). Proposal P19-6 discusses relaxing this |
-| a parameter or return type changed, including a new or removed `Error` or `?` in the return type | major | |
-| an inferred bound added or tightened (for example the inferred `Copy` bound of spec §4.2 rule 9) | major | callers that met the old bound may not meet the new one |
-| a bound removed or loosened | minor | every old caller still compiles |
-| a variant added to an exported variant type | major | exhaustive `match` in callers breaks (spec §7) |
-| a field added to an exported record, with a default, after the existing fields | minor | named and positional construction (spec §4.3) still compile |
-| a field added anywhere else or without a default | major | positional construction breaks |
-| a field of an exported variant case added | major | positional variant patterns (`Circle(r)`, spec §7.3) break |
-| a required method added to an exported trait | major | other packages' `impl`s break |
-| a default method added to an exported trait | minor | assumption: the spec has no method-resolution ambiguity that this could create (to verify against §10) |
-| a trait `impl` for an exported type added | minor | |
-| a trait `impl` removed | major | |
-| an exported item, module or field added | minor | |
-| `[library] capabilities` grew | minor, and shown in `verse update` (§19.7) | not an API change, but a supply-chain fact users want to see |
-| `verse` toolchain requirement raised | minor | |
-| no `verse.api` change | patch | |
-
-`0.y` versions: the rules shift one place (a "major" change bumps `y`, any
-other change bumps the patch), as in Cargo (Decision).
-
-**What it cannot see.** Behaviour changes with the same signatures are
-invisible to a diff. The computed bump is a minimum; the author can always
-choose a larger one. The registry shows both "declared" and "computed".
-
-Message (wording as in [16-diagnostics-catalog.md](diagnostics-catalog.md#v08xx-packages-and-api)):
-
-```
-error: version 1.4.0 is too small for these changes; publish as 2.0.0
-  --> verse.api (compared with colors 1.3.2)
-   |
-   | - export fn paint(text: Text, color: Color): Text
-   | + export fn paint(text: Text, color: Color, bold: Bool = false): Text
-   |   a parameter was added, so `paint` has a new function type
-   |
-help: set `version = "2.0.0"` in verse.toml
-help: or keep `paint` as it was and add a new function for the new parameter
-explain: V0803 (run `verse explain V0803`)
-```
-
-## 19.6 `verse.lock`
-
-TOML, written only by the tool, sorted by name then version, one entry per
-package, so diffs are small and merge conflicts are rare (Decision). It is
-committed for applications (Fact: spec §16.3) and also for libraries,
-where it is used for the library's own tests and examples and ignored by
-dependents (Decision: dependents always resolve with MVS, §19.7).
-
-```toml
-# verse.lock — generated by `verse`; do not edit
-version   = 1
-toolchain = "0.1.3"
-resolver  = "mvs-1"
-
-[[package]]
-name     = "colors"
-version  = "1.4.0"
-source   = "registry+https://registry.verse-lang.org"
-checksum = "blake3:<64 hex digits>"      # of the published archive
-api      = "blake3:<64 hex digits>"      # of its verse.api
-capabilities = ["stdio"]                  # reachable from its exports, at publish time
-dependencies = ["term 0.3.2"]
-
-[[package]]
-name     = "http_extra"
-version  = "0.4.1"
-source   = "git+https://example.com/http_extra.git?tag=v0.4.1#<commit id>"
-checksum = "blake3:<64 hex digits>"      # of the source tree as packed
-api      = "blake3:<64 hex digits>"
-```
-
-| Field | Pinned because |
-|-------|----------------|
-| `toolchain` | the exact compiler version used; a different toolchain warns (V0823, below) and rebuilds, since cache keys include it |
-| `resolver` | a future resolver change cannot silently change old locks |
-| `checksum` | integrity: a mirror, a cache or a vendored copy is accepted only if its bytes hash to this |
-| `api` | dependents are checked against `verse.api` only (spec §16.4); a changed api with the same version number is an error (V0824, below: registry corruption or a republish) |
-| `capabilities` | `verse update` shows the difference before it is accepted |
-
-A lock made by another toolchain:
-
-```
-warning: this lock was made with 0.1.3, and you run 0.1.4
-  --> verse.lock:3:13
-   |
- 3 | toolchain = "0.1.3"
-   |             ^^^^^^^ the toolchain differs
-   |
-help: run `verse lock` to record 0.1.4; the build continues and does not reuse old caches
-explain: V0823 (run `verse explain V0823`)
-```
-
-A package whose `api` changed for the same version:
-
-```
-error: `colors` 1.4.0 has a different API from the one in your lock
-  --> verse.lock:11:12
-   |
-11 | api      = "blake3:3d71…"
-   |            ^^^^^^^^^^^^^^ the lock says `blake3:3d71…`, the package says `blake3:b8e0…`
-   |
-help: `verse lock --refetch colors`
-help: if it persists, the version was republished
-explain: V0824 (run `verse explain V0824`)
-```
-
-## 19.7 Resolution: minimal version selection
-
-**Decision: minimal version selection (MVS),** the algorithm of Go modules,
-adapted to the spec's "one version of each package per major version"
-(§16.3).
-
-1. Each requirement `name "X.Y"` is a *minimum* `X.Y.0` within major `X`.
-2. Walk the graph from the root. For each `(name, major)` keep the largest
-   minimum seen. Requirements of a version are read from its index entry, so
-   no archive is downloaded to resolve.
-3. The selected version of each `(name, major)` is that largest minimum.
-4. The root's lock entries act as extra minimums. This is how `verse update`
-   works: it writes newer versions into the lock, and they win because they are
-   larger.
-5. Yanked versions are skipped when *adding* or *updating*, but a lock that
-   names one still builds, with a warning (§19.8).
-
-Different majors of one package may coexist in the graph (`colors 1.x` for one
-dependency and `colors 2.x` for another). Each package's `import … from colors`
-refers to the major it declared, and types from different majors are
-different types. The compiler names both versions in any type mismatch (V0825), for example:
-
-```
-error: `Color` from `colors` 1.4.0 is not `Color` from `colors` 2.0.1
-  --> src/report.vs:31:17
-   |
-31 |     paint("hi", charts.title_color())
-   |                 ^^^^^^^^^^^^^^^^^^^^ two major versions of `colors` are in this build
-   |
-help: update `charts`, or pin one version of `colors`
-explain: V0825 (run `verse explain V0825`)
-```
-
-**Why MVS, not a SAT solver (Cargo, npm, pip) or newest-compatible.**
-
-| Property | MVS | newest-compatible with a solver |
-|----------|-----|--------------------------------|
-| Same manifests give the same graph without a lock | yes | no: the answer changes when anything is published |
-| Cost | linear in the graph | NP-complete in general; needs heuristics and backtracking |
-| Explaining the result | each version is "the largest minimum someone asked for", and `verse why pkg` prints who | the solver's search is hard to explain |
-| Gets fixes automatically | no, only through `verse update` | yes, at the cost of surprise |
-| Fits "one version per major" | directly | needs extra constraints |
-
-The spec values reproducibility and explanation (§16.3, and requirement R7 for
-tools that an LLM can drive). MVS gives both. The usual objection, that users
-do not get bug fixes automatically, is answered by `verse update` showing
-newer releases, and by the registry marking versions with security advisories
-(P19-7).
-
-**`verse update` output** (Decision):
-
-```
-updating colors   1.4.0 -> 1.5.1   api: compatible (minor)
-updating term     0.3.2 -> 0.3.4   api: unchanged
-warning: updating `colors` adds the `net` capability
-   = note: 1.4.0 did not reach `net`; 1.5.1 does, from `colors.fetch_palette`, which your code does not call today
-help: grant it in `[capabilities]`, or stay on 1.4.0
-help: to refuse it, keep `[capabilities] grant` without `net`, or run `verse update --exclude colors`
-explain: V0827 (run `verse explain V0827`)
-```
-
-## 19.8 Registry protocol
-
-Decision: a static, cacheable protocol over HTTPS, so a mirror is a plain file
-server and a registry outage does not stop builds that have a cache or
-`vendor/`.
-
-| Resource | Path | Content |
-|----------|------|---------|
-| configuration | `/config.json` | protocol version, download URL template, signing keys (key ids and public keys), mirrors |
-| index entry | `/index/<first two letters>/<name>` | one JSON line per version: `version`, `checksum`, `api`, `dependencies` (name, requirement, registry), `verse` (toolchain range), `capabilities`, `targets`, `yanked`, `advisories` |
-| index signature | `/index/<…>/<name>.sig` | signature over the index file |
-| archive | `/archive/<name>/<version>.vpkg` | a `tar` of the `include` files, compressed with zstd; bytes are deterministic (sorted entries, zeroed times and owners) |
-| `verse.api` | `/api/<name>/<version>.api` | the interface file alone, for `verse api diff` and for resolving without the archive |
-
-**Integrity and signing.**
-
-- The lock's `checksum` (blake3 of the archive) is the final authority: an
-  archive from any source is accepted only if it matches.
-- Index files are signed by the registry with Ed25519 keys listed in
-  `/config.json`, with key rotation and expiry following The Update
-  Framework's ideas (root, timestamp and targets roles). This protects first
-  resolution, when there is no lock yet (Decision; the TUF role layout is an
-  Assumption to be finalised in M5).
-- Publishers authenticate with a token; first-party packages additionally
-  require two maintainers to approve a release (Proposal P19-7).
-
-**Yanking.** `verse yank colors@1.5.0` sets `yanked` in the index. Yanked
-versions are never chosen by `add` or `update`. Existing locks keep building,
-with a warning that names the reason the publisher gave. Archives are never
-deleted, so old locks stay reproducible (Decision). Deletion exists only for
-legal reasons and then breaks the affected locks loudly.
-
-The warning for a locked yanked version:
-
-```
-warning: `colors` 1.4.0, in your lock, was yanked: data loss in `save`
-  --> verse.lock:8:12
-   |
- 8 | version  = "1.4.0"
-   |            ^^^^^^^
-   |
-help: `verse update colors` to move to 1.5.1
-explain: V0826 (run `verse explain V0826`)
-```
-
-**Alternative registries and mirrors.** User or CI configuration (not the
-project's `verse.toml`, so a cloned project cannot redirect downloads):
-
-```toml
-# ~/.config/verse/config.toml
-[registries.corp]
-index = "https://verse.corp.example/"
-
-[mirror]
-"https://registry.verse-lang.org" = "https://mirror.example/verse/"
-```
-
-A mirror needs no trust, since every byte is checked against the signed index
-and the lock.
-
-**Offline mode.** `--offline` uses the global package store
-(`~/.cache/verse/pkg/<blake3>/`) and `vendor/`. If something is missing, the
-error names it and the command that would fetch it.
-
-```
-error: `colors` 1.4.0 is not in the cache or in `vendor/`, and `--offline` is on
-  --> verse.lock:8:12
-   |
- 8 | version  = "1.4.0"
-   |            ^^^^^^^
-   |
-help: run `verse vendor` while connected, or remove `--offline`
-explain: V0828 (run `verse explain V0828`)
-```
-
-**Vendoring.** `verse vendor` copies every locked package into
-`vendor/<name>-<version>/` and adds `vendored = true` to the lock entries.
-Builds prefer `vendor/` and verify each tree against the lock's `checksum`;
-an edited vendored file is an error, not a silent patch (Decision: a local
-change belongs in a `path` dependency, which the reader can see in
-`verse.toml`).
-
-```
-error: `colors-1.4.0/src/colors.vs` in `vendor/` was edited
-  --> vendor/colors-1.4.0/src/colors.vs
-   |
-   = note: it does not match the lock's checksum for `colors`
-help: `verse vendor --restore colors`, or copy the package into your own source
-explain: V0829 (run `verse explain V0829`)
-```
-
-## 19.9 Reproducible builds and caching
-
-Fact (spec §16.3, 02 §2.7, 04 §4.4): the same inputs and `verse.lock` give
-identical bytes. The inputs are exactly:
-
-| Input | Hashed as |
-|-------|-----------|
-| source files of the root and every locked package | blake3 of each file |
-| `verse.api` of every package | blake3 (the lock's `api`) |
-| `verse.lock` | the resolved graph, not the file's formatting |
-| toolchain | compiler version and the hash of the prebuilt runtime slices for the target |
-| target file | blake3 of the resolved target file: the toolchain's `targets/<name>.toml`, the project's `targets/<name>.target`, or `verse.target` ([15 §15.9.1](../architecture/target-and-abi.md#1591-files-and-lookup)) |
-| profile | the resolved profile table |
-| flags that change output | `--no-heap`, `--size-report` (report only), `--deny` (check only) |
-| generated files | they are sources, so they are hashed as files (spec §16.6) |
-| plugin libraries | blake3 of each linked library file; a system library is outside the build's control, so builds are reproducible only for the same system library (07 §7.6) |
-
-Not inputs: time, paths, user name, environment variables, the order of
-files on disk, the number of cores. Output contains no paths or timestamps
-(04 §4.4).
-
-**One cache, shared.** The package manager stores packages in the global
-content-addressed store; the compiler's per-project `.verse/cache/` keys
-modules and objects by `blake3(source, compiler version, flags, verse.api of
-imports)` (02 §2.7); the shaking results of 06 §6.10 are keyed by
-`blake3(root set, edge-list hashes, target file, profile)`. All three use the
-same hash, so a package's parsed modules and per-instance edge lists can be
-reused across projects that lock the same version (Assumption: a global
-object cache is safe because every key includes the toolchain and target;
-measured in M5).
-
-`verse build --verify-reproducible` *new* builds twice in clean directories
-and compares the bytes (for CI; P19-1).
-When the bytes differ:
-
-```
-error: two clean builds of this project differ
-  --> generated/items/item.vs
-   |
-   = note: `generated/items/item.vs` has different bytes
-help: run `verse why generated/items/item.vs`; the usual cause is a generator that is not deterministic
-explain: V0832 (run `verse explain V0832`)
-```
-
-## 19.10 Workspaces
-
-Several packages in one repository share one lock and one cache:
-
-```toml
-# verse.toml at the repository root
-[workspace]
-members = ["apps/server", "libs/shapes", "libs/money_utils"]
-```
-
-| Rule | Why |
-|------|-----|
-| one `verse.lock` at the workspace root | one graph; MVS runs once over all members |
-| members depend on each other with `{ path = "../shapes" }`; at publish time a path dependency must also name a version, which is checked to exist in the registry | a published package never depends on a path |
-| the workspace root is the root project of 07 §7.2 | a member may use `path` and `build` plugins, as the root may |
-| `verse test`, `check`, `build` at the root run for every member; `-p name` selects one | |
-| each member has its own `verse.api` and is published separately | the api is per package |
-| a member's `[capabilities]` and `[targets]` are its own | a server and a firmware can share a library |
-
-## 19.11 `verse why`
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `members` | list of paths | required | the member packages, relative to the workspace root ([21 §21.12](../architecture/packages.md#2112-workspaces)) |
+
+## 19.4 `verse why`
 
 One command answers "why is this here?" for three kinds of argument, chosen
 by its form. Items and file paths are spec §16; packages and
@@ -735,7 +328,7 @@ capabilities are Proposal P19-8:
 | Argument | Example | Answer |
 |----------|---------|--------|
 | an item (dotted path) | `verse why std.net.get` | the edge chain from a root (06 §6.6) |
-| a package | `verse why colors` | the dependency chain that requires the selected version, and the largest minimum that chose it (§19.7) |
+| a package | `verse why colors` | the dependency chain that requires the selected version, and the largest minimum that chose it (21 §21.8) |
 | a file path (contains `/` or ends in `.vs`) | `verse why generated/items/item.vs` | the `[generate]` entry that wrote it (spec §16.6) |
 | a capability | `verse why net` | the chain to the first `sys.net` use (06 §6.6) |
 
@@ -760,127 +353,46 @@ answer is a **chain**. The MCP tools are `why_package`, `why_item` and
 `why_capability` (17 §17.8).
 
 Ambiguity is impossible by construction: package names never contain dots
-(§19.4), items always do, capabilities are a closed list, and paths contain
+(21 §21.3), items always do, capabilities are a closed list, and paths contain
 `/` or `.vs`. A package named like a capability (`net`) is refused by the
-registry (V0833, §19.4).
+registry (V0833, 21 §21.3).
 
-## 19.12 Supply-chain security
+## 19.5 Where each code appears
 
-| Threat | Defence | Status |
-|--------|---------|--------|
-| code execution while building a dependency | no build scripts, no install hooks (spec §16.3); a dependency's plugins may name only a system library (`lib`), never `path` or `build` (V0834) | Fact / Decision |
-| a dependency calls native code | its `[plugins]` are listed by `verse add` and `verse update`; Verse cannot check foreign code, so adding the package is trusting the library (07 §7.1) | Decision |
-| a generator does harm | it runs only on `verse generate`, never on build, check, run or test (spec §16.6) | Decision |
-| a dependency starts using the network | capabilities in the index and lock; `verse update` shows the change; `[capabilities] grant` fails the build (P19-3) | Proposal |
-| a tampered archive or mirror | blake3 checksums in the lock; signed index | Decision |
-| typosquatting | name rules of §19.4 | Decision |
-| a republished version | archives are immutable; a different `api` or `checksum` for the same version is an error | Decision |
-| an abandoned package taken over | names are never reused; ownership transfer is shown in `verse update` | Decision |
-
-Compile-time code execution does not exist in Verse at all (no macros, no
-compile-time evaluation), so reading and type-checking a dependency is
-safe by construction. Running its tests is not, and `verse test` runs only
-the root's tests unless `--deps` is given.
-
-**Messages.** Codes and wording are those of
-[16-diagnostics-catalog.md](diagnostics-catalog.md#v08xx-packages-and-api).
-Each block shows its code on the last line, as in
-[16 §16.4](diagnostics-catalog.md#164-how-a-code-is-shown).
-
-```
-error: `charts` declares a plugin with `build`, which only the root project may use
-  --> ~/.cache/verse/pkg/…/charts-2.0.0/verse.toml:16:1
-   |
-16 | build = "make"
-   | ^^^^^^^^^^^^^^ a dependency cannot build or ship native code
-   |
-help: declare the plugin in your own verse.toml
-explain: V0834 (run `verse explain V0834`)
-```
-
-```
-error: `colors` 1.5.1 does not match its checksum
-  --> verse.lock:9:12
-   |
- 9 | checksum = "blake3:9f2c…"
-   |            ^^^^^^^^^^^^^^ the archive hashes to `blake3:41ab…`
-   |
-help: verse lock --refetch colors
-help: a mirror is not trusted, so the lock is still correct
-explain: V0806 (run `verse explain V0806`)
-```
-
-```
-error: this program reaches the `net` capability, which verse.toml does not grant
-  --> src/report.vs:22:5
-   |
-22 |     palette = fetch_palette("warm")?
-   |               ^^^^^^^^^^^^^ `colors.fetch_palette` calls `std.net.get`
-   |
-help: add "net" to [capabilities] grant
-help: or see the whole chain: verse why net
-explain: V0901 (run `verse explain V0901`)
-```
-
-```
-error: version 2.3 of `shapes` does not exist
-  --> verse.toml:8:10
-   |
- 8 | shapes = "2.3"
-   |          ^^^^^ the newest release is 2.1.4
-   |
-help: shapes = "2.1"
-explain: V0804 (run `verse explain V0804`)
-```
-
-**Where each code from 16 appears here**
-
-| Code | Message (16) | Where here |
+| Code | Message (16) | Where |
 |------|--------------|------------|
 | V0801 | `{key}` is not a key of `[{section}]` | §19.3 (unknown keys are errors) |
-| V0802 | the package name `{name}` cannot be imported | §19.4 |
-| V0803 | version {have} is too small for these changes; publish as {need} | §19.5 (message) |
-| V0804 | version {req} of `{pkg}` does not exist | §19.12 (message), §19.7 |
-| V0806 | `{pkg}` {ver} does not match its checksum | §19.12 (message), §19.6 `checksum` |
-| V0807 | `verse.lock` is out of date | §19.2 (`--locked`), §19.6 |
-| V0808 | `{pkg}` needs {T}, which `{other}` does not provide | §19.7 (two majors) |
-| V0809 | a path dependency cannot be published | §19.10 |
-| V0810, V0811 | `verse.api` changed / differs from the source | §19.5, spec §16.4 |
+| V0802 | the package name `{name}` cannot be imported | 21 §21.3 |
+| V0803 | version {have} is too small for these changes; publish as {need} | 21 §21.6 (message) |
+| V0804 | version {req} of `{pkg}` does not exist | 21 §21.13 (message), §21.8 |
+| V0806 | `{pkg}` {ver} does not match its checksum | 21 §21.13 (message), §21.7 `checksum` |
+| V0807 | `verse.lock` is out of date | §19.2 (`--locked`), 21 §21.7 |
+| V0808 | `{pkg}` needs {T}, which `{other}` does not provide | 21 §21.8 (two majors) |
+| V0809 | a path dependency cannot be published | 21 §21.12 |
+| V0810, V0811 | `verse.api` changed / differs from the source | 21 §21.6, spec §16.4 |
 | V0812 | `{name}` is not a valid license | §19.3 `license` |
-| V0813 | a yanked version cannot be chosen | §19.7 step 5, §19.8 |
-| V0823 | this lock was made with {old}, and you run {new} | §19.6 (message) |
-| V0824 | `{pkg}` {ver} has a different API from the one in your lock | §19.6 (message) |
-| V0825 | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | §19.7 (message) |
-| V0826 | `{pkg}` {ver}, in your lock, was yanked: {reason} | §19.8 Yanking (message), §19.7 step 5 |
-| V0827 | updating `{pkg}` adds the `{cap}` capability | §19.7 (`verse update` output) |
-| V0828 | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | §19.8 Offline mode (message) |
-| V0829 | `{file}` in `vendor/` was edited | §19.8 Vendoring (message) |
+| V0813 | a yanked version cannot be chosen | 21 §21.8 step 5, §21.9 |
+| V0823 | this lock was made with {old}, and you run {new} | 21 §21.7 (message) |
+| V0824 | `{pkg}` {ver} has a different API from the one in your lock | 21 §21.7 (message) |
+| V0825 | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | 21 §21.8 (message) |
+| V0826 | `{pkg}` {ver}, in your lock, was yanked: {reason} | 21 §21.9 Yanking (message), §21.8 step 5 |
+| V0827 | updating `{pkg}` adds the `{cap}` capability | 21 §21.8 (`verse update` output) |
+| V0828 | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | 21 §21.9 Offline mode (message) |
+| V0829 | `{file}` in `vendor/` was edited | 21 §21.9 Vendoring (message) |
 | V0830 | `branch` is not accepted | §19.3 `[dependencies]` (message) |
 | V0831 | `{req}` has no upper bound | §19.3 `[dependencies]` (message) |
-| V0832 | two clean builds of this project differ | §19.9 (message) |
-| V0833 | the package name `{name}` is not available | §19.4 (messages) |
-| V0834 | `{pkg}` declares a plugin with `{key}`, which only the root project may use | §19.12 (message), §19.3 `[plugins]` |
-| V0901 | this program reaches the `{cap}` capability, which verse.toml does not grant | §19.12 (message), §19.3 `[capabilities]` |
+| V0832 | two clean builds of this project differ | 21 §21.10 (message) |
+| V0833 | the package name `{name}` is not available | 21 §21.3 (messages) |
+| V0834 | `{pkg}` declares a plugin with `{key}`, which only the root project may use | 21 §21.13 (message), §19.3 `[plugins]` |
+| V0835 | `{name}` is both a module of this package and a dependency | 21 §21.4 |
+| V0836 | no module or package is named `{name}` | 21 §21.4 |
+| V0901 | this program reaches the `{cap}` capability, which verse.toml does not grant | 21 §21.13 (message), §19.3 `[capabilities]` |
 | V0904 | `{pkg}` reaches `{cap}`, which it does not declare | §19.3 `[library] capabilities` |
 | V0905 | this package uses {n} KB, but its size budget is {m} KB | §19.3 `size_budget` |
 | V0906 | `{module}` has different public items on `{target}` | §19.3 `[targets.<t>.files]` |
 | V0907 | the file `{f}` for target `{t}` does not exist | §19.3 `[targets.<t>.files]` |
 
-## 19.13 Implementation notes
-
-- Crate: `verse-pkg` (02 §2.9) owns `verse.toml`, `verse.lock`, the registry
-  client and `verse.api` comparison. The api diff reuses the compiler's
-  signature representation, so "compatible" means exactly what the type
-  checker means.
-- Resolution never downloads archives; it reads index entries (and `.api`
-  files for `verse api diff`).
-- Network access is concurrent and limited to resolution and fetching; build,
-  check and run never touch the network once the store is filled.
-- Targets (to measure in M5, none measured yet): `verse lock` on a warm cache
-  for a graph of 200 packages under 100 ms; `verse run` adds no measurable
-  time when the lock is current (it only compares the hash of `verse.toml`).
-
-## 19.14 Proposals and rulings
+## 19.6 Proposals and rulings
 
 | # | Proposal | Touches | Ruling |
 |---|----------|---------|----------------|
@@ -891,13 +403,13 @@ explain: V0804 (run `verse explain V0804`)
 | P19-5 | No `[features]` in 0.1; if needed later, only named sets of optional dependencies, never source conditions | spec §16.3, P6-7 | agreed |
 | P19-6 | Adding a defaulted parameter is a major change, because it changes the function type. Alternative: minor, and function-value uses of library functions get a lint | versioning, spec §4.7 | agreed: **major** (a changed function type is a changed promise) |
 | P19-7 | Security advisories in the index, shown by `verse update`; two-maintainer approval for first-party releases | registry | agreed |
-| P19-8 | `verse why` also accepts a package name or a capability, distinguished by form (items and paths are already spec §16) | spec §16 | agreed; wording in §19.11 (two openers, answer is a chain) |
+| P19-8 | `verse why` also accepts a package name or a capability, distinguished by form (items and paths are already spec §16) | spec §16 | agreed; wording in §19.4 (two openers, answer is a chain) |
 | P19-9 | Package names are `[a-z][a-z0-9_]*` | spec §16.3 | agreed |
 | P19-10 | Minimal version selection, with lock entries as extra minimums | spec §16.3 ("a single version per major") | agreed |
 | P19-11 | Libraries commit `verse.lock` too (used for their own tests, ignored by dependents) | spec §16.3 says "committed for applications" | agreed |
 | P19-12 | MCP tools for the package manager (`lock`, `why` for packages, `api_diff`, `update` preview) with schemas in 17, and their diagnostic codes in 16 | 16, 17 | agreed; 17 §17.8 and the V08xx codes of 16 |
 
-## 19.15 Conflicts with other documents
+## 19.7 Conflicts with other documents
 
 1. **[05 §5.7](../architecture/runtime.md#57-embedded-profile)** puts the heap size in an
    `[embedded]` section; this document puts it per target (P19-4).

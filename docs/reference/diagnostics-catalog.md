@@ -185,31 +185,33 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
 | V0801 | error | `{key}` is not a key of `[{section}]` | unknown keys are errors | did you mean `{near}`? | 19 §19.3 |
-| V0802 | error | the package name `{name}` cannot be imported | a name uses letters, digits and `_`, starting with a letter | write `{suggested}` | 19 §19.4 |
-| V0803 | error | version {have} is too small for these changes; publish as {need} | {change summary} | set `version = "{need}"`, or keep the old signature and add a new function | 19 §19.5 |
-| V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 19 §19.12 |
+| V0802 | error | the package name `{name}` cannot be imported | a name uses letters, digits and `_`, starting with a letter | write `{suggested}` | 21 §21.3 |
+| V0803 | error | version {have} is too small for these changes; publish as {need} | {change summary} | set `version = "{need}"`, or keep the old signature and add a new function | 21 §21.6 |
+| V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 21 §21.13 |
 | V0805 | retired | | | | |
-| V0806 | error | `{pkg}` {ver} does not match its checksum | the archive hashes to `{got}` | `verse lock --refetch {pkg}` | 19 §19.12 |
-| V0807 | error | `verse.lock` is out of date | `{pkg}` asks for {req}, the lock has {have} | run `verse lock` (not allowed with `--locked`) | 19 §19.6 |
-| V0808 | error | `{pkg}` needs {T}, which `{other}` does not provide | two packages need different major versions of `{pkg}` | pin both to one major | 19 §19.7 |
-| V0809 | error | a path dependency cannot be published | `{pkg}` is `{ path = … }` | name a version as well | 19 §19.10 |
+| V0806 | error | `{pkg}` {ver} does not match its checksum | the archive hashes to `{got}` | `verse lock --refetch {pkg}` | 21 §21.13 |
+| V0807 | error | `verse.lock` is out of date | `{pkg}` asks for {req}, the lock has {have} | run `verse lock` (not allowed with `--locked`) | 21 §21.7 |
+| V0808 | error | `{pkg}` needs {T}, which `{other}` does not provide | two packages need different major versions of `{pkg}` | pin both to one major | 21 §21.8 |
+| V0809 | error | a path dependency cannot be published | `{pkg}` is `{ path = … }` | name a version as well | 21 §21.12 |
 | V0810 | warning | `verse.api` changed | the new API adds {n} items | run `verse api update` | §16.4 |
 | V0811 | error | `verse.api` differs from the source | `{item}`: file says `{a}`, source says `{b}` | run `verse api update` | §16.4 |
 | V0812 | error | `{name}` is not a valid license | use an SPDX name such as `MIT` | | 19 §19.3 |
-| V0813 | error | a yanked version cannot be chosen | `{pkg}` {ver} was yanked: {reason} | use {near} | 19 §19.8 |
+| V0813 | error | a yanked version cannot be chosen | `{pkg}` {ver} was yanked: {reason} | use {near} | 21 §21.9 |
 | V0814 to V0822 | retired | | | | |
-| V0823 | warning | this lock was made with {old}, and you run {new} | the toolchain differs | run `verse lock` to record {new}; the build continues and does not reuse old caches | 19 §19.6 |
-| V0824 | error | `{pkg}` {ver} has a different API from the one in your lock | the lock says `{a}`, the package says `{b}` | `verse lock --refetch {pkg}`; if it persists, the version was republished | 19 §19.6, §19.12 |
-| V0825 | error | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | two major versions of `{pkg}` are in this build | update `{other}`, or pin one version of `{pkg}` | 19 §19.7 |
-| V0826 | warning | `{pkg}` {ver}, in your lock, was yanked: {reason} | | `verse update {pkg}` to move to {near} | 19 §19.8 |
-| V0827 | warning | updating `{pkg}` adds the `{cap}` capability | {ver_old} did not reach `{cap}`; {ver_new} does | grant it in `[capabilities]`, or stay on {ver_old} | 19 §19.7 |
-| V0828 | error | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | | run `verse vendor` while connected, or remove `--offline` | 19 §19.8 |
-| V0829 | error | `{file}` in `vendor/` was edited | it does not match the lock's checksum for `{pkg}` | `verse vendor --restore {pkg}`, or copy the package into your own source | 19 §19.8 |
+| V0823 | warning | this lock was made with {old}, and you run {new} | the toolchain differs | run `verse lock` to record {new}; the build continues and does not reuse old caches | 21 §21.7 |
+| V0824 | error | `{pkg}` {ver} has a different API from the one in your lock | the lock says `{a}`, the package says `{b}` | `verse lock --refetch {pkg}`; if it persists, the version was republished | 21 §21.7, §21.13 |
+| V0825 | error | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | two major versions of `{pkg}` are in this build | update `{other}`, or pin one version of `{pkg}` | 21 §21.8 |
+| V0826 | warning | `{pkg}` {ver}, in your lock, was yanked: {reason} | | `verse update {pkg}` to move to {near} | 21 §21.9 |
+| V0827 | warning | updating `{pkg}` adds the `{cap}` capability | {ver_old} did not reach `{cap}`; {ver_new} does | grant it in `[capabilities]`, or stay on {ver_old} | 21 §21.8 |
+| V0828 | error | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | | run `verse vendor` while connected, or remove `--offline` | 21 §21.9 |
+| V0829 | error | `{file}` in `vendor/` was edited | it does not match the lock's checksum for `{pkg}` | `verse vendor --restore {pkg}`, or copy the package into your own source | 21 §21.9 |
 | V0830 | error | `branch` is not accepted | a branch changes without a new version | use `tag = "…"` or `rev = "…"` | 19 §19.3 |
 | V0831 | error | `{req}` has no upper bound | any new major version would be accepted | write `"{near}"`, which means {range} | 19 §19.3 |
-| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a generator that is not deterministic | 19 §19.9 |
-| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, or named like a capability such as `net`} | choose another name | 19 §19.4 |
+| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a generator that is not deterministic | 21 §21.10 |
+| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, or named like a capability such as `net`} | choose another name | 21 §21.3 |
 | V0834 | error | `{pkg}` declares a plugin with `{key}`, which only the root project may use | a dependency cannot build or ship native code | declare the plugin in your own `verse.toml` | 07 §7.2 |
+| V0835 | error | `{name}` is both a module of this package and a dependency | declared here; `{path}` is also a module of this package | rename the module | 21 §21.4 |
+| V0836 | error | no module or package is named `{name}` | not in `src/`, `verse.toml` or the standard library | `verse add {name}`, if it is a package | 21 §21.4 |
 
 ### V09xx Capabilities and targets
 

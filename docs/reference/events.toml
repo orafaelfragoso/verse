@@ -149,7 +149,7 @@ text = "the file {file} is not part of this program"
 [errors.D0108]
 text = "the program does not use the `{capability}` capability, which the request names"
 
-# `verse why` answers (19 §19.11). One opener per kind of question.
+# `verse why` answers (19 §19.4). One opener per kind of question.
 [why.package]
 text = "{package} {version} is selected because:"
 [why.item]

@@ -71,7 +71,7 @@ The full pipeline, with each stage's contract, is in
 | R4 | Really fast | Arena data structures, per-function parallel and incremental compilation, monomorphized code, explicit performance budgets in CI. | [02 §2.3, §2.7](compiler-architecture.md#23-data-structures), [09](performance.md) |
 | R5 | Name the implementation language | **Rust** for compiler, runtime and tooling. | [ADR-0001](../decisions/0001-implementation-language.md) |
 | R6 | Optional stdlib; only what is used is built in | Library tiers; `import` is the opt-in; whole-program reachability over mono MIR; capabilities select runtime slices; `verse build --size-report` explains every item. | [06](stdlib-and-shaking.md), [ADR-0004](../decisions/0004-whole-program-reachability.md) |
-| — | Packages and tooling (supports R3, R6) | One `verse` tool; `verse.toml`, `verse.lock` and `verse.api`; minimal version selection; the first-party packages `finance`, `ml`, `web`, `gui`, `iot`. | [19](../reference/cli-and-manifest.md), [20](first-party-packages.md) |
+| — | Packages and tooling (supports R3, R6) | One `verse` tool; `verse.toml`, `verse.lock` and `verse.api`; minimal version selection; the first-party packages `finance`, `ml`, `web`, `gui`, `iot`. | [19](../reference/cli-and-manifest.md), [20](first-party-packages.md), [21](packages.md) |
 | R7 | Debugging that is easy, especially for LLMs (MCP-like) | Diagnostics are structured data; a debugger and compiler exposed through an MCP server; record and replay on tier 0. | [08](debugging-and-mcp.md), [02 §2.8](compiler-architecture.md#28-diagnostics) |
 
 ## Guiding principles
