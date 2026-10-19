@@ -60,8 +60,26 @@ under the rules of §3.9.
 A renamed item keeps its kind: a type must be
 renamed to an uppercase-first name, a value to a lowercase one (§3.5). Wildcard imports do not exist; every name in a file can
 be traced to a declaration or an import. Imports must appear at the top of a
-file, after the module doc comment. Circular imports between modules are
-allowed for declarations but not for module-level constant initialization.
+file, after the module doc comment.
+
+**No import cycles.** Two modules never import each other, directly or through
+other modules. A cycle is a compile error that points at every import line in
+it, each in its own file:
+
+```
+error: modules `a` and `b` import each other
+  --> a.vs:1:1
+   |
+ 1 | import helper from b
+   | ^^^^^^^^^^^^^^^^^^^^ `b.vs:1` imports `a`
+   |
+help: move what both need into a third module
+explain: V0310 (run `verse explain V0310`)
+```
+
+So a reader of a file knows that nothing it imports depends back on it.
+Declarations that refer to each other, such as two mutually recursive types,
+belong in one module.
 
 An imported name may be hidden by a local, and an import may hide a prelude
 name (with a warning); the rules are in §3.9.

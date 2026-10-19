@@ -298,13 +298,16 @@ initializers must be infallible; in the entry file, a top-level binding is an
 ordinary statement. `verse test` never runs entry-file statements. Everything
 — including record fields — is hidden unless marked `export`. No wildcard
 imports; `import x as y from m` renames, and every import line starts with
-`import` (`import get, post from http`). Implementations
-(`impl Trait for Type`) live with the trait or the type.
+`import` (`import get, post from http`). Imports form no cycle.
+Implementations (`impl Trait for Type`) live with the trait or the type.
 
 **Why:** Importing a module or running its tests should never print, connect,
 or write files. One entry mechanism and one visibility default (`export`, for
 items and fields alike) leave nothing to remember. A lazy constant has no
-caller, so it must not be able to fail.
+caller, so it must not be able to fail. Without cycles, no module that a file
+imports depends back on it, and the order in which constants are first read
+never decides whether a program runs. Python and TypeScript allow cycles and give a
+half-initialised module to whichever side loads second.
 
 ### 18.15 Smaller decisions
 
