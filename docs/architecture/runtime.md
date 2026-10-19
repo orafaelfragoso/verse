@@ -32,7 +32,9 @@ holds `print` and `input`). That is a requirement of R6, and it is tested ([09](
   justify it). `std-embedded` uses a fixed-region bump or TLSF allocator. Wasm
   uses a small allocator tuned for single-threaded use.
 - **Frees are deterministic.** The compiler inserts drops (MIR `Drop`); the
-  runtime provides only `alloc`, `realloc`, `dealloc`.
+  runtime provides only `alloc`, `realloc`, `dealloc`, and the drop stack that
+  lets glue free data of any depth in bounded native stack
+  ([15 §15.3.6](target-and-abi.md#1536-drop-glue-and-runtime-owned-handles)).
 - **`Shared<T>`** is reference counted. Counts are atomic when the program can
   spawn tasks and non-atomic when whole-program analysis proves it cannot
   (`refcount-opt`, [03](ir-and-passes.md)). `Weak` uses a weak count.

@@ -498,7 +498,8 @@ Verse has **no garbage collector** and no manual memory management:
    earlier one. The parts of one value are freed in the order they were
    written:
    fields and tuple elements in declaration order, list elements by index, and
-   `Map` and `Set` entries in insertion order.
+   `Map` and `Set` entries in insertion order. Dropping a value of any depth,
+   such as a list of a million `Cons` cells, cannot overflow the stack.
 5. **Shared storage is invisible.** Copies of a `Text`, `Bytes` or collection
    share storage under an atomic count until one of them changes, and a change
    to shared storage first copies it. So no program can observe the sharing:

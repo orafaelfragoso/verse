@@ -271,6 +271,24 @@ user code (spec §13.4, [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code
   in insertion order; locals drop in reverse because a later local may borrow
   an earlier one, which the fields of one value cannot do), then frees the
   storage if the value owns heap memory.
+- **Depth.** Glue never calls glue for a part that lives in its own heap
+  allocation: a `Box<T>` (15.3.4), a `Text`, `Bytes`, `List`, `Map` or `Set`
+  buffer whose storage count reaches zero (15.3.3), or the data of an owned
+  `dyn` value (15.3.5). It pushes that part on the task's **drop stack**
+  instead, and the outermost glue runs a loop that drops the top entry's next
+  part until the stack is empty. Glue of a part stored inline is a direct
+  call, whose depth the type bounds, so a drop uses bounded native stack
+  however deep the data is. An entry holds the part's pointer, its glue and
+  the index of its next part, so the parts drop in exactly the order above.
+  When the part to drop is an entry's last one, the entry's storage is freed
+  and the entry is replaced by the part's, so a chain such as a `Cons` list
+  needs one entry; the stack holds one entry per level of nesting that has
+  parts after it. The first entries live in the TCB (assumption: 64, set in
+  M1); deeper drops grow the stack in chunks from the allocator. A chunk
+  that cannot be allocated is an `out_of_memory` panic in a frame that cannot
+  unwind, so the runtime prints the report and aborts the process. A
+  `--no-heap` build has no part in its own allocation, so its glue never
+  pushes.
 - **The `cleanup` fact.** A type whose glue releases a runtime-owned handle,
   or that has a part whose glue does, has the `cleanup` fact in its `layout`
   line. The fact adds no field: the layout is the same as without it.
