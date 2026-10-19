@@ -1,6 +1,6 @@
 # Architecture 16. Diagnostics catalog
 
-Owner: Michelangelo. Reviewer: Bob. Status: **draft 1**.
+Status: **draft 1**.
 This file assigns a stable code to every diagnostic the 0.1 toolchain gives,
 and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 (vocabulary and the "don't say" table), spec §16.2 (the style) and
@@ -419,8 +419,8 @@ changed.
 1. **Exact spec section numbers** in the "Rule" column marked with a section
    only (for example `§7`) are the section, not a numbered rule. They are
    refined when the conformance suite (10 §10.2) gives every rule an identifier.
-2. **Bob:** the list of compiler diagnostic families you offered would let me
-   check this catalog against the passes. Anything in the passes with no entry
+2. **Compiler diagnostic families:** a list of them would let us check this
+   catalog against the passes. Anything in the passes with no entry
    here needs a code; anything here with no pass is a candidate to remove.
 3. **Typo suggestions** ("did you mean") use edit distance 2 and are shown only
    when exactly one name is that close.

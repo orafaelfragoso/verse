@@ -2,8 +2,7 @@
 
 Requirement R7: debugging that is easy for people and, above all, easy for
 LLMs to navigate step by step, in the spirit of the Model Context Protocol
-(MCP). Status: **agreed** (Michelangelo, Bob). Technical design: Bob. Event names and message
-wording (section 8.7): Michelangelo.
+(MCP). Status: **agreed**.
 
 ## 8.1 What makes debugging hard for an LLM
 
@@ -263,7 +262,7 @@ attached, in the same shape that `why_panic` returns:
 Humans see it rendered as text. `VERSE_PANIC=json` prints the JSON to standard
 error. A CI system or an LLM can read it with no tooling.
 
-## 8.7 Vocabulary and wording (owned by Michelangelo)
+## 8.7 Vocabulary and wording
 
 ### Rules
 

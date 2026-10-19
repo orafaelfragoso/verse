@@ -1,7 +1,6 @@
 # 01. Requirements
 
-The seven requirements below come from the project owner. Each is rewritten
-as something we can test, with the design element that satisfies it.
+Each of the seven requirements below is rewritten as something we can test, with the design element that satisfies it.
 
 | ID | Requirement | Testable form | Satisfied by |
 |----|-------------|---------------|--------------|

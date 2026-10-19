@@ -1,6 +1,6 @@
 # Architecture 20. First-party packages
 
-Owner: Picasso. Status: **draft 1, every signature is a sketch
+Status: **draft 1, every signature is a sketch
 (non-normative)**. Nothing here is designed in detail or implemented; the
 package APIs are settled in milestone M9 ([11](../roadmap.md)). Labels follow
 the [README](README.md) conventions: **Fact**, **Decision**, **Assumption**,
@@ -461,7 +461,7 @@ An interrupt handler inside the runtime only records the event and wakes the
 receiving task on the cooperative executor (05 §5.3). User code never runs in
 interrupt context, so it can use the whole language, and "may not block"
 (05 §5.7) is enforced by construction (Decision, agreed as P20-5; 05's "handlers written in Verse" is
-Bob's to align).
+still to align).
 
 ### No-heap notes
 
@@ -483,15 +483,13 @@ applies to this program.
 
 ## 20.7 Proposals and rulings
 
-Ruled by Michelangelo.
-
 | # | Proposal | Touches | Ruling |
 |---|----------|---------|----------------|
 | P20-1 | `finance` offers only `Calendar.named(text)`; no one-function-per-calendar form | one obvious name (§1.4), 06 | ruled: keep only `named`; measure table sizes in M9 |
 | P20-2 | `Money` does not implement `Add`/`Sub`; mixing currencies is an error value from `add`/`sub` | spec §10 operator traits | agreed |
 | P20-3 | `ml` model loading: a `generator` that turns a model file into Verse code (only its operators are reached), plus the run-time `load_model` for dynamic models | 07 §7.3, 06 | agreed; the generated file is visible and committed like any generator output (07 §7.3); file format chosen in M9 |
 | P20-4 | `gui` uses the message model (Elm architecture); long work runs as tasks whose results return as messages | `gui` API, spec §11 | agreed |
-| P20-5 | `iot` interrupts only wake tasks; no user code runs in interrupt context | 05 §5.7 (Bob) | agreed |
+| P20-5 | `iot` interrupts only wake tasks; no user code runs in interrupt context | 05 §5.7 | agreed |
 | P20-6 | A fixed-capacity mutable byte buffer type for no-heap I/O (in `std`, since `iot` and `std.net` would both use it), and build-time sizing of channels on `--no-heap` targets | spec §4.1, §15.2, 05 §5.7 | 0.2 item with `extern` (spec §18.15): capacity visible where the buffer is made, writing past it returns an `Error`, one name in `std`; channel sizing still open |
 | P20-7 | `web` templates are generated code from a first-party `generator` plugin, not a run-time template language | 07, spec §1.4 | agreed |
 | P20-8 | `web` routes receive shared state through `Router.with_state(Guarded<T>)` | `web` API | agreed |

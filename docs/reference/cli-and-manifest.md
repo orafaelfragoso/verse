@@ -1,6 +1,6 @@
 # Architecture 19. CLI, manifests and package manager
 
-Owner: Picasso. Status: **draft 1**. This is the implementable reference for
+Status: **draft 1**. This is the implementable reference for
 the `verse` commands that manage projects, and for the three files a project
 carries: `verse.toml` (what the author asks for), `verse.lock` (what was
 chosen), and `verse.api` (what a package promises). Labels follow the
@@ -18,7 +18,7 @@ Related documents: [06](../architecture/stdlib-and-shaking.md) (reachability, si
 files), [20](../architecture/first-party-packages.md) (the first-party packages), and
 [16-diagnostics-catalog.md](diagnostics-catalog.md),
 [17-mcp-tool-schemas.md](mcp-tool-schemas.md) ([§17.8](mcp-tool-schemas.md#178-package-manager-tools)
-covers the package manager), all Michelangelo's. The codes shown below are in
+covers the package manager). The codes shown below are in
 16, and their long forms are read with `verse explain`
 ([16 §16.5](diagnostics-catalog.md#165-verse-explain)).
 
@@ -566,7 +566,7 @@ explain: V0825 (run `verse explain V0825`)
 | Gets fixes automatically | no, only through `verse update` | yes, at the cost of surprise |
 | Fits "one version per major" | directly | needs extra constraints |
 
-The spec values reproducibility and explanation (§16.3, and Rafael's R7 for
+The spec values reproducibility and explanation (§16.3, and requirement R7 for
 tools that an LLM can drive). MVS gives both. The usual objection, that users
 do not get bug fixes automatically, is answered by `verse update` showing
 newer releases, and by the registry marking versions with security advisories
@@ -904,7 +904,7 @@ explain: V0804 (run `verse explain V0804`)
 | P19-1 | New commands: `verse lock` (`--check`), `verse vendor`, `verse yank`, `verse api diff`, `build --verify-reproducible`; global `--offline`, `--locked`, `--frozen`, `--json` | spec §16 tool table | agreed |
 | P19-2 | The `verse.toml` reference of §19.3: `[package]` keys (`authors`, `repository`, `readme`, `include`), dependency forms (`registry`, `path`, git `tag`/`rev`, no `branch`, no unbounded ranges), `[plugins]`, `[targets]`, `[profile.*]`, `[run]`, `[build]`, `[test]`, `[workspace]`; unknown keys are errors | spec §16.3 | agreed |
 | P19-3 | `[capabilities] grant` for applications: the build fails if reachability finds an ungranted capability | spec §16.3, 06 §6.8 | agreed; it uses the word *grant* |
-| P19-4 | `[targets.<t>] heap` replaces 05 §5.7's `[embedded] heap` | 05 (Bob) | agreed, per target |
+| P19-4 | `[targets.<t>] heap` replaces 05 §5.7's `[embedded] heap` | 05 | agreed, per target |
 | P19-5 | No `[features]` in 0.1; if needed later, only named sets of optional dependencies, never source conditions | spec §16.3, P6-7 | agreed |
 | P19-6 | Adding a defaulted parameter is a major change, because it changes the function type. Alternative: minor, and function-value uses of library functions get a lint | versioning, spec §4.7 | agreed: **major** (a changed function type is a changed promise) |
 | P19-7 | Security advisories in the index, shown by `verse update`; two-maintainer approval for first-party releases | registry | agreed |
@@ -912,7 +912,7 @@ explain: V0804 (run `verse explain V0804`)
 | P19-9 | Package names are `[a-z][a-z0-9_]*` | spec §16.3 | agreed |
 | P19-10 | Minimal version selection, with lock entries as extra minimums | spec §16.3 ("a single version per major") | agreed |
 | P19-11 | Libraries commit `verse.lock` too (used for their own tests, ignored by dependents) | spec §16.3 says "committed for applications" | agreed |
-| P19-12 | MCP tools for the package manager (`lock`, `why` for packages, `api_diff`, `update` preview) with schemas in 17, and their diagnostic codes in 16 | 16, 17 (Michelangelo) | agreed; 17 §17.8 and the V08xx codes of 16 |
+| P19-12 | MCP tools for the package manager (`lock`, `why` for packages, `api_diff`, `update` preview) with schemas in 17, and their diagnostic codes in 16 | 16, 17 | agreed; 17 §17.8 and the V08xx codes of 16 |
 
 ## 19.15 Conflicts with other documents
 

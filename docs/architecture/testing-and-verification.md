@@ -31,7 +31,7 @@ The compiler is only useful if it is right. This document defines how we know.
 
 ## 10.3 Differential testing
 
-Required by the owner's rule that script and compiled modes behave
+Required by the rule that script and compiled modes behave
 identically. The harness:
 
 1. Compiles each test program for every available backend.

@@ -1,6 +1,6 @@
 # ADR-0001: Implementation language: Rust
 
-Status: accepted (2026-10-18, all three owners). Agreed in principle earlier by Picasso and Bob.
+Status: accepted (2026-10-18).
 
 ## Context
 
@@ -27,7 +27,7 @@ goal after the first stable release, not part of the plan).
 | Go | fast builds, easy concurrency | has a garbage collector, awkward for a runtime for a language with no GC and for embedded; weak at algebraic data types |
 | OCaml / Haskell | superb for compilers (pattern matching) | runtime with a GC; harder to embed, harder to target microcontrollers; smaller contributor base |
 | Self-hosted Verse | the dream | does not exist yet; cannot bootstrap |
-| TypeScript | fastest prototyping; a browser playground for free | garbage-collected and JIT-dependent, so neither the runtime nor microcontroller targets can use it; compiler speed bounded by the JS engine; a second language would still be needed for the runtime *(added by Picasso)* |
+| TypeScript | fastest prototyping; a browser playground for free | garbage-collected and JIT-dependent, so neither the runtime nor microcontroller targets can use it; compiler speed bounded by the JS engine; a second language would still be needed for the runtime |
 
 ## Consequences
 
@@ -39,7 +39,7 @@ goal after the first stable release, not part of the plan).
   unwinding itself (section 5.4 of the runtime document).
 - LLVM is reached through a Rust binding and is an optional feature.
 
-## Risks *(added by Picasso)*
+## Risks
 
 - **Compile times of the compiler itself.** A large Rust workspace builds
   slowly; the crate split in [02](../architecture/compiler-architecture.md) §2.9 and

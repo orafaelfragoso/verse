@@ -1,9 +1,8 @@
 # 07. Plugins
 
-Rafael's requirement R3: *the language can be extended with plugins*. This
+Requirement R3: *the language can be extended with plugins*. This
 document answers what a plugin is, what it may do, and above all what it may
-**not** do. Status: **agreed** (Michelangelo, Bob), owner: Michelangelo (surface rules and
-wording). The sandbox mechanics (Wasm host, WIT interfaces) are in
+**not** do. Status: **agreed**. The sandbox mechanics (Wasm host, WIT interfaces) are in
 [02](compiler-architecture.md) §2.9 (`verse-plugin`) and are summarised here
 only where they change what a user sees.
 
@@ -87,7 +86,7 @@ compiler never needs its implementation to check a caller. The capabilities it
 may reach are declared in its `[library] capabilities` (§16.3) and are visible
 to `verse update` and to `[capabilities] grant` in the application.
 
-**How a Wasm-implemented package runs inside a native binary (decision, Bob).** It is translated ahead of time, never run by an embedded engine, in every tier. A Wasm frontend lowers the component's functions to mono MIR, so the same optimizer, reachability analysis and backends handle it as handle Verse source. This keeps three promises: only reached functions are built in ([06](stdlib-and-shaking.md)), script mode and compile mode behave the same (tier 0 runs the translated MIR, so `verse run` needs no engine either), and no engine is added to the binary. On the Wasm target the component is linked directly. A package may import only its declared capabilities, and a component using Wasm features the frontend cannot lower is rejected at build time with a message naming the feature. See [ADR-0005](../decisions/0005-wasm-component-plugins.md) and [04 §4.4](backends-and-targets.md).
+**How a Wasm-implemented package runs inside a native binary (decision).** It is translated ahead of time, never run by an embedded engine, in every tier. A Wasm frontend lowers the component's functions to mono MIR, so the same optimizer, reachability analysis and backends handle it as handle Verse source. This keeps three promises: only reached functions are built in ([06](stdlib-and-shaking.md)), script mode and compile mode behave the same (tier 0 runs the translated MIR, so `verse run` needs no engine either), and no engine is added to the binary. On the Wasm target the component is linked directly. A package may import only its declared capabilities, and a component using Wasm features the frontend cannot lower is rejected at build time with a message naming the feature. See [ADR-0005](../decisions/0005-wasm-component-plugins.md) and [04 §4.4](backends-and-targets.md).
 
 ## 7.5 Trust and grants
 
@@ -150,4 +149,4 @@ editors, `check --json` and the debugger treat it alike.
    language has a stable form for them.
 4. **Plugin discovery by name.** Registry trust, signing and revocation belong
    to the package manager design and are not decided here.
-5. **Wasm-implemented packages inside native binaries.** Ruled by Bob in §7.4: ahead-of-time translation to mono MIR in every tier, with no embedded engine, not even for `verse run`. This replaces the earlier proposal that kept an engine for `verse run`, because an engine would make script and compile modes differ.
+5. **Wasm-implemented packages inside native binaries.** Ruled in §7.4: ahead-of-time translation to mono MIR in every tier, with no embedded engine, not even for `verse run`. This replaces the earlier proposal that kept an engine for `verse run`, because an engine would make script and compile modes differ.

@@ -1,6 +1,6 @@
 # ADR-0008: Bytecode VM first, Cranelift second, LLVM for release
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Decision
 

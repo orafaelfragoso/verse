@@ -1,6 +1,6 @@
 # ADR-0005: Plugins are sandboxed Wasm components
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Context
 

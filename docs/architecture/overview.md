@@ -1,6 +1,6 @@
 # 00. Overview
 
-*Author: Picasso. Status: draft 1, for review by Bob and Michelangelo.*
+*Status: draft 1.*
 
 This page explains, in plain language, how Verse will be built. The
 specification ([../language/README.md](../language/README.md)) says what Verse programs

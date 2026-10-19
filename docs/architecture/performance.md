@@ -82,7 +82,7 @@ Rules:
 ## 9.4 Spec-level performance risks
 
 These are not bugs. They are places where the specified semantics cost
-something real, and where the spec owners should know the price. Each has a
+something real, and where the specification should state the price. Each has a
 proposed mitigation that **does not change semantics**. Where semantics had
 to change, the last column records the ruling.
 

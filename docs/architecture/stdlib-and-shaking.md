@@ -1,7 +1,6 @@
 # 06. Standard library and tree-shaking
 
-*Author: Picasso. Status: draft 1, for review by Bob (architecture) and
-Michelangelo (names and wording).*
+*Status: draft 1.*
 
 Requirement R6: Verse has libraries for finance, machine learning, servers,
 GUI and more; they are optional; and a build contains only what the program
@@ -392,7 +391,7 @@ principle 1). It differs only in *when* work happens:
 
 After reachability, the build checks the result against the target:
 
-| Check | Source of the rule | Failure message (wording to be approved by Michelangelo) |
+| Check | Source of the rule | Failure message (wording to be approved) |
 |-------|--------------------|------------------------------------------|
 | Every needed capability is provided | target file `[capabilities]` ([04 §4.3](backends-and-targets.md#43-what-a-target-is)) | "this program calls `std.net.get`, which `thumbv7em-none-eabihf` cannot provide" followed by the why chain |
 | No heap use under `--no-heap` | [05 §5.7](runtime.md#57-embedded-profile): no reachable allocation intrinsic | "`--no-heap`: `List.push` allocates, reached from `blink.vs:12`" |
@@ -481,7 +480,7 @@ finance package API is not designed yet.)
 | R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | 0.1: pure-Verse kernels and a `gpu` capability proposal (P6-6); 0.2: `extern` for BLAS-like libraries, under the capability-gated, plain-data `extern` rules |
 | R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (P6-6); a pure-Verse widget library on top; the web target uses `std-web` |
 | R-4 | **Wasm-component libraries must be lowerable** | a component is translated ahead of time to mono MIR in every tier, with no engine embedded (07 §7.4, ADR-0005); a component using Wasm features the frontend cannot lower is rejected at build time | the rejection names the feature; once lowered, the component is shaken per function and its items appear in the size report like Verse code |
-| R-5 | **Names of first-party packages** | Michelangelo's rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1); 07's example uses `gui` |
+| R-5 | **Names of first-party packages** | the rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1); 07's example uses `gui` |
 | R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](plugins.md#71-the-two-rules)); transforming plugins are out of 0.1 |
 | R-7 | **`print` pulls in `stdio` and the failed-`?` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `?` prints (spec §12.5) | acceptable; the report shows why |
 | R-8 | **Test builds and fakes** | capability fakes must not leak into release builds | fakes live in a test-only slice selected only in `verse test` |
@@ -497,12 +496,12 @@ These touch the spec (§12, §15, §16) or package naming, and all seven are acc
 | P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
 | P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are already planned (01, 11 M2, 08 `size_report`) |
 | P6-5 | **Eager capability check before running** (`verse run --deny net`, `verse check --target T`) based on reachability, so a missing or denied capability fails before execution in every tier | spec §16 (flags), 04, 08 | accept; it keeps script and compiled modes failing the same way |
-| P6-6 | **New capabilities `surface` and `gpu`** with runtime slices `sys-surface` and `sys-gpu` | 05 §5.1, §5.6 (Bob), later the GUI and ML packages | accept as names now; design in M9 |
-| P6-7 | **Per-target module variants without conditional compilation.** The spec has no `cfg`-style syntax. A package that needs different code per target selects files by the target's capabilities in `[library.targets]`, never by annotations in source (consistent with 07 §7.1: no new syntax) | spec §16.3, 07 | needs a ruling; the alternative is a language feature, which we do not recommend for 0.1 |
+| P6-6 | **New capabilities `surface` and `gpu`** with runtime slices `sys-surface` and `sys-gpu` | 05 §5.1, §5.6, later the GUI and ML packages | accept as names now; design in M9 |
+| P6-7 | **Per-target module variants without conditional compilation.** The spec has no `cfg`-style syntax. A package that needs different code per target selects files by the target's capabilities in `[library.targets]`, never by annotations in source (consistent with 07 §7.1: no new syntax) | spec §16.3, 07 | accepted: per-target code is chosen by files and manifest data, never by `cfg`-style syntax |
 
 ## 6.13 Inconsistencies noticed while writing this document
 
-Reported by Picasso and **fixed by Bob** in each named file. Item 6 is decided in [07 §7.4](plugins.md):
+Each item is **fixed** in the named file. Item 6 is decided in [07 §7.4](plugins.md):
 
 1. [05 §5.1](runtime.md#51-feature-slices) says a hello world links
    "`core` and `sys-stdout`", but the slice table has no `sys-stdout` row and

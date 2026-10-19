@@ -1,6 +1,6 @@
 # ADR-0007: One task semantics, three native lowerings and VM tasks
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Context
 

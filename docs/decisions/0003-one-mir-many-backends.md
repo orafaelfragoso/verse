@@ -1,6 +1,6 @@
 # ADR-0003: One mono MIR, many backends
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Context
 

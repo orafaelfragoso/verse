@@ -1,6 +1,6 @@
 # ADR-0004: Whole-program reachability for tree-shaking
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Context
 
@@ -26,12 +26,12 @@ reachability pass over mono MIR:
   imports are explicit, so it is still a fast pre-filter).
 - **Linker-only gc-sections.** Cannot prune vtables, structural trait
   implementations or runtime features.
-- **Cargo-style feature flags chosen by the user.** Violates the owner's wish
+- **Cargo-style feature flags chosen by the user.** Violates the requirement
   that the analysis chooses.
 - **Run-time dynamic loading of library modules.** Defers the cost instead of
   removing it, needs a dynamic linker and a stable ABI on every target, is
   unavailable on microcontrollers and awkward in Wasm, and would make script
-  and compiled modes load code differently. *(added by Picasso)*
+  and compiled modes load code differently.
 
 ## Consequences
 
@@ -39,7 +39,7 @@ reachability pass over mono MIR:
   spec has none: `ToJson`, `Show`, `Eq` and `Hash` are structural and derived at
   compile time per used type. We rely on that.
 - Values typed by a trait name (§10.3) need conservative vtables (all implementations of a trait
-  for types that are instantiated). *Note (Picasso):* the spec has no `dyn`
+  for types that are instantiated). *Note:* the spec has no `dyn`
   keyword. [06](../architecture/stdlib-and-shaking.md)
   §6.4 narrows the rule to types actually converted to the trait type and to
   vtable slots actually called.

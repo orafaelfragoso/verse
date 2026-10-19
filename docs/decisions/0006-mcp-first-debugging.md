@@ -1,11 +1,11 @@
 # ADR-0006: MCP-first debugging with record and replay
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Context
 
 Requirement R7: debugging that LLMs can drive step by step, in the spirit of
-the Model Context Protocol. Michelangelo's rule: debug messages use the same
+the Model Context Protocol. Debug messages use the same
 names and wording as compiler messages.
 
 ## Decision

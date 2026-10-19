@@ -1,6 +1,6 @@
 # ADR-0002: Ownership analysis on generic code, as a local dataflow pass
 
-Status: accepted (2026-10-18, all three owners).
+Status: accepted (2026-10-18).
 
 ## Context
 

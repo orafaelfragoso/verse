@@ -288,7 +288,7 @@ kinds: the runtime raises them. For an `assert`, the `switch` on the
 condition carries the `asserted` event and its failure edge is `panic assert`.
 
 **Statement to debug event** (vocabulary of
-[08 §8.7](debugging-and-mcp.md#87-vocabulary-and-wording-owned-by-michelangelo)). The
+[08 §8.7](debugging-and-mcp.md#87-vocabulary-and-wording)). The
 `dbg` clause on each line names the event; the VM and record mode emit it.
 
 | MIR | Event | Value state afterwards |

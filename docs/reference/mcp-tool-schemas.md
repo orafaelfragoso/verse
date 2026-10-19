@@ -1,6 +1,6 @@
 # 17. MCP tool schemas
 
-Status: **draft for review** (reviewer: Bob). Owner: Michelangelo.
+Status: **draft**.
 This file gives the exact JSON shapes behind the tools named in
 [08](../architecture/debugging-and-mcp.md) §8.3 and §8.4, and points to the vocabulary file
 [`events.toml`](events.toml). If this file and 08 disagree on a
@@ -435,7 +435,7 @@ The panic report of 08 §8.6 is an `event` with `event: "panicked"` plus
 ## 17.6 Versioning
 
 `events.toml` has `version`. A new event or field is a minor change. Renaming
-or removing one is a major change and needs a ruling from both owners of 08.
+or removing one is a major change and needs a change to 08.
 The server reports the version in the MCP `initialize` result as
 `verse_vocab_version`.
 
@@ -467,9 +467,7 @@ Their error codes are the V08xx family of the diagnostics catalog (16).
 
 ## 17.9 Open points
 
-1. **`moved` field name.** 08 §8.4's event example writes `"into"`; the
-   vocabulary says `to`. This file uses `to`. Bob, please change the example.
-2. **`debug_goto`, `history`, `why_alive`, `why_blocked`, `diff_stops`,
+1. **`debug_goto`, `history`, `why_alive`, `why_blocked`, `diff_stops`,
    `source`** are optional tools and have no schema here yet. They get one in
    the next revision once the core set is agreed.
-3. **Pagination token format** is opaque to clients; the server may change it.
+2. **Pagination token format** is opaque to clients; the server may change it.

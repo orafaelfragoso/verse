@@ -682,8 +682,7 @@ Nothing in this document applies beyond the unwinding and exit rules.
 
 ### 15.6.4 Stack bounds and overflow
 
-**Decision** (P15-23, accepted by Michelangelo; amends 05 §5.3, which now
-agrees). A guard page fault cannot run cleanup, because the cleanup blocks need
+**Decision** (P15-23; amends 05 §5.3). A guard page fault cannot run cleanup, because the cleanup blocks need
 stack that is exhausted, and a signal handler cannot unwind arbitrary frames
 safely. So **every compiled target uses an explicit check**:
 
@@ -869,7 +868,7 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 | `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or `run`: the program did not start | [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses), [14.9](bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) | fact |
 | `3` | a bug in Verse: a compiler bug (V9901, V9902) found before the program started, in `run` as in `build`; or a trap the runtime itself caused (`unreachable`, an internal runtime error, a VM `TRAP`); or a capability re-check that fails at run time, because the build-time check should have caught it (15.7.6) | 16 §16.6.1, 14.4, 14.9 | fact |
 | `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the R0004 text (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 | fact |
-| `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](debugging-and-mcp.md#87-vocabulary-and-wording-owned-by-michelangelo), stop reason `deadlocked`) | 14.7, 14.12 and 16 §16.6.1 | fact |
+| `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](debugging-and-mcp.md#87-vocabulary-and-wording), stop reason `deadlocked`) | 14.7, 14.12 and 16 §16.6.1 | fact |
 | `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) | fact |
 | host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 | assumption |
 
@@ -1448,7 +1447,7 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
 
 ## 15.14 Open items
 
-Proposals and questions for the owners. The prefix `P15` is new; the ids are
+Open proposals and questions. The prefix `P15` is new; the ids are
 this document's.
 
 | # | Question or proposal | Touches | Recommendation |
@@ -1456,16 +1455,16 @@ this document's.
 | P15-1 | A panic in `Cleanup`: its normal-path case needs `drop` of a `Cleanup` type to have an unwind edge | 13.10 M7 and M9, 14.8 | **Closed**: M7 makes `drop` of a `Cleanup` type a terminator with an unwind edge, and M9 and 14.8 follow 15.7.4 |
 | P15-2 | Deadlock status `70` | 14.7, P14-7, 08 §8.7 | **Closed**: deadlock is R0008, status 70; 14 follows |
 | P15-3 | Status-code unwinding uses a TCB word tested after each call, swapped on task switch (15.7.2) | 05 §5.4, M7 | Keep for 0.1; measure in M7 against a second result register on Cortex-M |
-| P15-4 | The `abort` profile loses `TaskPanicked` | 05 §5.4, V0908, V0910 | **Closed** (ruling, Michelangelo): an `abort` build fails with V0910 when a `spawn` is reachable |
+| P15-4 | The `abort` profile loses `TaskPanicked` | 05 §5.4, V0908, V0910 | **Closed**: an `abort` build fails with V0910 when a `spawn` is reachable |
 | P15-5 | Wasm default (`status-code`) and the mixing of status-code between resumable functions with `wasm-eh` elsewhere | 04 §4.1, 05 §5.4 | `status-code` for all shipped Wasm targets; decide after M3 measurements; `-eh` variants opt in |
-| P15-6 | Fold into the owners' documents: the layout algorithm L4 and L5, the fixed layout of the `checked_*` tuple, by-value shared borrows of small `Copy` values | 03 §3.5, 13.3, 13.6, 04 §4.5 | Adopt as written |
+| P15-6 | Fold into the affected documents: the layout algorithm L4 and L5, the fixed layout of the `checked_*` tuple, by-value shared borrows of small `Copy` values | 03 §3.5, 13.3, 13.6, 04 §4.5 | Adopt as written |
 | P15-7 | A 12-byte 32-bit `Text` header with 10 inline bytes (assumption); big-endian targets (s390x via Cranelift) are out | 03 §3.5, 14.1 | Accept for M7; revisit with measurements |
-| P15-8 | Closure representation: how a lambda that only borrows its captures is lowered, given V7 forbids a borrow in `aggregate closure` | 13.2, 13.5, spec §5 (captures) | 13 owner: lambda lifting into extra borrowed parameters, or an explicit non-escaping closure form |
-| P15-9 | The vtable layout `[drop_glue, size, align, slots...]`, owned `dyn` as a heap box, and the layout of `Error` as a boxed trait object | 03 §3.5, `std` | Accept; `std` owner confirms `Error` |
+| P15-8 | Closure representation: how a lambda that only borrows its captures is lowered, given V7 forbids a borrow in `aggregate closure` | 13.2, 13.5, spec §5 (captures) | 13 chooses: lambda lifting into extra borrowed parameters, or an explicit non-escaping closure form |
+| P15-9 | The vtable layout `[drop_glue, size, align, slots...]`, owned `dyn` as a heap box, and the layout of `Error` as a boxed trait object | 03 §3.5, `std` | Accept; `std` confirms `Error` |
 | P15-10 | File names and lookup: `targets/<name>.toml` (toolchain), `targets/<name>.target`, `verse.target`, `host`, and `inherits` | 04 §4.3, 19 §19.3 | Accept 15.9.1; 19 adds `verse.target` to its file list and cache keys |
 | P15-11 | Schema extensions to 04 §4.3 (15.9.2) and diagnostics for target-file errors | 04 §4.3, 16 | **Codes closed**: V0911 to V0915, one per row of 15.9.4. Still open: fold the schema into 04 §4.3 |
 | P15-12 | Custom capabilities and providers for custom targets and boards (a CAN bus); a browser `net` client through `fetch` | 05 §5.6, 06 §6.5, 20 | Defer to 0.2 with `extern`; a capability needs a slice supplied by a package |
-| P15-13 | The range of `exit(code)`, whether `exit` runs `Cleanup`, and `exit` from a non-main task | spec §12.5 and §15.1, 16 R0013 | **Closed, final** (both owners): the code is 0 to 255 and anything else is panic R0013 on every platform; `exit` works from any task, ends the program immediately, runs **no** `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes standard output and error |
+| P15-13 | The range of `exit(code)`, whether `exit` runs `Cleanup`, and `exit` from a non-main task | spec §12.5 and §15.1, 16 R0013 | **Closed, final**: the code is 0 to 255 and anything else is panic R0013 on every platform; `exit` works from any task, ends the program immediately, runs **no** `Cleanup`, does not cancel the other tasks, never raises R0009, and flushes standard output and error |
 | P15-14 | WASI p2 `exit-with-code` is stable from 0.2.12; older hosts only have `exit(result)` | 15.8.2 | Use `exit-with-code`; fall back to `exit(err)` with a warning on a host that lacks it; verify in M3 |
 | P15-15 | On Wasm the engine's call-stack limit can trap before the shadow-stack check, so `stack_overflow` is not always a panic | 05 §5.3 | Document as a host-defined trap; give each recursive function a minimum shadow frame so the Verse check usually fires first |
 | P15-16 | Exit status of an internal error or trap (`unreachable`, VM bug) | 14.4 `TRAP`, 15.7.6, 16 §16.6.1 | **Closed** (ruling): status 3 where the runtime is the cause; a host trap Verse cannot control stays host-defined |
@@ -1477,4 +1476,4 @@ this document's.
 | P15-22 | The float ABI of binary64 on an FPU with single precision only (`fpv4-sp-d16`) | 15.5 | Verify in M7 that `verse-rt` and generated code agree; both are built with the same target ABI string |
 | P15-23 | The explicit prologue stack check of 15.6.4 replaces the guard-page panic; the `headroom` numbers | 05 §5.3, 14.3 | **Accepted** (ruling): every stack-overflow path prints R0004. Open only: tune `headroom` in M2 |
 | P15-24 | Precedence among exit statuses (15.8.1) when several apply | spec §12.5 | Adopt the order of 15.8.1: `exit`, `70`, `101`, `1`, `0` |
-| P15-25 | 0.2 candidate: a **cleanup-aware exit** that cancels the other tasks, runs `Cleanup` and then exits. `exit` runs none in 0.1 (P15-13). Picasso observed that a blocking `Cleanup` also hangs a `main` that returns, so neither path is guaranteed to stop quickly | spec §12.5 | Not in 0.1. Decide with 0.2, together with a bound on how long a cleanup may block |
+| P15-25 | 0.2 candidate: a **cleanup-aware exit** that cancels the other tasks, runs `Cleanup` and then exits. `exit` runs none in 0.1 (P15-13). A blocking `Cleanup` also hangs a `main` that returns, so neither path is guaranteed to stop quickly | spec §12.5 | Not in 0.1. Decide with 0.2, together with a bound on how long a cleanup may block |

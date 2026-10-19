@@ -3,10 +3,9 @@
 What a plugin sees and can call: its manifest, the host interface, the
 inputs and outputs of each kind, the capabilities, and the limits. This file
 is the detail behind [07](plugins.md), which owns the rules. Where the two
-differ, 07 wins and this file is fixed. Status: **draft 1**, owner:
-Michelangelo, reviewer: Bob. Bob owns the host mechanics (`verse-plugin`, the
-Wasm runtime, [02 §2.9](compiler-architecture.md)); this file fixes only
-the shape a plugin author sees.
+differ, 07 wins and this file is fixed. Status: **draft 1**. The host mechanics (`verse-plugin`, the Wasm runtime,
+[02 §2.9](compiler-architecture.md)) are in 02; this file fixes only the
+shape a plugin author sees.
 
 A plugin is a Wasm component that runs while the project builds. A package
 written as a Wasm component that runs inside the program is not a plugin
@@ -246,7 +245,7 @@ no entry in that file, or the other way round.
 1. **Ownership state for lints.** Some rules want to know where a value is
    moved. Proposal: not in interface 1. The ownership view of the debugger
    ([08](debugging-and-mcp.md)) is the model to expose later.
-2. **Renderers for `tool` plugins.** Decided by Bob in review 8 and applied in 18.12.
+2. **Renderers for `tool` plugins.** Decided and applied in 18.12.
 3. **Catalog codes.** V0814 to V0817 are used here and are in 16 §16.3.
 4. **Languages for writing a plugin.** Any language that produces a Wasm
    component works. A Verse SDK for plugin authors is a first-party package
@@ -259,7 +258,7 @@ no entry in that file, or the other way round.
 A `tool` plugin may list `renders = ["TypeName", …]` in `plugin.toml` and export
 `render(value)`. A renderer is a small, pure function that runs only inside the
 debugger host. It never runs in the program, so script and compile modes stay
-identical. Decision: Bob.
+identical. Decision.
 
 | Part | Rule |
 |------|------|
