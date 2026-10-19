@@ -40,7 +40,7 @@ layout    = "layout" , type , "size" , INT , "align" , INT ,
             [ "tag" , ( "none" | "byte" | "niche" , "@" , INT ) ] , NL ;
 function  = "fn" , path , [ "<" , targs , ">" ] ,
             "(" , [ local , { "," , local } ] , ")" , "->" , type ,
-            { "caps" , "(" , IDENT , { "," , IDENT } , ")" | "mayyield" | "nounwind" } ,
+            { "caps" , "(" , IDENT , { "," , IDENT } , ")" | "mayyield" | "nounwind" | "recursive" } ,
             "@" , span , "{" , NL , { decl } , { block } , "}" , NL ;
 targs     = tparam , { "," , tparam }          (* in a `mir generic` file *)
           | type , { "," , type } ;            (* in a `mir mono` file: the instance's type arguments *)
@@ -168,6 +168,7 @@ Facts a pass may query. "Unknown" means the pass must be conservative.
 | `cleanup` (drop glue runs user code) | from a `Cleanup` bound | exact | task-lower, 14 |
 | `size`, `align`, field offsets, tag kind | absent | present, per target ([03 §3.5](ir-and-passes.md#35-layout-rules)) | backends, `layout` pass |
 | `mayyield` | from callees, conservative for trait calls | exact | `task-lower` |
+| `recursive` (the function is on a cycle of the call graph of the instances monomorphization creates. A direct call has an edge to its callee. A call through a function value has an edge to every reachable instance whose function value is created with the signature of the called value's type. A call through a `dyn` slot has an edge to the method of that slot in every reachable impl of its trait. AOT monomorphization and the script-mode pre-pass use this one rule) | absent | exact, computed before the optimizer and never changed by it | the call limit ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)), `inline` |
 | `caps(...)` | from non-trait callees (lower bound) | exact | reachability, capability check |
 | field projection on a type parameter | allowed only with a `has.field` bound | resolved to an offset | V21 |
 
@@ -284,7 +285,7 @@ without owning anything.
 | `neg_exponent` | R0011 | `n`: the exponent, operand |
 | `expect_none` | R0005 | `x`: text of the expression; `msg`: text, left out when the program gave none |
 | `assert` | R0006 | `expr`: text of the condition |
-| `stack_overflow` | R0004 | none in MIR; the runtime supplies `n` (the task) |
+| `stack_overflow` | R0004 | none in MIR; the runtime supplies `n` (the task), `f` (the function called) and, when the call limit fired, `limit` ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | `out_of_memory` | R0007 | none in MIR; the runtime supplies `size` |
 | `foreign_null` | R0014 | `f`: text, the Verse name of the `extern` function that returned null where its signature says `Pointer` |
 
@@ -362,7 +363,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees | exact capability check before run | `call sys net.connect(...)` with `caps(fs)` |
 | V20 | Every statement and terminator has a span inside a known file and a non-empty `dbg`; every `binding` and `param` has a name and a mode word; event words exist in `events.toml` | debugger and diagnostics speak the same words | a `drop` line with no `;` clause |
 | V21 | Generic only: an operation on a value of type `T` must be licensed by a bound of the function: trait calls need the trait bound, `copy` of `T` needs `Copy`, field projection needs `has.field` | generics are checked once, at the definition (spec §10.6) | `_2 = copy _1` with `_1: T` and bound `Copyable` |
-| V22 | Mono only: no type parameter or `trait` callee remains; every `call` target exists as an instance; `layout` exists for every type used; instance keys are unique | backends can lower without resolving anything | `call <T as Show>::show(...)` in `mir mono` |
+| V22 | Mono only: no type parameter or `trait` callee remains; every `call` target exists as an instance; `layout` exists for every type used; instance keys are unique; a function carries `recursive` exactly when it is on a cycle of the call graph of the instances (13.3) | backends can lower without resolving anything, and every tier counts the same calls against the call limit | `call <T as Show>::show(...)` in `mir mono` |
 | V23 | `intrinsic` and `call intrinsic` match the intrinsic's declared signature and effects: an `intrinsic` statement cannot unwind or yield | optimizer may reorder pure intrinsics | an allocating `intrinsic` with `unwind bb3` |
 | V24 | Every `panic` names a kind of the [table in 13.4](#panic-kinds) and gives exactly the facts of that row, with the stated types; operands are `copy` of an initialised scalar or constants | one panic text per kind, filled the same way by every tier (16 §16.6) | `panic index_oob {i: copy _2}` (no `n`, `what`, `unit`) |
 
@@ -385,8 +386,8 @@ function (instance key as in 02 §2.6). It (1) substitutes types in locals,
 operands and callees, (2) resolves each `<T as Trait>::m` to a concrete
 function through the impl table, or leaves a `dyn` slot, (3) renames the
 function with its type arguments, (4) attaches layouts, (5) recomputes `caps`
-and `mayyield`. It never changes block structure, spans, `dbg` clauses or
-panic sites. Ownership facts are not recomputed (spec §4.2 rule 9); the
+and `mayyield`, and (6) once every instance exists, computes `recursive`. It
+never changes block structure, spans, `dbg` clauses or panic sites. Ownership facts are not recomputed (spec §4.2 rule 9); the
 verifier re-checks V3 to V9 on the result as a safety net.
 
 A moved `T` stays a `move` after substitution even when `T = Int`. Turning a
@@ -399,12 +400,13 @@ golden tests.
 reachability pre-pass of
 [02 §2.6](compiler-architecture.md#26-monomorphization), before the first
 statement, and verifies each one with the mono rules of the table above. Each
-instance gets its `caps(...)` and `mayyield` from step (5), as in a compiled
-build, so the verifier sees the same facts in both modes. Only bytecode
-generation waits for the first call
+instance gets its `caps(...)` and `mayyield` from step (5) and `recursive` from
+step (6), as in a compiled build, so the verifier sees the same facts in both
+modes. Only bytecode generation waits for the first call
 ([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)). Tier 0
 never runs `task-lower`, so it needs `mayyield` only for the verifier; the
-capability check needs `caps` before the first instruction.
+capability check needs `caps` before the first instruction, and the call limit
+needs `recursive` ([14 §14.3](bytecode-and-vm.md#143-value-representation-and-call-records)).
 
 ## 13.7 Debug info and source spans
 

@@ -123,8 +123,10 @@ target in a known backend family is only data
   ([13 §13.1](../../../../docs/architecture/mir-specification.md#131-purpose-and-relation-to-03)).
 - **Same observables on every tier**: output bytes, exit status, panic record,
   `Cleanup` and drop order, task events for a seed, capability calls, `Float`
-  bits, collection order. Timing, addresses, memory use and the depth of
-  `stack_overflow` may differ
+  bits, collection order, the call at which the call limit fires, and the
+  folded stack lines of every build. Timing, addresses, memory use, and
+  whether a compiled task stops at the call limit or at a full stack (and with
+  it the R0004 text and stack lines) may differ
   ([14 §14.12](../../../../docs/architecture/bytecode-and-vm.md#1412-differential-testing-contract)).
 - **`Float` is IEEE 754 binary64**, no fast-math, no implicit fused
   multiply-add, one canonical NaN where bits are visible

@@ -103,7 +103,8 @@ what the printer writes, and `parse(print(m)) == m` is a unit test
 
 **Monomorphization** maps `(generic fn, [TypeId])` to a mono function. It
 substitutes types, resolves `<T as Trait>::m` or leaves a `dyn` slot, renames
-the function, attaches layouts, and recomputes `caps` and `mayyield`. It is
+the function, attaches layouts, recomputes `caps` and `mayyield`, and computes
+`recursive` once every instance exists. It is
 demand driven from entry statements, exports and tests. Why: this gives exact
 reachability for free
 ([02 §2.6](../../../../docs/architecture/compiler-architecture.md#26-monomorphization),
@@ -113,9 +114,10 @@ type gives one shared body.
 
 **Script mode.** Before the first statement, the reachability pre-pass
 monomorphizes every reachable instance and verifies it with the mono rules,
-exactly as a compiled build does. It builds no bytecode, runs no optimizer
-pass, and caches each verified instance. Only bytecode generation waits for the
-first call, so verification after monomorphization never fails mid-run
+exactly as a compiled build does, with the same `caps(...)`, `mayyield` and
+`recursive`. It builds no bytecode, runs no optimizer pass, and caches each
+verified instance. Only bytecode generation waits for the first call, so
+verification after monomorphization never fails mid-run
 ([13 §13.6](../../../../docs/architecture/mir-specification.md#136-generic-mir-and-mono-mir),
 [ADR-0011](../../../../docs/decisions/0011-verify-before-first-statement.md)).
 

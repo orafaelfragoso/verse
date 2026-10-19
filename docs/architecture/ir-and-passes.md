@@ -46,7 +46,7 @@ differ, 13 wins and this file is corrected.
 
 ```
 Function { id, params: [Local], ret: Type, locals: [LocalDecl], blocks: [Block],
-           attrs }                                 // attrs: caps, mayyield, nounwind
+           attrs }                                 // attrs: caps, mayyield, nounwind, recursive
 Block     { stmts: [Stmt], term: Terminator, is_cleanup: bool, span }
 
 Operand = Move(Place) | Copy(Place) | Const       // ownership made explicit
@@ -148,7 +148,7 @@ differential tester can isolate a miscompile.
 |---|------|--------|---------------|
 | 1 | `verify` | check invariants | none (read-only) |
 | 2 | `simplify-cfg` | merge and remove blocks, fold constant switches | control flow semantics |
-| 3 | `inline` | inline small and single-call functions; always-inline for intrinsics | unwind and drop order |
+| 3 | `inline` | inline small and single-call functions; always-inline for intrinsics; never a `recursive` function | unwind and drop order; the calls the call limit counts ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | 4 | `sroa` | split records and tuples into scalars when they do not escape | field-level move state |
 | 5 | `const-prop` and `fold` | evaluate constants, fold branches | overflow panics (folding a checked op that overflows stays a panic, not a wrap) |
 | 6 | `move-elim` | remove copies of values at last use (spec: "a source at its last use is moved"); turn a `move` of a `Copy` type into a `copy` | observable `Cleanup` order |

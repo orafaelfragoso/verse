@@ -10,13 +10,13 @@ the ones the reachability analysis asks for ([06](stdlib-and-shaking.md)).
 
 | Slice | Provides | Needs OS? | Depends on |
 |-------|----------|-----------|------------|
-| `core` | allocator, drop and panic machinery, `Text`, `List`, `Map`, `Set` primitives, checked arithmetic helpers, formatting of scalars | no | none |
+| `core` | allocator, drop and panic machinery (including the panic report: the stack walk, the trace map and folding, [15 §15.7.1](target-and-abi.md#1571-the-panic-record-and-the-unwind-state)), `Text`, `List`, `Map`, `Set` primitives, checked arithmetic helpers, formatting of scalars | no | none |
 | `unwind` | landing pads and cleanup running on panic and cancellation | no | `core` |
 | `tasks` | scheduler, `Task`, the `Sender` and `Receiver` made by `Channel.new<T>()`, `Shared`, `Guarded`, timers | scheduler primitives only | `core` |
 | `sys-stdio` | `print`, `input`, error reports of a failed top-level `?` | yes, per target | `core` |
 | `sys-clock`, `sys-random`, `sys-fs`, `sys-net`, `sys-process`, `sys-os`, `sys-env` | the platform capabilities of `time`, `random`, `fs`, `net` and `http`, `process`, `os`, `env` | yes, per target | `core` |
 | `sys-gpio`, `sys-uart`, `sys-i2c`, `sys-spi` | microcontroller peripherals | board | `core` |
-| `debug` | trace events, record and replay hooks, panic reports | no | `core` |
+| `debug` | trace events, record and replay hooks, the `values` and `last_events` of a panic report | no | `core` |
 | `sys-surface`, `sys-gpu` | windows, input and drawing; GPU compute (capabilities `surface` and `gpu`, [06 §6.5](stdlib-and-shaking.md#65-capabilities-and-runtime-slices)) | yes, per target | `core` |
 
 **How platforms and slices combine.** Each target names one *platform layer* (`std-os`, `std-wasi`, `std-web`, `std-embedded`, see [04 §4.2](backends-and-targets.md#42-target-matrix)) that implements the allocator, the entry point and the `sys-*` capabilities that target provides. The feature slices above are the pieces of that layer, so a platform layer is a *menu* of slices and a build links only the slices reachability asks for, never the whole layer.
@@ -58,7 +58,7 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
 - Each task has its own stack: a lazily committed region with a guard page.
   The reservation is the target's `[tasks] max_stack`, 8 MiB of address space
   per task by default; physical memory is committed only as touched, so the
-  cap costs nothing until a task uses it.
+  reservation costs nothing until a task uses it.
 - Context switch is a few register saves in assembly (the approach of Go,
   Boost.Context and Zig's old async design).
 - **Work-stealing scheduler**, one worker thread per core, local run queues
@@ -67,16 +67,24 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   macOS, IOCP on Windows, with `io_uring` as a later optimization on Linux. A
   blocking call such as `get` registers interest and yields. File I/O that has
   no async primitive runs on a small blocking thread pool.
-- **Stack overflow** is caught by an explicit check in the prologue of each
-  non-leaf function, which raises the panic `stack_overflow` (R0004, "recursion
-  is too deep in task N", [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)).
-  A fault cannot run cleanup, because cleanup needs stack that is exhausted, so
-  the check fires `headroom` above the real end and `Cleanup` runs in the
-  reserve ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)).
-  The **guard page** stays only as a backstop for code that does not check (a
-  runtime function, foreign code): a fault there prints the same R0004 text and
-  ends the program with status 101, running no cleanup. Deep recursion is a bug
-  and must not corrupt memory.
+- **Deep recursion** stops at the **call limit**: each task counts the calls
+  of `recursive` functions it has in progress, and the call that would pass
+  `--max-calls` (10,000 by default, on every target) raises the panic
+  `stack_overflow` (R0004, "recursion is too deep in task {n}: {limit} calls
+  in progress, the limit, in `{f}`", [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)).
+  The VM counts the same calls, so a native task whose stack does not fill
+  first stops at the same call
+  ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
+- **The stack reservation is a backstop.** An explicit check in the prologue
+  of each non-leaf function raises the second form of R0004, "task {n} ran out
+  of stack in `{f}`", when the stack fills before the call limit. A fault
+  cannot run cleanup, because cleanup needs stack that is exhausted, so the
+  check fires `headroom` above the real end and `Cleanup` runs in the reserve
+  ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)). The
+  **guard page** stays only as a backstop for code that does not check (a
+  runtime function, foreign code): a fault there prints the same second form
+  and ends the program with status 101, running no cleanup. Deep recursion is
+  a bug and must not corrupt memory.
 
 **State-machine targets (Wasm without stack switching)**
 
@@ -146,8 +154,10 @@ a debugger is attached ([08](debugging.md)).
   with SipHash-1-3 by default and a keyed fast hash for internal tables,
   UTF-8 validation with SIMD where the target supports it).
 - Everything else in the collections API (§9.5) is **written in Verse** on top
-  of these primitives, so it is monomorphized and inlined into user code. That
-  is how iterator chains reach the performance of a hand-written loop.
+  of these primitives, so it is monomorphized and inlined into user code,
+  except an instance that is `recursive` ([13 §13.3](mir-specification.md#133-types-and-layout-facts),
+  [ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). That is how
+  iterator chains reach the performance of a hand-written loop.
 - Hash iteration order is insertion order for `Map` (spec §9.2). `Set` also iterates in
   insertion order (spec §9.4).
 

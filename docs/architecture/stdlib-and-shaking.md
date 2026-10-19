@@ -213,10 +213,10 @@ Non-capability slices are selected by MIR facts rather than by capabilities:
 
 | Slice | Included when |
 |-------|---------------|
-| `core` | always (allocator, panic machinery, `Text`, `List`, `Map`, `Set` primitives) |
+| `core` | always (allocator, panic machinery including the panic report's stack walk, trace map and folding, `Text`, `List`, `Map`, `Set` primitives) |
 | `unwind` | a reachable unwind edge runs a drop (a `Cleanup` call or a heap free) *and* the target's unwind strategy needs runtime support (`native`); with `status-code` the cleanup paths are ordinary code (Assumption, see [05 §5.4](runtime.md#54-panics-and-unwinding)) |
 | `tasks` | a `Spawn` terminator or a `task` primitive is reachable |
-| `debug` | debug builds, running a file, or an attached debugger ([08](debugging.md)) |
+| `debug` | debug builds, running a file, or an attached debugger ([08](debugging.md)); it adds trace events, record and replay, and the `values` and `last_events` of a panic report |
 
 Each target file declares which capabilities it provides
 ([04 §4.3](backends-and-targets.md#43-what-a-target-is)). After
