@@ -47,7 +47,7 @@ extend that table.
 | `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
 | `verse api diff [ver]` | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
 | `verse debug [app.vs] [--port n]` | the debug adapter: serves the Debug Adapter Protocol on standard input and output, or on a local port ([08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) | sources, recordings | — | no |
-| `verse test [path]` | runs `test` blocks and doc tests (spec §14); `--filter "name"` selects tests, `--watch` reruns on change. In a workspace only the root's tests run unless `--deps` is given ([21 §21.13](../architecture/packages.md#2113-supply-chain-security)) | sources, toml, lock | - | only if resolving |
+| `verse test [path]` | runs `test` blocks and doc tests (spec §14); `--filter "name"` selects tests, `--watch` reruns on change. At a workspace root it runs every member's tests, and `-p name` selects one ([21 §21.12](../architecture/packages.md#2112-workspaces)). The tests of dependencies run only with `--deps` ([21 §21.13](../architecture/packages.md#2113-supply-chain-security)) | sources, toml, lock | - | only if resolving |
 | `verse fmt [path]` | formats code in the one canonical style (spec §16.1); `--check` changes nothing and fails on unformatted code (for CI) | sources | sources | no |
 | `verse check` | type-checks without running (§19.2.3) | sources, toml, lock | - | only if resolving |
 | `verse build [file.vs]` | builds the package, or one file, for the selected profile and target: an executable, a WebAssembly module or a bytecode bundle (§19.2.3) | sources, toml, lock | build output | only if resolving |
@@ -275,7 +275,7 @@ link  = "static"
 | `targets` | list of target names | every target | where the plugin is available ([07 §7.8](../architecture/plugins.md#78-targets)) |
 
 A dependency may declare plugins with `lib` only. A dependency that uses
-`path` or `build` is rejected at resolution (V0834, 21 §21.13).
+`path` or `build` is rejected at resolution (V0834, 07 §7.2, 21 §21.13).
 
 ### `[generate]` and `[tool]`
 
@@ -406,7 +406,7 @@ There is no `[features]` section. Why, and what to use instead, is in
 
 ## 19.4 `verse why`
 
-One command answers "why is this here?" for three kinds of argument, chosen
+One command answers "why is this here?" for four kinds of argument, chosen
 by its form. Items and file paths are spec §16; packages and
 capabilities are added here:
 
@@ -451,7 +451,6 @@ registry (V0833, 21 §21.3).
 | V0804 | version {req} of `{pkg}` does not exist | 21 §21.13 (message), §21.8 |
 | V0806 | `{pkg}` {ver} does not match its checksum | 21 §21.13 (message), §21.7 `checksum` |
 | V0807 | `verse.lock` is out of date | §19.2 (`--locked`), 21 §21.7 |
-| V0808 | `{pkg}` needs {T}, which `{other}` does not provide | 21 §21.8 (two majors) |
 | V0809 | a path dependency cannot be published | 21 §21.12 |
 | V0810, V0811 | `verse.api` changed / differs from the source | 21 §21.6, spec §16.4 |
 | V0812 | `{name}` is not a valid license | §19.3 `license` |
@@ -467,7 +466,7 @@ registry (V0833, 21 §21.3).
 | V0831 | `{req}` has no upper bound | §19.3 `[dependencies]` (message) |
 | V0832 | two clean builds of this project differ | 21 §21.10 (message) |
 | V0833 | the package name `{name}` is not available | 21 §21.3 (messages) |
-| V0834 | `{pkg}` declares a plugin with `{key}`, which only the root project may use | 21 §21.13 (message), §19.3 `[plugins]` |
+| V0834 | `{pkg}` declares a plugin with `{key}`, which only the root project may use | 07 §7.2 (rule), 21 §21.13 (message), §19.3 `[plugins]` |
 | V0835 | `{name}` is both a module of this package and a dependency | 21 §21.4 |
 | V0836 | no module or package is named `{name}` | 21 §21.4 |
 | V0837 | `{name}` is the name of a standard library module | 21 §21.4 |

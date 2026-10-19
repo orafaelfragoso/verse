@@ -223,7 +223,6 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0804 | error | version {req} of `{pkg}` does not exist | the newest release is {newest} | `{pkg} = "{near}"` | 21 §21.13 |
 | V0806 | error | `{pkg}` {ver} does not match its checksum | the archive hashes to `{got}` | `verse lock --refetch {pkg}` | 21 §21.13 |
 | V0807 | error | `verse.lock` is out of date | `{pkg}` asks for {req}, the lock has {have} | run `verse lock` (not allowed with `--locked`) | 21 §21.7 |
-| V0808 | error | `{pkg}` needs {T}, which `{other}` does not provide | two packages need different major versions of `{pkg}` | pin both to one major | 21 §21.8 |
 | V0809 | error | a path dependency cannot be published | `{pkg}` is `{ path = … }` | name a version as well | 21 §21.12 |
 | V0810 | warning | `verse.api` changed | the new API adds {n} items | run `verse api update` | §16.4 |
 | V0811 | error | `verse.api` differs from the source | `{item}`: file says `{a}`, source says `{b}` | run `verse api update` | §16.4 |
@@ -240,7 +239,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0831 | error | `{req}` has no upper bound | any new major version would be accepted | write `"{near}"`, which means {range} | 19 §19.3 |
 | V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a generator that is not deterministic | 21 §21.10 |
 | V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, used before by another owner, named like a capability such as `clock`, or named like a standard library module such as `json`} | choose another name | 21 §21.3 |
-| V0834 | error | `{pkg}` declares a plugin with `{key}`, which only the root project may use | a dependency cannot build or ship native code | declare the plugin in your own `verse.toml` | 07 §7.2 |
+| V0834 | error | `{pkg}` declares a plugin with `{key}`, which only the root project may use | a dependency cannot build or ship native code | declare the plugin in your own `verse.toml` | 07 §7.2, 21 §21.13 |
 | V0835 | error | `{name}` is both a module of this package and a dependency | declared here; `{path}` is also a module of this package | rename the module | 21 §21.4 |
 | V0836 | error | no module or package is named `{name}` | not in `src/`, `verse.toml` or the standard library | `verse add {name}`, if it is a package | 21 §21.4 |
 | V0837 | error | `{name}` is the name of a standard library module | {what: a module of this program, a dependency, or this package} uses it | choose another name; standard library names are reserved | 21 §21.4 |

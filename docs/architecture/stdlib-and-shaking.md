@@ -340,10 +340,9 @@ implementation uses; the shape of the report is the point.
 ### The why chain
 
 ```
-$ verse why sys-net --target x86_64-unknown-linux-gnu
-sys-net  is a runtime slice
-  <- capability net
-  <- sys.net.accept                 intrinsic
+$ verse why net --target x86_64-unknown-linux-gnu
+this program reaches `net` because:
+  sys.net.accept                    intrinsic
   <- net.TcpListener.accept         std/net/tcp.vs
   <- http.serve                     std/http/server.vs
   <- server.vs:8                    serve(port: 8080, handler: handle)?
@@ -351,7 +350,11 @@ sys-net  is a runtime slice
 ```
 
 The chain is the stored reason of each node, followed back to a root
-(§6.4). Because the traversal is breadth first, it is a shortest chain.
+(§6.4). Because the traversal is breadth first, it is a shortest chain. A
+runtime slice is explained through the capability that requires it: the
+`RUNTIME` section names the capability (`sys-net` from `capability net`), and
+`verse why net` prints the chain. The argument kinds of `verse why` are
+[19 §19.4](../reference/cli-and-manifest.md#194-verse-why).
 
 ## 6.7 Dynamic cases
 

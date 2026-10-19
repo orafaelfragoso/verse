@@ -107,7 +107,9 @@ not inputs. The package store, `.verse/cache/` and the shaking cache all use
 blake3 ([02 §2.7](../../../../docs/architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)).
 
 **Workspaces.** One lock and one cache at the root. Members depend on each
-other by `path`, and a published member must also name a version
+other by `path`, and a published member must also name a version.
+`verse test`, `check` and `build` at the root run for every member; `-p name`
+selects one
 ([21 §21.12](../../../../docs/architecture/packages.md#2112-workspaces)).
 
 **Dispatch.** The first argument that is not a flag decides. A word ending
@@ -132,10 +134,11 @@ chain. Its openers come from `events.toml`
 
 - No code runs to build a dependency. No build scripts and no install hooks.
   A dependency's plugins may name only `lib`, never `path` or `build` (V0834)
-  ([21 §21.13](../../../../docs/architecture/packages.md#2113-supply-chain-security)).
+  ([07 §7.2](../../../../docs/architecture/plugins.md#72-declaring-a-plugin),
+  [21 §21.13](../../../../docs/architecture/packages.md#2113-supply-chain-security)).
 - Only `verse generate` runs a generator. `build`, `check`, `test` and running a
   file never do ([spec §16.6](../../../../docs/language/16-tooling.md#166-generators)).
-- `verse test` runs only the root's tests unless `--deps` is given
+- `verse test` never runs a dependency's tests unless `--deps` is given
   ([21 §21.13](../../../../docs/architecture/packages.md#2113-supply-chain-security)).
 - Unknown `verse.toml` sections and keys are errors (V0801)
   ([19 §19.3](../../../../docs/reference/cli-and-manifest.md#193-versetoml)).
