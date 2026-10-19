@@ -75,6 +75,8 @@ what a `Pointer` points to. The usual wrapper is a record that holds the
 `unwind none`. A `Pointer` result is checked for null, and a null reaches
 `panic foreign_null`
 ([13 §13.4](../../../../docs/architecture/mir-specification.md#134-statements-and-terminators)).
+The VM runs it as `CALLF`, through the `verse-ffi` stub for its signature
+([14 §14.4](../../../../docs/architecture/bytecode-and-vm.md#144-instruction-set-and-encoding)).
 
 **At the ABI.** Compiled code needs no adapter for plain data. A `Copy` record
 is copied to the target's C layout, which may differ from its Verse layout. A

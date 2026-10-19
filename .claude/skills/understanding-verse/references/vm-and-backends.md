@@ -151,7 +151,7 @@ target in a known backend family is only data
 
 - Upstream, every backend trusts verified, reachable mono MIR with layout
   attached. See [mir-and-optimization.md](mir-and-optimization.md).
-- The VM calls plugins through stubs from `verse-ffi`. See
+- The VM calls plugins with `CALLF`, through stubs from `verse-ffi`. See
   [native-plugins.md](native-plugins.md).
 - All tiers share `verse-rt` for text formatting, hashing, collections and the
   seeded scheduler policy, so the differential test mainly checks code

@@ -102,8 +102,8 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   segments and a vector of call records, and the interpreter loop switches
   between them. The loop never recurses, so no native stack switching is
   needed. One worker thread in 0.1.
-- Switch points are only the MIR `yield` terminators that cannot proceed, an
-  explicit `pause`, and task exit. The scheduler policy with and without
+- Switch points are only the MIR `yield` terminators that cannot proceed, a
+  `DROPC` whose `cleanup` blocks, an explicit `pause`, and task exit. The scheduler policy with and without
   `--seed` is specified in [14 §14.7](bytecode-and-vm.md#147-tasks-scheduler-and-seed);
   the seeded single-worker mode of `verse-rt` implements the same policy so
   that differential tests compare the same task events.

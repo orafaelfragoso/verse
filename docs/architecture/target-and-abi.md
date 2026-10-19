@@ -773,10 +773,14 @@ targets; elsewhere the unwinder carries it.
 struct PanicRecord {            // allocated by verse-rt; layout private, shown for the contract
     kind:      u8,              // overflow=1 div_zero=2 index_oob=3 slice_oob=4 assert=5
                                 // expect_none=6 neg_exponent=7 stack_overflow=8 out_of_memory=9
+                                // convert=10 foreign_null=11
     site:      u32,             // index into the program's panic-site table: instance, span,
-                                // dbg clause, and for `overflow` the operator and the type
+                                // dbg clause; for `overflow` the operator and the type, for
+                                // `convert` the cast kind and the type, for `foreign_null`
+                                // the Verse name of the `extern` function
     task:      u32,             // task id (the main task is t0, 14.7)
-    vals:      [i64; 2],        // index_oob: index, len; overflow: the operands; assert: message id
+    vals:      [i64; 2],        // index_oob: index, len; overflow: the operands; assert: message id;
+                                // convert: the value
     secondary: *PanicRecord,    // chain of later panics of the same task (15.7.4)
 }
 ```

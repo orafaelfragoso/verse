@@ -16,12 +16,13 @@ compiler with a different last stage, so they cannot drift apart semantically.
 ### Tier 0: the bytecode VM
 
 - **Register-based** bytecode (fewer instructions per operation than a stack
-  machine; the Lua 5 and Dalvik experience), with 16-bit register operands and
-  fixed-width 32-bit instruction words where possible.
+  machine; the Lua 5 and Dalvik experience), with fixed-width 32-bit
+  instruction words and 8-bit register operands; a `WIDE` prefix extends
+  them to 16 bits when a slot index is 256 or more.
 - **Input is mono MIR**, so the VM contains no ownership logic, no generics
   and no trait resolution. It executes moves, drops, checked arithmetic and
   calls.
-- **Typed instructions** (`ADD_I64_CHK`, `LOAD_FIELD_8`) so there is no run-time
+- **Typed instructions** (`ADD_CHK`, `FADD`, `LDF8`) so there is no run-time
   type dispatch.
 - **Direct-threaded dispatch** where the host supports computed goto, with a
   `match` fallback. On Rust stable we start with a `match` loop in a hot

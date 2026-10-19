@@ -395,7 +395,7 @@ the same facts are one record (05 §5.4); the message is the same.
 | R0013 | the exit code {n} is outside 0 to 255 | this call | spec §12.5 and §15.1 `exit`, 15 §15.8 |
 | R0014 | `{f}` returned a null pointer, and its signature says `Pointer` | this call | spec §12.6, 07 §7.4 |
 
-**From MIR panic kind to code** (13 §13.2 names the kinds; the operands a kind
+**From MIR panic kind to code** (13 §13.4 names the kinds; the operands a kind
 carries are the facts below, and the debugger and the compiled tiers fill the
 same placeholders from them).
 

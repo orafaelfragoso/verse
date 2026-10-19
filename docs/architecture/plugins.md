@@ -204,7 +204,7 @@ code inside the library. Only the moment the library is attached differs.
 |---|---|---|
 | when | before the first statement runs | at link time |
 | how | the VM opens the shared library (`dlopen`, `LoadLibrary`) and resolves each reachable symbol | the linker links the library, dynamically or statically per `link` |
-| the call | a call stub generated per signature, by `verse-ffi` | a direct C-ABI call |
+| the call | the `CALLF` instruction ([14 §14.4](bytecode-and-vm.md#144-instruction-set-and-encoding)), through a call stub generated per signature by `verse-ffi` | a direct C-ABI call |
 | a missing library or symbol | the program does not start: V1007 or V1008, exit status 2 | the build fails: V1007 or V1008 |
 
 - **Only reached functions count.** Reachability ([06](stdlib-and-shaking.md))

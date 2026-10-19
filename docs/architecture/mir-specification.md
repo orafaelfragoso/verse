@@ -110,9 +110,9 @@ Lexical forms: `_N` local, `bbN` block, `dN` drop flag, `fN` file (`FID`),
 name, `TYNAME` the name of a scalar type, `HEX` a hex digit, `EVENT` a word of
 `events.toml`. `#` starts a comment that the parser ignores and the
 printer never writes.
-`PKIND` is one of `overflow OP TYPE`, `div_zero`, `index_oob`, `slice_oob`,
-`assert`, `expect_none`, `neg_exponent`, `stack_overflow`, `out_of_memory`,
-`foreign_null`; the
+`PKIND` is one of `overflow OP TYPE`, `convert TYPE`, `div_zero`,
+`index_oob`, `slice_oob`, `assert`, `expect_none`, `neg_exponent`,
+`stack_overflow`, `out_of_memory`, `foreign_null`; the
 facts each carries are in [13.4](#134-statements-and-terminators).
 `YKIND` is `send`, `recv`, `wait`, `join`, `sleep`, `lock`, `sys`, `pause`.
 `CASTKIND` is `widen`, `i2f`, `char_int`, `niche`, `narrow`, `f2i`, `int_char`.
