@@ -12,8 +12,8 @@ Every number is a **target** or **assumption**; nothing has been measured.
 1. **Reference semantics** ([ADR-0008](../decisions/0008-tiered-execution.md)).
    Where a compiled tier and the VM disagree, the VM is presumed right until the
    spec says otherwise. It is the oracle of [10 §10.3](testing-and-verification.md#103-differential-testing).
-2. **Script mode.** Running a file (`verse app.vs`), `verse test` and `verse repl` run here. Compile
-   cost is lazy and per function ([14.6](#146-calls-and-lazy-instantiation)).
+2. **Script mode.** Running a file (`verse app.vs`), `verse test` and `verse repl` run here. Bytecode
+   is generated lazily, per function ([14.6](#146-calls-and-lazy-bytecode-generation)).
 3. **Debug target.** Every debug session runs in the VM, live or by replay of a
    recording made by any tier ([08 §8.2](debugging.md#82-architecture)).
 4. **Identical behaviour.** Same output, same panics, same `Cleanup` order,
@@ -152,32 +152,42 @@ All three are explicit MIR control flow; the VM executes it.
 - **Order.** MIR order decides which panic is reported first. No VM or
   optimizer step may reorder two panic sites ([03 §3.4](ir-and-passes.md#34-pass-list), passes 5, 8, 11).
 
-## 14.6 Calls and lazy instantiation
+## 14.6 Calls and lazy bytecode generation
+
+Verification is eager and bytecode generation is lazy
+([ADR-0011](../decisions/0011-verify-before-first-statement.md)).
 
 - **Before the first instruction**, script mode runs the reachability pre-pass
-  of [02 §2.6](compiler-architecture.md#26-monomorphization): no bytecode, no
-  optimizer, cached per module. It yields the reachable instance keys with their
-  `caps` and `mayyield` ([13.6](mir-specification.md#136-generic-mir-and-mono-mir)), and the capability check of
-  [14.9](#149-sys-capability-calls-and-the-capability-check) runs on it.
+  of [02 §2.6](compiler-architecture.md#26-monomorphization). It monomorphizes
+  every reachable instance and verifies it with the mono rules of
+  [13.6](mir-specification.md#136-generic-mir-and-mono-mir). It builds no
+  bytecode, runs no optimizer pass, and caches each verified instance
+  ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)).
+  It yields the verified mono instances with their `caps` and `mayyield`, and the
+  capability check of [14.9](#149-sys-capability-calls-and-the-capability-check)
+  runs on it. A verifier failure stops the run here, before the first
+  statement ([13.5](mir-specification.md#135-verifier-rules)).
 - **Direct calls** use a **function table**: `CALL a f` indexes it. An entry is
   `Unresolved(instance key)`, `Compiled(proto)` or `Compiling`. The first call
-  of an unresolved entry runs the compiler service: generic MIR of the callee
-  (cached), substitute the type arguments (instance key `(DefId, [TypeId])`),
-  verify (V18 and V19 against the pre-pass facts), build the proto, store it in
-  the table entry. Later calls pay one indirection and no check: code is never
-  patched.
-- **Keys are computed at the caller.** While compiling a proto, each call site's
-  callee key is built by substituting the caller's type arguments into the
-  callee's type arguments; trait calls are resolved then. The callee itself is
-  not compiled until it is called. Code generation therefore scales with what
-  runs; only the cheap pre-pass scales with what is reachable (02 §2.6).
+  of an unresolved entry runs the compiler service: it builds the proto from
+  the verified mono MIR of the instance (instance key `(DefId, [TypeId])`) and
+  stores it in the table entry. Later calls pay one indirection and no check:
+  code is never patched.
+- **Keys come from mono MIR.** Every call in mono MIR names an instance (V22),
+  so compiling a proto resolves nothing. The callee itself is not compiled
+  until it is called. Bytecode generation therefore scales with what runs. The
+  pre-pass scales with what is reachable, and its cache keeps that cost to the
+  first run (02 §2.7).
 - **`dyn` calls** go through vtables built when the trait object is first
-  created; each slot is a function-table index, resolved on its first call.
+  created; each slot is a function-table index, compiled on its first call.
 - **Recursion** and mutual recursion work because the entry is `Compiling`
   only while bytecode is generated, not while it runs.
 - **Calling convention** is [14.3](#143-value-representation-and-call-records): window, base, result at the window start. No tail calls (the spec promises none).
-- **Cache.** Protos are cached under `.verse/cache/` keyed by `blake3(source,
-  compiler version, flags, verse.api of imports)` ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation)). The unit is the
+- **Cache.** Protos are cached under `.verse/cache/`. A proto is keyed by the
+  verified-instance key of the instance it is built from
+  ([02 §2.7](compiler-architecture.md#27-incremental-and-parallel-compilation))
+  plus the flags of the bytecode compiler, so a changed body, callee, impl or
+  layout never loads a proto the pre-pass did not verify. The unit is the
   instance, not the module, because generic instances cross modules (04 §4.1 uses
   the same key; instances are grouped per module on disk for storage).
 
@@ -285,13 +295,20 @@ native-code strategies. Observable behaviour is the same as the others.)
 - **Check before run** (the **capability
   check** pass of [02 §2.2](compiler-architecture.md#22-stage-contracts)). Before the first instruction, the VM
   takes `required` (union of `caps(...)` over the instances the pre-pass of
-  [14.6](#146-calls-and-lazy-instantiation) found reachable) and `granted` (what the host target provides
+  [14.6](#146-calls-and-lazy-bytecode-generation) found reachable) and `granted` (what the host target provides
   minus `--deny` flags). If `required` is not a subset, nothing runs; the
   message names the first call chain, in the shape of 04 §4.3: "this program
   calls `http.get`, which this run does not allow" (V09xx). Exit status 2:
   an error before the program starts ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
-- **Run-time re-check.** `CALLS` tests the capability bit of the proto in
-  debug builds only; a failure is a VM bug report (exit status 3), never a user panic.
+  `verse check` runs the same check, with the `[run] deny` list of
+  `verse.toml`; what a passing check promises about a run is the rule of
+  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses).
+- **Debug assertion.** In debug builds of `verse` itself, `CALLS` asserts the
+  capability bit of the proto. The assertion checks the VM's own code, not the
+  program. A failed assertion is a trap inside the runtime that Verse itself
+  caused, so it stops the run with status 3, a bug in Verse
+  ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)).
+  Release builds do not contain it, and it adds no exit status of its own.
 - **Debugger.** `evaluate` runs only expressions the compiler proves pure: no
   `CALLS`, no `SPAWN` ([08 §8.9](debugging.md#89-safety)).
 
@@ -407,7 +424,7 @@ capability fakes:
 | Observable | Detail |
 |------------|--------|
 | standard output and error bytes | including the full panic text of [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics), stack lines too: they come from the user-level call list below |
-| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug, V9901 or V9902, also before it starts); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
+| exit status | 0; 1 (a top-level `?` or an unwaited task failed); 2 (errors in the source, before the program starts); 3 (a compiler bug: V9902 before the program starts, V9901 at the latest at a first call; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule and can report V9902 at a first call); 70 (deadlock); 101 (panic); or the program's own `exit` code ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses)) |
 | panic record | `kind`, facts, span, task, and the **user-level** call list (inlined calls reconstructed from spans, 13.7); which panic comes first; the secondary panics of a failed `Cleanup` (R0009) |
 | order of `Cleanup` and drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |
@@ -434,11 +451,11 @@ document's.
 | Metric | Target | Source |
 |--------|--------|--------|
 | `verse hello.vs`, warm cache, pre-pass included | under 20 ms wall time | 09 |
-| reachability pre-pass, 10,000 reachable functions, cold module cache | under 50 ms; warm: under 5 ms | 14 |
+| reachability pre-pass with monomorphization and verification, 10,000 reachable instances, cold cache | under 150 ms on 8 cores; warm: under 5 ms | 14 |
 | tier 0 on the benchmark suite | within 30x of optimized native, aiming at 10x to 20x | 09 |
 | instructions executed per MIR statement, after fusion | 1.2 or fewer on average | 14 |
 | bytecode size | 8 bytes or fewer per MIR statement on average | 14 |
-| first-call cost: instantiate, verify and compile a 50-statement function | under 100 microseconds | 14 |
+| first-call cost: compile a verified 50-statement instance to bytecode | under 100 microseconds | 14 |
 | VM `spawn` plus `wait` of an empty task | under 1 microsecond | 14 (09's 300 ns is for native) |
 | memory per idle VM task | under 1.25 KiB, so 1 million tasks fit in about 1.3 GB, inside 09's 2 GB budget | 14 |
 | recording overhead of a compiled program, compute bound | under 5% | 14 |

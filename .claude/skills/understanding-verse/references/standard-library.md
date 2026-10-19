@@ -106,8 +106,9 @@ an excluded section. `verse why <item>` prints the full chain
 ([06 §6.6](../../../../docs/architecture/stdlib-and-shaking.md#66-verse-build---size-report)).
 
 **Script mode.** The front end checks every imported module before running.
-Instantiation and bytecode generation are lazy. Capabilities are still checked
-before start, so script and compiled modes fail the same way
+Every reachable instance is monomorphized and verified before start; bytecode
+generation is lazy. Capabilities are still checked before start, so script and
+compiled modes fail the same way
 ([06 §6.7](../../../../docs/architecture/stdlib-and-shaking.md#67-dynamic-cases)).
 
 **Caching.** Per-instance edge lists and shaking results are keyed by blake3.

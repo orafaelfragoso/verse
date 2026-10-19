@@ -262,7 +262,7 @@ print("Hello, {args.first() otherwise "world"}!")
   | `0` | normal completion |
   | `1` | a top-level `?` failed (the error message is printed to standard error), or an unwaited task failed (§11.3) |
   | `2` | the compiler found errors in the source, or a capability check failed, so the program did not start (when running a file as in `verse build`) |
-  | `3` | a bug in Verse, not in the program: a compiler bug found before the program started (when running a file as in `verse build`), or a trap inside the runtime that Verse itself caused |
+  | `3` | a bug in Verse, not in the program: a compiler bug, or a trap inside the runtime that Verse itself caused ([16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses) says when each can happen after a passing `verse check`) |
   | `70` | a deadlock: every task is waiting and none can continue |
   | `101` | a panic (§8.5) |
 

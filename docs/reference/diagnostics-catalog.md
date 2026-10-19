@@ -445,8 +445,8 @@ These are the others, so a script can tell the causes apart.
 |--------|---------|
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
-| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1) |
-| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
+| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1), and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused. A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule |
 | 70 | a deadlock (R0008) |
 | 101 | a panic (16.6) |
 
@@ -454,3 +454,20 @@ A `V99xx` message always ends with "this is a bug in Verse, not in your program"
 and the `explain:` line (16.4), so the cause is clear even when the status is
 all a script sees. An `exit(code)` that the program calls itself is never
 changed.
+
+**A checked file starts.** `verse check` makes every check that running a file
+makes before its first statement, with the `[run] deny` list of `verse.toml`,
+except loading plugin libraries
+([19 §19.2.3](cli-and-manifest.md#1923-building-and-checking)).
+After `verse check` exits 0 on a file, running that file with the same
+sources, `verse.toml`, `verse.lock`, compiler and target never stops with
+V9902, and never exits 2 except for a capability refused by a `--deny` flag
+of that run, or a plugin library that is missing, fails to build, lacks a
+symbol or is static only (V1007 to V1009, V1011).
+Verification after an optimizer pass, which runs only in debug builds of
+`verse` and in CI, is outside this rule. An instance is optimized at its first
+call, so a failure there is V9902 at a first call
+([13 §13.5](../architecture/mir-specification.md#135-verifier-rules)).
+After a passing check, status 3 means a bug in code generation (V9901 from a backend), a trap inside the runtime,
+or, in debug builds of `verse` and in CI, V9902 from verification after an optimizer pass
+([ADR-0011](../decisions/0011-verify-before-first-statement.md)).

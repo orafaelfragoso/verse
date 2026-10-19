@@ -30,8 +30,11 @@ in the front end ever sees a target triple.
 ## 2.2 Stage contracts
 
 Each stage has an input invariant it may rely on and an output invariant it
-must establish. A violated invariant is a compiler bug and is caught by a
-verifier pass that runs in debug builds and in CI (`verse-verify`).
+must establish. A violated invariant is a compiler bug and is caught by the
+MIR verifier (`verse-verify`). After MIR build and after monomorphization it
+runs in every build of `verse`: in `build`, when running a file and in
+`verse check`. After every optimizer pass it runs only in debug builds of
+`verse` and in CI ([13 §13.5](mir-specification.md#135-verifier-rules)).
 
 | Stage | Input invariant | Output invariant | Errors it owns |
 |-------|-----------------|------------------|----------------|
@@ -147,17 +150,24 @@ Spec §4.2 requires "specialized code for each concrete type used".
   merged by the linker (identical code folding). A trait name used as a type
   (spec §10.3) is the user-visible escape hatch for compile-time-sensitive
   code: it is one shared body instead of one copy per type.
-- **Script mode** instantiates **code** lazily at first call, so bytecode
-  generation and optimization scale with what runs. Before tier 0
-  starts, running a file performs a cheap whole-program **reachability pre-pass**
-  from the entry statements: it walks the generic MIR with type arguments
-  substituted (resolving trait calls and vtable slots), builds no bytecode and
-  runs no optimizer pass, and caches its result per module. The **capability
-  check** runs right after it, exactly as it runs after full reachability in a
-  compiled build, so a missing or denied capability fails with the same V09xx
-  diagnostic in every tier before the first instruction. Only the cost of the
-  pre-pass scales with what is reachable; instances are still compiled lazily
-  ([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-instantiation)).
+- **Script mode** verifies eagerly and generates **bytecode** lazily at first
+  call, so bytecode generation and optimization scale with what runs
+  ([ADR-0011](../decisions/0011-verify-before-first-statement.md)). Before
+  tier 0 starts, running a file performs a whole-program **reachability
+  pre-pass** from the entry statements. It monomorphizes every reachable
+  instance (resolving trait calls and vtable slots) and verifies each one with
+  the mono rules of [13 §13.6](mir-specification.md#136-generic-mir-and-mono-mir).
+  It builds no bytecode, runs no optimizer pass, and caches each verified
+  instance (2.7). A verifier failure (V9902) stops the run there, before the
+  first statement. The **capability check** runs right after it, exactly as it
+  runs after full reachability in a compiled build, so a missing or denied
+  capability fails with the same V09xx diagnostic in every tier before the
+  first instruction. `verse check` runs the same pre-pass and the same check,
+  with the `[run] deny` list of `verse.toml`. What a passing check promises
+  about a run is the rule of
+  [16 §16.6.1](../reference/diagnostics-catalog.md#1661-exit-statuses). Only
+  the pre-pass scales with what is reachable; protos are still built lazily
+  ([14 §14.6](bytecode-and-vm.md#146-calls-and-lazy-bytecode-generation)).
 
 ## 2.7 Incremental and parallel compilation
 
@@ -165,11 +175,25 @@ Spec §4.2 requires "specialized code for each concrete type used".
   query keyed by content hash (the Salsa model used by rust-analyzer). Edits
   invalidate only dependent queries.
 - **Unit of parallelism** is the function body for inference, ownership and MIR
-  build; the module for parsing and resolution; the instance for optimization
-  and code generation.
+  build; the module for parsing and resolution; the instance for
+  monomorphization, verification, optimization and code generation.
 - **Persistent cache.** `.verse/cache/` stores parsed modules, signatures and
   object code keyed by `blake3(source, compiler version, flags, verse.api of
-  imports)`. `verse x.vs` on an unchanged script skips straight to execution.
+  imports)`. It stores each verified instance of the script-mode pre-pass
+  (2.6) under its own **verified-instance key**, which is transitive. The key hashes
+  the compiler version, flags, target, the generic MIR of the instance's
+  DefId and its type arguments, together with the keys of the instances it
+  calls (drop glue included), the impl each of its `<T as Trait>::m` calls
+  resolves to, and the layout of every type it uses. A change below an
+  instance therefore changes its key: a callee that gains a capability or a
+  `yield`, an impl that changes, or a type whose layout changes. This matters
+  because V18 and V19 read the `mayyield` and `caps` of callees
+  ([13 §13.5](mir-specification.md#135-verifier-rules)). Instances that call
+  each other in a cycle share one key, hashed over the whole cycle. An
+  instance of an imported generic takes its body from the dependency, whose
+  `verse.api` stays the same when only that body changes, so the module key
+  would return a stale instance. `verse x.vs` on an unchanged script skips
+  straight to execution.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.

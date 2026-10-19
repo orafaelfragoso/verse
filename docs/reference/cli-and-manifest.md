@@ -49,7 +49,7 @@ extend that table.
 | `verse debug [app.vs] [--port n]` | the debug adapter: serves the Debug Adapter Protocol on standard input and output, or on a local port ([08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) | sources, recordings | — | no |
 | `verse test [path]` | runs `test` blocks and doc tests (spec §14); `--filter "name"` selects tests, `--watch` reruns on change. At a workspace root it runs every member's tests, and `-p name` selects one ([21 §21.12](../architecture/packages.md#2112-workspaces)). The tests of dependencies run only with `--deps` ([21 §21.13](../architecture/packages.md#2113-supply-chain-security)) | sources, toml, lock | - | only if resolving |
 | `verse fmt [path]` | formats code in the one canonical style (spec §16.1); `--check` changes nothing and fails on unformatted code (for CI) | sources | sources | no |
-| `verse check` | type-checks without running (§19.2.3) | sources, toml, lock | - | only if resolving |
+| `verse check` | checks without running: every check a run makes before its first statement, except loading plugins (§19.2.3) | sources, toml, lock | - | only if resolving |
 | `verse build [file.vs]` | builds the package, or one file, for the selected profile and target: an executable, a WebAssembly module or a bytecode bundle (§19.2.3) | sources, toml, lock | build output | only if resolving |
 | `verse doc` | generates an HTML site from doc comments (spec §14.3) | sources | HTML | no |
 | `verse repl` | an interactive prompt; it runs in tier 0 ([14 §14.1](../architecture/bytecode-and-vm.md#141-role)) | - | - | no |
@@ -131,8 +131,8 @@ apart. The table is the one of
 |--------|---------|
 | 0 | normal completion |
 | 1 | a top-level `?` failed, or an unwaited task failed (spec §12.5) |
-| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1) |
-| 3 | a bug in Verse: a compiler bug (V9901 or V9902) found before the program started, when running a file as in `build`, or a trap inside the runtime that Verse itself caused. A run-time capability re-check that fails is also 3, because the build-time check should have caught it |
+| 2 | `verse check` or `build`, or running a file, found errors in the source, or the command line names no command (V1101), so the program did not start. This includes a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check (15 §15.8.1), and a plugin library that is missing, fails to build, lacks a symbol or is static only (V1007 to V1009, V1011), found before the first statement |
+| 3 | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused. A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule |
 | 70 | a deadlock (R0008) |
 | 101 | a panic |
 | *code* | the program called `exit(code)`; `code` is 0 to 255, it runs no `Cleanup`, and it is never changed (spec §12.5) |
@@ -143,6 +143,17 @@ lock under `--locked`, a failed resolution) is not covered by the spec or by
 (Assumption).
 
 ### 19.2.3 Building and checking
+
+`verse check` makes every check that running the file makes before its first
+statement: the front end, the ownership pass, monomorphization and
+verification of every reachable instance, and the capability check against
+the manifest, the target and the `[run] deny` list of `verse.toml`
+([02 §2.6](../architecture/compiler-architecture.md#26-monomorphization)). It
+generates no code and does not load plugin libraries
+([07 §7.6](../architecture/plugins.md#76-loading-in-script-mode-and-compiled-mode)).
+Of the capability inputs, only the `--deny` flag of a run is run-only. What a
+passing check promises about a run is the rule of
+[16 §16.6.1](diagnostics-catalog.md#1661-exit-statuses).
 
 `verse check` takes `--target <name>`: it checks that everything the program
 can reach is available on that target, without generating code
@@ -380,7 +391,7 @@ is part of every cache key (21 §21.10).
 
 Defaults for command-line flags, so CI and people run the same thing.
 Command-line flags win. `[run]` applies when a file or the package runs
-(§19.2.1).
+(§19.2.1). `verse check` also applies `[run] deny` (§19.2.3).
 
 | Section | Key | Type | Default |
 |---------|-----|------|---------|
