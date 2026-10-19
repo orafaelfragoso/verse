@@ -56,7 +56,7 @@ were rejected ([ADR-0005](../../../../docs/decisions/0005-native-c-abi-plugins.m
 
 **A call is a normal call.** `extern` functions are module items, imported and
 exported like any other. A C name that is not a Verse value name is renamed
-with `as`. There is no `unsafe` marker and no `with` block
+with `as`. There is no `unsafe` marker and no special block
 ([07 §7.3](../../../../docs/architecture/plugins.md#73-extern-blocks)).
 
 **Type mapping.** Only sized numbers, `Int`, `Float`, `Bool`, `Char`,
@@ -67,8 +67,8 @@ value ([07 §7.4](../../../../docs/architecture/plugins.md#74-values-across-the-
 
 **Ownership.** A plain parameter is borrowed for the call. A `mut` parameter
 is an exclusive borrow. A result is owned by the caller, and Verse never frees
-what a `Pointer` points to. The usual wrapper is a record that holds the
-`Pointer` and implements `Cleanup`
+what a `Pointer` points to. A drop never calls foreign code, so the usual
+wrapper is a record that holds the `Pointer` and offers a named close method
 ([07 §7.5](../../../../docs/architecture/plugins.md#75-ownership-and-lifetime)).
 
 **In MIR** a foreign call is `call foreign plugin.symbol(...)` with

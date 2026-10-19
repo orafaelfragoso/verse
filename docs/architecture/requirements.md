@@ -36,8 +36,9 @@ refer to the specification.
 6. **Inference never crosses a module boundary** and exported signatures are
    pinned in `verse.api` (§4.2, §12.3, §16.4). This makes per-module,
    parallel and incremental compilation natural.
-7. **`Cleanup` runs on panic and on cancellation** (§8.5, §11.5, §13). The
-   middle end needs explicit unwind edges.
+7. **Owners are dropped on panic and on cancellation**, which releases the
+   files, locks and other runtime-owned handles they hold (§8.5, §11.5, §13).
+   The middle end needs explicit unwind edges.
 8. **Lightweight tasks, no `async`/`await`, no function coloring, tasks run
    across all cores** (§11.1). Blocking calls must yield to a scheduler
    without changing the function's type.

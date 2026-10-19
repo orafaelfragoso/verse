@@ -135,7 +135,7 @@ apart. The table is the one of
 | 3 | a bug in Verse: a compiler bug (V9901 or V9902), or a trap inside the runtime that Verse itself caused. A verifier failure (V9902) is found before the program starts, in `build`, in `verse check` and when running a file; verification after an optimizer pass, which runs only in debug builds of `verse` and in CI, is outside this rule |
 | 70 | a deadlock (R0008) |
 | 101 | a panic |
-| *code* | the program called `exit(code)`; `code` is 0 to 255, it runs no `Cleanup`, and it is never changed (spec §12.5) |
+| *code* | the program called `exit(code)`; `code` is 0 to 255, it drops nothing, and it is never changed (spec §12.5) |
 
 A build verifier failure is status 3, not 1. A package-manager error (a stale
 lock under `--locked`, a failed resolution) is not covered by the spec or by
@@ -379,7 +379,7 @@ The hash of the resolved target file is part of every cache key (21 §21.10).
 | `backend` | `auto` \| `bytecode` \| `cranelift` \| `llvm` | `cranelift` | `llvm` | `cranelift` | tier ([04](../architecture/backends-and-targets.md)); `auto` lets the target file decide |
 | `opt` | `0`–`3`, `"size"` | `0` | `3` | `1` | optimizer level (03 §3.4) |
 | `debug` | bool | `true` | `false` | `true` | Verse debug map and DWARF ([08](../architecture/debugging.md)); with `false` the build keeps the trace map, so a panic still prints its stack ([15 §15.7.1](../architecture/target-and-abi.md#1571-the-panic-record-and-the-unwind-state)) |
-| `unwind` | `target` \| `abort` | `target` | `target` | `target` | `abort` only when no `Cleanup` value is live at any panic site; otherwise the build fails |
+| `unwind` | `target` \| `abort` | `target` | `target` | `target` | `abort` only when no platform handle, such as a file, is live at any panic site; otherwise the build fails (V0908) |
 | `size_report` | bool | `false` | `false` | `false` | as `--size-report` |
 
 There is deliberately no key that turns off overflow or bounds checks: they

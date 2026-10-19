@@ -57,7 +57,7 @@ term      = tbody , ";" , dbg , "@" , span , NL ;
 dbg       = [ EVENT ] , [ name ] , [ "->" , name ] ;      (* never empty, V20 *)
 name      = STRING | "<" , IDENT , ">" ;   (* "x" is a user name, <mul> is internal *)
 sbody     = place , "=" , rvalue
-          | "drop" , place , [ "flag" , FLAG ]        (* statement form: type has no `cleanup` *)
+          | "drop" , place , [ "flag" , FLAG ]
           | "set_flag" , FLAG , "=" , BOOL
           | "set_discriminant" , place , "," , INT
           | "storage_live" , local | "storage_dead" , local
@@ -84,7 +84,6 @@ tbody     = "goto" , BB
           | "switch" , operand , "[" , [ case , { "," , case } ] , "]" , "otherwise" , BB
           | "return" , [ "propagated" ] | "unreachable" | "resume_unwind"
           | "panic" , PKIND , "{" , [ fact , { "," , fact } ] , "}" , unwind
-          | "drop" , place , [ "flag" , FLAG ] , "," , "next" , BB , "," , unwind
           | "call" , callee , "(" , [ operands ] , ")" , "->" , place , "," , "next" , BB , "," , unwind
           | "spawn" , callee , "(" , [ operands ] , ")" , "->" , place , "," , "next" , BB , "," , unwind
           | "yield" , YKIND , "(" , [ operands ] , ")" , "->" , place , "," , "resume" , BB , "," , unwind ;
@@ -165,7 +164,7 @@ Facts a pass may query. "Unknown" means the pass must be conservative.
 |------|-------------|----------|---------|
 | `copy` (implicit bitwise copy, spec §4.9) | only from a `Copy` bound; else false | exact | V1, `move-elim`, `copy-elide` |
 | `needs_drop` | unknown (true) | exact | `drop-opt`, V6 |
-| `cleanup` (drop glue runs user code) | from a `Cleanup` bound | exact | task-lower, 14 |
+| `cleanup` (drop glue releases a runtime-owned handle: a platform handle such as a file or a socket, a lock, a channel end, a `Shared`, `Guarded` or `Weak` count, a `Task` part; spec §13.4) | unknown (true) | exact | `drop-opt`; the `abort` check (V0908) uses only the platform handles |
 | `size`, `align`, field offsets, tag kind | absent | present, per target ([03 §3.5](ir-and-passes.md#35-layout-rules)) | backends, `layout` pass |
 | `mayyield` | from callees, conservative for trait calls | exact | `task-lower` |
 | `recursive` (the function is on a cycle of the call graph of the instances monomorphization creates. A direct call has an edge to its callee. A call through a function value has an edge to every reachable instance whose function value is created with the signature of the called value's type. A call through a `dyn` slot has an edge to the method of that slot in every reachable impl of its trait. AOT monomorphization and the script-mode pre-pass use this one rule) | absent | exact, computed before the optimizer and never changed by it | the call limit ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)), `inline` |
@@ -196,7 +195,7 @@ explicit `.copy()` of spec §4.3 is an ordinary `call`.
 | `p = len(q)`, `discriminant(q)` | place | read-only queries, `Int` result | V4 V13 |
 | `p = cast k op as T` | operand | casts that cannot fail: `widen` (to a wider sized integer), `i2f` (nearest, ties to even), `char_int`, `niche` (inserted by `layout`). Never changes ownership | V1 |
 | `p = checked_cast k op as T` | operand | casts that can fail: `narrow` (to a narrower integer), `f2i` (truncates toward zero; NaN or out of range fails), `int_char` (not a Unicode scalar value fails). Result `(T, Bool)` as `checked_*`; the failure is `panic convert T` (R0012), not an overflow. `to_int` of a NaN or a huge `Float` takes this path | V10 |
-| `drop p [flag d]` | place | **statement form**, only when the `cleanup` fact of the type is false: if the flag is false skip; else drop the parts ([order](#drop-order)) and free. Cannot unwind or yield | V5 V6 V15 |
+| `drop p [flag d]` | place | if the flag is false skip; else run the drop glue of the type: release the runtime-owned handle when the `cleanup` fact is true, drop the parts ([order](#drop-order)) and free. Glue runs no user code, so a drop cannot unwind or yield (spec §13.4) | V5 V6 V15 |
 | `set_flag d = b` | constant | drop-flag write | V5 |
 | `set_discriminant p, k` | place, case | in-place case change; only emitted by `layout` and SROA | V13 |
 | `storage_live l`, `storage_dead l` | local | scope markers; `storage_dead` of a borrowed source ends it | V9 |
@@ -213,10 +212,9 @@ unwind).
 | `switch op [c -> bb, ...] otherwise bb` | scalar, `Bool`, flag or discriminant | multi-way branch; `otherwise` is mandatory; a case is a literal | V2 V10 V11 V12 V13 |
 | `return [propagated]` | none | return `_0`; `propagated` marks a `?` exit (event `propagated`) | V2 V6 |
 | `panic KIND {facts} unwind u` | kind and facts ([table](#panic-kinds)) | stop the task, record a panic, start unwinding | V10 V14 V24 |
-| `drop p [flag d], next bb, unwind u` | place | **terminator form**, when the `cleanup` fact is true or unknown (always, for a value of type `T` in generic MIR): if the flag is false go to `next`; else call `cleanup` (it may block and may panic), drop the parts, free, go to `next`. `u` cleans up the *other* locals; the parts of `p` are still dropped by the glue. Cancellation is masked while it runs; a task blocked in it counts as blocked for deadlock detection | V5 V6 V14 V15 V18 |
 | `call f(ops) -> p, next bb, unwind u` | callee, operands | call, store result, continue; borrow operands end at the call | V1 V7 V8 V14 V19 V23 |
 | `spawn f(ops) -> p, next bb, unwind u` | callee, owned operands | evaluate arguments, move them into a new task, store `Task<T>`; the task starts after the move (spec §11.1) | V16 V17 |
-| `yield send/recv/wait/join/sleep/lock/sys/pause(ops) -> p, resume bb, unwind u` | operands | a point where the scheduler may switch tasks; may block; **cancellation is delivered here** (not in a `cleanup` block) and takes the unwind edge | V14 V16 V17 V18 V19 |
+| `yield send/recv/wait/join/sleep/lock/sys/pause(ops) -> p, resume bb, unwind u` | operands | a point where the scheduler may switch tasks; may block; **cancellation is delivered here**, and only here, and takes the unwind edge; a `cleanup` block has no `yield` (V15) | V14 V16 V17 V18 V19 |
 | `unreachable` | none | the verifier or optimizer proved it cannot run; backends trap | V2 |
 | `resume_unwind` | none | last terminator of a cleanup chain: continue unwinding into the caller | V15 |
 
@@ -255,19 +253,19 @@ reported and makes the exit non-zero). A child that fails with its own panic or
 error while unwinding is still reported on standard error and counts for the
 exit status.
 
-<a id="drop-order"></a>**Which `drop` form and in which order.** The form
-follows the `cleanup` fact: terminator when it is true or unknown, statement
-when it is false. Generic MIR therefore uses the terminator for every
-`needs_drop` value of type `T`. Monomorphization keeps the form (it never
-changes block structure); `drop-opt` then rewrites the terminator of a
-cleanup-free type to the statement form, or deletes it, and `simplify-cfg`
-merges the blocks. Locals drop in reverse declaration order (V14). The parts of
-one value drop in declaration order for record fields, tuple elements and enum
-payload fields, index order for list elements, and insertion order for map and
-set entries (spec §4.10 is silent). Locals drop in reverse
-because a later local may borrow an earlier one; the fields of one value cannot
-borrow each other, so declaration order is safe and plain. A `Cleanup` type runs
-its `cleanup` first and then drops its parts.
+<a id="drop-order"></a>**Where and in which order drops run.** MIR build
+places the `drop` of a local right after its last use on each path (spec
+§13.1, [ADR-0013](../decisions/0013-drop-glue-runs-no-user-code.md)), from the liveness of the ownership pass
+([02 §2.4](compiler-architecture.md#24-the-ownership-pass)). Locals whose last
+use is the same point drop in reverse declaration order, and so do the drops of
+a cleanup block (V14). The parts of one value drop in declaration order for
+record fields, tuple elements and enum payload fields, index order for list
+elements, and insertion order for map and set entries (spec §4.10). Locals
+drop in reverse because a later local may borrow an earlier one; the fields of
+one value cannot borrow each other, so declaration order is safe and plain. A
+type with the `cleanup` fact releases its own handle first and then drops its
+parts. `drop-opt` deletes a drop of a type with no glue and never moves a drop
+of a type with the `cleanup` fact.
 
 <a id="panic-kinds"></a>**Panic kinds.** The kind words and the facts come from
 [16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics); the fact names below are the placeholder names
@@ -289,8 +287,7 @@ without owning anything.
 | `out_of_memory` | R0007 | none in MIR; the runtime supplies `size` |
 | `foreign_null` | R0014 | `f`: text, the Verse name of the `extern` function that returned null where its signature says `Pointer` |
 
-R0008 (deadlock) and R0009 (a `Cleanup` panicked during unwinding) are not MIR
-kinds: the runtime raises them. For an `assert`, the `switch` on the
+R0008 (deadlock) is not a MIR kind: the runtime raises it. For an `assert`, the `switch` on the
 condition carries the `asserted` event and its failure edge is `panic assert`.
 
 **Statement to debug event** (vocabulary of
@@ -304,8 +301,8 @@ condition carries the `asserted` event and its failure edge is `panic assert`.
 | `move` of a user local | `moved` (`to` is the `->` name) | `moved` |
 | `copy` of a user local | `copied` | unchanged |
 | `ref q` into a call | `borrowed` (`by` is the callee, written `-> "callee"`) | `borrowed` for the call |
-| `ref mut q` into a call, or the guard value of `with g.lock() as mut value` | none (the line carries the name only); state is shown as `exclusive` while it lasts | `exclusive` |
-| `drop p`, either form | `dropped`; if the glue runs `cleanup`, `cleaned_up` comes first | `dropped` |
+| `ref mut q` into a call | none (the line carries the name only); state is shown as `exclusive` while it lasts | `exclusive` |
+| `drop p` | `dropped`; when the glue releases a runtime-owned handle (the `cleanup` fact), `cleaned_up` comes first | `dropped` |
 | `switch` on an `assert` condition | `asserted` (`passed` is the edge taken) | |
 | `call` / `return` | `called` / `returned`; `return propagated` gives `propagated` | |
 | `panic overflow ...` / other panics | `overflowed` / `panicked` | |
@@ -345,21 +342,21 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V1 | Operand and place types match the rvalue, call signature and destination; `copy` only of a `Copy` type; the fact types of a `panic` are those of its kind (V24) | type safety, no implicit duplicate of an owner | `_2 = copy _1` with `_1: Text` |
 | V2 | `bb0` is the entry; each block has one terminator; targets exist; normal edges never enter `cleanup` blocks; `switch` cases are distinct and its `otherwise` is present; `_0` is initialised on every path to `return` | well-formed CFG | `goto bb9` with no `bb9` |
 | V3 | A `temps` local is assigned once and the assignment dominates every use | SSA-like temporaries, optimizer assumptions | `_5 = Int(1)` in two blocks that both reach a use of `_5` |
-| V4 | Path-sensitive initialisation: a place is read, moved or borrowed only when definitely initialised; `move` makes it uninitialised; moving all fields of an aggregate uninitialises it; a field of a `Cleanup` type is never moved out | no use after move, no partial move of a type whose `cleanup` needs the whole value | `_2 = move _1` then `_3 = copy _1` |
-| V5 | `drop p` (either form) needs `p` initialised, or maybe-initialised with a drop flag; flags are written on every path that changes the state; a drop of a definitely-uninitialised place is rejected; the statement form is only for a type whose `cleanup` fact is false; a store into a place that is maybe-initialised and has `needs_drop` is rejected, so reassigning a live owner is: new value into a temporary, `drop p` under its flag, then the store (spec §4.9; Example 5) | no double drop, no drop of moved value, no leak on reassignment, `Cleanup` always reachable through a terminator | `drop _1` after `_2 = move _1` and no flag; `_1 = move _2` while `_1: Text` is owned |
+| V4 | Path-sensitive initialisation: a place is read, moved or borrowed only when definitely initialised; `move` makes it uninitialised; moving all fields of an aggregate uninitialises it | no use after move | `_2 = move _1` then `_3 = copy _1` |
+| V5 | `drop p` needs `p` initialised, or maybe-initialised with a drop flag; flags are written on every path that changes the state; a drop of a definitely-uninitialised place is rejected; a store into a place that is maybe-initialised and has `needs_drop` is rejected, so reassigning a live owner is: new value into a temporary, `drop p` under its flag, then the store (spec §4.9; Example 5) | no double drop, no drop of moved value, no leak on reassignment | `drop _1` after `_2 = move _1` and no flag; `_1 = move _2` while `_1: Text` is owned |
 | V6 | At `return` and at `resume_unwind`, every local with `needs_drop` is uninitialised (moved or dropped), except `_0`, and except an enum whose case, selected by a dominating `switch`, has no `needs_drop` payload | no leak, deterministic frees | `return` with `_1: Text` still owned |
-| V7 | Borrow values (`&T`, `&mut T`) appear only as call or `yield` operands, as the source of a store into a local of borrow type (a temporary, or a `view` or `exclusive` binding), and as parameters; never in `aggregate` (except as an operand of `aggregate closure_ref`), in a store to a field, element or `_0`, in `spawn`, in `yield send`, or captured by `closure`. The result of `aggregate closure_ref` is a borrow value and follows the same rule: a non-escaping closure may be passed as an argument but is never stored, returned, spawned or captured by an escaping closure | second-class borrows (spec §5.3, §5.4) | `_0 = aggregate tuple(move _2)` with `_2: &Text` |
+| V7 | Borrow values (`&T`, `&mut T`) appear only as call or `yield` operands, as the source of a store into a local of borrow type (a temporary, or a `view` binding), and as parameters; never in `aggregate` (except as an operand of `aggregate closure_ref`), in a store to a field, element or `_0`, in `spawn`, in `yield send`, or captured by `closure`. The result of `aggregate closure_ref` is a borrow value and follows the same rule: a non-escaping closure may be passed as an argument but is never stored, returned, spawned or captured by an escaping closure | second-class borrows (spec §5.3, §5.4) | `_0 = aggregate tuple(move _2)` with `_2: &Text` |
 | V8 | An exclusive borrow of `p` conflicts with any other access to `p` or an overlapping place (prefix or extension) while it is live; it starts after every other operand of its call has been evaluated; no operand pair of one call may include `ref mut p` and any use of `p` | exclusive access, args first then borrow (§5.3) | `call merge(move _3, copy _1)` with `_3 = ref mut _1` |
 | V9 | While a borrow is live its source is not moved, dropped, reassigned (shared borrow) or `storage_dead`; a borrow's live range ends at its last use | no dangling pointer, views stay valid | `_2 = ref _1` ... `drop _1` ... `call f(move _2)` |
 | V10 | The `.1` flag of every `checked_*` and `checked_cast` result is tested by a `switch` before `.0` is read, and the failure edge reaches `panic overflow OP TYPE` (for `checked_*`, with the operands of the operation as facts) or `panic convert T` (for `checked_cast`, with `a`) | one overflow policy for all tiers (03 invariant 6) | `_5 = checked_add(...)` then `copy _5.0` with no `switch` |
 | V11 | `checked_div` and `checked_rem` need a dominating fact that the divisor is not zero: a constant, or the false edge of a `switch` on `eq(d, 0)`. `checked_pow` needs the same for the exponent: a constant that is not negative, or the true edge of `ge(e, Int(0))` whose other edge reaches `panic neg_exponent {n: e}` | division and power panics are explicit data | `checked_div(copy _1, copy _2)` with no zero test |
 | V12 | `p[i]` (on a `List<T>`, `Bytes` or `Slice<T>`) needs a dominating fact `ult(i, len(p))` on the true edge, or both `ge(i, Int(0))` and `lt(i, len(p))`; a signed `lt` alone does not qualify. The other edge reaches `panic index_oob {i, n: len(p), ...}`, or user code that decides what to do | bounds checks are explicit data and a negative index cannot pass | `copy _1[_2]` straight after a call that grew `_1`; `lt(_2, len(_1))` alone |
 | V13 | `(p as #k)` is read or moved only on a path where a `switch` on `discriminant p` selected case `k`; moving it uninitialises all of `p` | enum payload safety | `move (_4 as #1)` in the block for case 0 |
-| V14 | Every `call`, `spawn`, `yield`, `panic` and terminator `drop` that can unwind names `unwind bbN` whenever any local with `needs_drop` (other than the place being dropped) is maybe-initialised there, and `bbN` drops exactly those locals in reverse declaration order (honouring flags) before `resume_unwind`; otherwise it names `continue`. In a cleanup block the edge is `none` | `Cleanup` runs on panic and cancellation, in the specified order (spec §8.5, §11.5) | a `call` with `_2` owned and `unwind continue` |
-| V15 | A `cleanup` block is reached only by `unwind` edges and by the `next` or `goto`/`switch` edges of other cleanup blocks; together they form an acyclic region. A block of it contains `drop` (either form, `unwind none`), `set_flag`, `storage_dead`, `intrinsic`, `call` and `yield` with `unwind none`, `goto`, and `switch` on a flag; no `spawn`, `panic` or `return`; every path ends in `resume_unwind`. A panic or a cancel request inside it does not start a second unwinding: the runtime handles it | unwinding always terminates; `Cleanup` may block (a flush) but runs to completion | a `spawn` inside `cleanup bb7` |
+| V14 | Every `call`, `spawn`, `yield` and `panic` that can unwind names `unwind bbN` whenever any local with `needs_drop` is maybe-initialised there, and `bbN` drops exactly those locals in reverse declaration order (honouring flags) before `resume_unwind`; otherwise it names `continue` | owners are dropped on panic and cancellation, in the specified order (spec §8.5, §11.5) | a `call` with `_2` owned and `unwind continue` |
+| V15 | A `cleanup` block is reached only by `unwind` edges and by the `goto`/`switch` edges of other cleanup blocks; together they form an acyclic region. A block of it contains `drop`, `set_flag`, `storage_dead`, `intrinsic`, `goto`, and `switch` on a flag; no `call`, `yield`, `spawn`, `panic` or `return`; every path ends in `resume_unwind`. Nothing in it can panic or pause | unwinding always terminates, never starts a second unwinding and has no switch point, so a cancel request cannot arrive during it (spec §11.5) | a `spawn` or a `yield` inside `cleanup bb7` |
 | V16 | `spawn` operands and the value of `yield send` are `move` of an owned value or `copy` of a `Copy` value; no borrow, no `mut` | tasks own their arguments (spec §11.1) | `spawn f(move _3)` with `_3 = ref mut _1` |
-| V17 | A `Task<T>` local is never the operand of `drop`; on every path it is consumed by `yield wait`, `yield join` (whose unwind edges hand the child to the runtime) or `intrinsic task.abandon` in a cleanup block. A `Task` inside another value (a list, a record, a tuple, an enum payload) is dropped with that value: a type that contains a `Task` has the `cleanup` fact, and its drop is a terminator `drop` whose glue **cancels and then joins** each `Task` part that was not waited, so the drop may yield (V18) | structured lifetimes (spec §11.3) | `drop _3` with `_3: Task<Int>` |
-| V18 | `yield` may appear in normal and `cleanup` blocks. A function containing a `yield`, a call to a `mayyield` function, or a terminator `drop` of a type whose `cleanup` may yield carries `mayyield`; in generic MIR a terminator `drop` of an unknown type counts as `mayyield` | `task-lower` finds every switch point, including a blocking `Cleanup` | `yield recv(...)` in a function without `mayyield` |
+| V17 | A `Task<T>` local is never the operand of `drop`; on every path it is consumed by `yield wait`, `yield join` (whose unwind edges hand the child to the runtime) or `intrinsic task.abandon` in a cleanup block. A `Task` inside another value (a list, a record, a tuple, an enum payload) is dropped with that value: a type that contains a `Task` has the `cleanup` fact, and its glue **cancels** each `Task` part that was not waited and hands its join to the runtime, as `task.abandon` does, so the drop does not yield (spec §11.3) | structured lifetimes (spec §11.3) | `drop _3` with `_3: Task<Int>` |
+| V18 | `yield` appears only in normal blocks (V15). A function containing a `yield` or a call to a `mayyield` function carries `mayyield` | `task-lower` finds every switch point | `yield recv(...)` in a function without `mayyield` |
 | V19 | A `sys cap.op` callee names a capability in the function's `caps(...)`, and `caps` of a function include those of its callees | exact capability check before run | `call sys net.connect(...)` with `caps(fs)` |
 | V20 | Every statement and terminator has a span inside a known file and a non-empty `dbg`; every `binding` and `param` has a name and a mode word; event words exist in `events.toml` | debugger and diagnostics speak the same words | a `drop` line with no `;` clause |
 | V21 | Generic only: an operation on a value of type `T` must be licensed by a bound of the function: trait calls need the trait bound, `copy` of `T` needs `Copy`, field projection needs `has.field` | generics are checked once, at the definition (spec §10.6) | `_2 = copy _1` with `_1: T` and bound `Copyable` |
@@ -374,7 +371,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | Header | `mir generic rev N` | `mir mono rev N` |
 | Types | may contain `T`; unannotated parameters carry inferred bounds, including `has.field` | none contain a parameter |
 | Callees | function, `<T as Trait>::m`, `dyn #n`, intrinsic, sys | function **instance**, `dyn #n`, intrinsic, sys |
-| Drops | `drop` of `T` is the terminator form (`cleanup` unknown); `needs_drop` unknown | glue resolved, form unchanged; `drop-opt` rewrites a cleanup-free terminator to a statement or deletes it, and can delete cleanup blocks |
+| Drops | `drop` of `T` is a statement; `needs_drop` and `cleanup` unknown | glue resolved; `drop-opt` deletes a drop of a type with no glue, and can delete cleanup blocks |
 | Moves and flags | decided by the ownership pass | identical structure; `monomorphize` never adds or removes a move, drop or panic |
 | Parameters | a plain `p` of **any** type, `Int` included, is `&T` (borrowed) and is read as `copy (*_1)` | unchanged. Verse-cc passes a shared borrow of a small `Copy` value by value ([15 §15.4.1](target-and-abi.md#1541-lowering-a-signature)); the MIR reads stay `copy (*_1)` |
 | Layout | none | `layout` lines, per target |
@@ -392,7 +389,7 @@ verifier re-checks V3 to V9 on the result as a safety net.
 
 A moved `T` stays a `move` after substitution even when `T = Int`. Turning a
 `move` of a `Copy` type into a `copy` (a job for `move-elim`, 03 §3.4 pass 6),
-or rewriting a `drop` of a type with no glue, is the optimizer's job, so
+or deleting a `drop` of a type with no glue, is the optimizer's job, so
 that monomorphization stays a pure substitution and its output is predictable in
 golden tests.
 
@@ -417,8 +414,7 @@ needs `recursive` ([14 §14.3](bytecode-and-vm.md#143-value-representation-and-c
 - **Every `param` and `binding`** local has its user name, its mode word and
   its span. The mode word uses the 08 vocabulary: `owned`, `borrowed` (a plain
   parameter seen by a call), `view` (a binding that only looks at a source that
-  is used later), `exclusive` (a `mut` parameter, or the guard value of
-  `with g.lock() as mut value`). Temporaries have no name.
+  is used later), `exclusive` (a `mut` parameter). Temporaries have no name.
 - **Value states** (`owned`, `moved`, `view`, `borrowed`, `exclusive`,
   `dropped`, `not_yet_bound`) are computed by the VM from these words and the
   executed statements.
@@ -429,9 +425,8 @@ needs `recursive` ([14 §14.3](bytecode-and-vm.md#143-value-representation-and-c
   replays use it, so marks stay where users expect them and steps (next bullet)
   mean the same thing in every session.
 - **Step** ([08 §8.5](debugging.md#85-deterministic-record-and-replay)). A step is one executed
-  statement or terminator of mono MIR at level 0. A `drop` terminator is one
-  step; the steps of its `cleanup` call are counted on their own. Steps exist
-  only in tier 0.
+  statement or terminator of mono MIR at level 0; a `drop` is one step. Steps
+  exist only in tier 0.
 - **Inlining** keeps the spans of the inlined body and adds the call site as a
   parent span, written `@f1:3:5-3:12 in 8:9-8:20`, so a user-level stack can be
   rebuilt (the `stackTrace` contract in 08).
@@ -514,89 +509,82 @@ bb1:
   _0 = aggregate tuple(move _3, move _4)          ; <tuple> @2:5-2:18
   return                                          ; returned @2:5-2:18
 cleanup bb2:
-  drop _1, next bb3, unwind none                  ; dropped "x" @1:25-1:34
-cleanup bb3:
+  drop _1                                         ; dropped "x" @1:25-1:34
   resume_unwind                                   ; <unwind> @1:25-1:34
 }
 ```
 
 `x.copy()` borrows `x` and ends the borrow at the call (V9). The move of `x` is
 its last use, so no drop follows on the normal path (V6). If `copy` panics,
-`_1` is still owned, so `bb2` drops it (V14). The drop is a terminator because
-`T` might have `Cleanup` (13.4); in a cleanup block its own edge is `none`.
+`_1` is still owned, so `bb2` drops it (V14). The drop is a statement, as
+every drop is (13.4).
 Instance `pair_of<Text>` is the same text with `T` replaced by `Text`, the
 callee `Text::copy`, and a line `layout Text size 24 align 8 needs_drop tag none`
 (sizes from 03 §3.5, an assumption). The header reads `mir mono rev 1` and the
-function is `pair_of<Text>` (V22). `monomorphize` keeps the terminator; `Text`
-has no `cleanup`, so `drop-opt` makes it the statement `drop _1` and
-`simplify-cfg` merges `bb2` and `bb3`. For `pair_of<Int>` the callee is
-`Int::copy`, `layout Int size 8 align 8 copy`, `drop-opt` deletes the drop, the
-cleanup blocks become empty, and the edge is rewritten to `unwind continue`. A
+function is `pair_of<Text>` (V22), and `bb2` is unchanged. For `pair_of<Int>`
+the callee is `Int::copy`, `layout Int size 8 align 8 copy`, `drop-opt` deletes
+the drop, the cleanup block holds only `resume_unwind`, and the edge is
+rewritten to `unwind continue`. A
 later pass, not monomorphization, turns `move _1` into `copy`
 ([13.6](#136-generic-mir-and-mono-mir)).
 
-### Example 3: `?`, `with`, an exclusive borrow and a cleanup block
+### Example 3: `?`, a file, an exclusive borrow and a cleanup block
 
 ```verse
 import create from fs
 
 fn save(path: Text, line: Text): Nothing | Error
-    with create(path)? as mut target
-        target.write_line(line)?
+    mut target = create(path)?
+    target.write_line(line)?
 ```
 
 ```mir
 mir mono rev 1
-fn save(_1, _2) -> Nothing | Error caps(fs) @3:1-5:33 {
+fn save(_1, _2) -> Nothing | Error caps(fs) @3:1-5:29 {
   local _0: Nothing | Error = ret
   local _1: &Text = param borrowed "path" @3:9-3:19
   local _2: &Text = param borrowed "line" @3:21-3:31
   temps _3: &Text, _4: File | Error, _5: Int
-  local _6: File = binding owned mut "target" @4:31-4:37
+  local _6: File = binding owned mut "target" @4:5-4:15
   temps _7: &Text, _8: &mut File, _9: Nothing | Error, _10: Int
 bb0:
-  _3 = ref (*_1)                                  ; borrowed "path" -> "create" @4:17-4:21
-  call fs.create(move _3) -> _4, next bb1, unwind continue ; called "create" @4:10-4:22
+  _3 = ref (*_1)                                  ; borrowed "path" -> "create" @4:25-4:29
+  call fs.create(move _3) -> _4, next bb1, unwind continue ; called "create" @4:18-4:30
 bb1:
-  _5 = discriminant(_4)                           ; <?> @4:10-4:23
-  switch copy _5 [0 -> bb2] otherwise bb8         ; <?> @4:10-4:23
+  _5 = discriminant(_4)                           ; <?> @4:18-4:31
+  switch copy _5 [0 -> bb2] otherwise bb6         ; <?> @4:18-4:31
 bb2:
-  _6 = move (_4 as #0)                            ; bound "target" @4:31-4:37
-  _7 = ref (*_2)                                  ; borrowed "line" -> "write_line" @5:27-5:31
-  _8 = ref mut _6                                 ; "target" @5:9-5:15
-  call File::write_line(move _8, move _7) -> _9, next bb3, unwind bb9 ; called "write_line" @5:9-5:32
+  _6 = move (_4 as #0)                            ; bound "target" @4:5-4:15
+  _7 = ref (*_2)                                  ; borrowed "line" -> "write_line" @5:23-5:27
+  _8 = ref mut _6                                 ; "target" @5:5-5:11
+  call File::write_line(move _8, move _7) -> _9, next bb3, unwind bb7 ; called "write_line" @5:5-5:28
 bb3:
-  _10 = discriminant(_9)                          ; <?> @5:9-5:33
-  switch copy _10 [0 -> bb4] otherwise bb6        ; <?> @5:9-5:33
+  drop _6                                         ; dropped "target" @4:5-4:15
+  _10 = discriminant(_9)                          ; <?> @5:5-5:29
+  switch copy _10 [0 -> bb4] otherwise bb5        ; <?> @5:5-5:29
 bb4:
-  drop _6, next bb5, unwind continue              ; dropped "target" @4:5-4:37
+  _0 = aggregate case (Nothing | Error)#0(Nothing) ; <ok> @5:5-5:29
+  return                                          ; returned @5:5-5:29
 bb5:
-  _0 = aggregate case (Nothing | Error)#0(Nothing) ; <ok> @4:5-4:37
-  return                                          ; returned @4:5-4:37
+  _0 = aggregate case (Nothing | Error)#1(move (_9 as #1)) ; <?> @5:5-5:29
+  return propagated                               ; propagated @5:5-5:29
 bb6:
-  _0 = aggregate case (Nothing | Error)#1(move (_9 as #1)) ; <?> @5:9-5:33
-  drop _6, next bb7, unwind continue              ; dropped "target" @4:5-4:37
-bb7:
-  return propagated                               ; propagated @5:9-5:33
-bb8:
-  _0 = aggregate case (Nothing | Error)#1(move (_4 as #1)) ; <?> @4:10-4:23
-  return propagated                               ; propagated @4:10-4:23
-cleanup bb9:
-  drop _6, next bb10, unwind none                 ; dropped "target" @4:5-4:37
-cleanup bb10:
-  resume_unwind                                   ; <unwind> @4:5-4:37
+  _0 = aggregate case (Nothing | Error)#1(move (_4 as #1)) ; <?> @4:18-4:31
+  return propagated                               ; propagated @4:18-4:31
+cleanup bb7:
+  drop _6                                         ; dropped "target" @4:5-4:15
+  resume_unwind                                   ; <unwind> @4:5-4:15
 }
 ```
 
 `line` is borrowed first and `target` second: all operands are evaluated, then
 the exclusive borrow starts (V8; spec §5.3). The payload of `_4` is moved only
-on the edge for case 0 (V13). `File` has `Cleanup`, so every drop of `_6` is a
-terminator (V5): `cleanup` may block and may panic, so the drop has a `next`
-block and an unwind edge of its own. On the normal exit, the `?` exit and the
-unwind edge the `with` guarantees the drop and `cleaned_up`, in that block
-order. After the drop nothing else is live, so those edges are `continue`; in
-the cleanup block the edge is `none`. `bb8` needs no drop: `target` is not
-bound yet (V6 passes).
+on the edge for case 0 (V13). The call to `write_line` is the last use of
+`target`, so `bb3` drops it before the `?` test, once for both of its edges
+(13.4). `File` has the `cleanup` fact, so that drop closes the file and the VM
+emits `cleaned_up` before `dropped`; like every drop it cannot unwind or yield.
+If `write_line` panics, `target` is still owned and `bb7` drops it (V14). `bb6`
+needs no drop: `target` is not bound yet (V6 passes).
 
 ### Example 4: tasks and channels
 
@@ -629,8 +617,7 @@ cleanup bb6:
 ```
 
 `yield send` is where cancellation arrives: `bb6` drops the `Sender`, which
-closes the channel if it is the last one (the runtime's glue, not user code, so
-the statement form). `send` takes its value by move; a
+closes the channel if it is the last one (the runtime's glue, 13.4). `send` takes its value by move; a
 `copy` of an `Int` is an owned value (V16). The rest of `square_one` is
 Example 1 (`checked_mul`, an overflow `panic ... unwind bb6`) and the `?`
 pattern of Example 3. The listing of `run` uses the same file:
@@ -654,11 +641,11 @@ bb2:
   _7 = ref _2                                     ; borrowed "rx" -> "recv" @9:13-9:22
   yield recv(move _7) -> _4, resume bb3, unwind bb6 ; received "rx" @9:13-9:22
 bb3:
-  yield wait(move _3) -> _8, resume bb4, unwind bb5 ; waited "task" @10:9-10:20
+  drop _2                                         ; dropped "rx" @7:10-7:12
+  yield wait(move _3) -> _8, resume bb4, unwind continue ; waited "task" @10:9-10:20
 bb4:
   drop _8                                         ; dropped <discard> @10:5-10:20
   _0 = move _4                                    ; moved "value" -> <return> @11:5-11:10
-  drop _2                                         ; dropped "rx" @7:10-7:12
   return                                          ; returned @11:5-11:10
 cleanup bb5:
   drop _2                                         ; dropped "rx" @7:10-7:12
@@ -670,12 +657,13 @@ cleanup bb6:
 }
 ```
 
-The `spawn` and `wait` edges need only `rx` (`tx` moved; `task` unbound or
-consumed). If the waiter is cancelled or panics inside `wait`, the runtime
-cancels the child and joins it itself (13.4), so `bb5` only drops `rx`. The
-`recv` edge also owns the task, so `bb6` abandons it first (reverse declaration
-order, V14, V17): cancel the child, then let the runtime wait for it before the
-unwinding of `run` completes. The verifier rejects a second `move _1`
+The `spawn` edge needs only `rx` (`tx` moved; `task` unbound). The `recv` is
+the last use of `rx`, so `bb3` drops it before the `wait`, and the `wait` edge
+has nothing to drop: if the waiter is cancelled or panics inside `wait`, the
+runtime cancels the child and joins it itself (13.4), and the edge is
+`continue`. The `recv` edge also owns the task, so `bb6` abandons it first (reverse declaration
+order, V14, V17): cancel the child, and the runtime finishes it before the task
+ends (15 §15.7.3). The verifier rejects a second `move _1`
 (V4), `spawn` of a `ref mut` (V16) and `drop _3` (V17).
 
 ### Example 5: a bounds check, a drop flag and a reassignment
@@ -736,8 +724,8 @@ failure edge is `panic index_oob` with `i`, `n`, `what` and `unit` (V24, R0002).
 `i` is copied into `_6` first because an index in a place is a local. The
 branch `keep` moves `text` away, so at the join `text` is moved on one path
 and owned on the other: `d0` records that, and `bb4` drops it under the flag
-(V5, V6). `Text` has no `cleanup`, so these drops are statements. The `else`
-branch reassigns an owned `text`: the new value is built first (`_13`), the old
+(V5, V6). `Text` has no `cleanup` fact, so these drops only free memory. The
+`else` branch reassigns an owned `text`: the new value is built first (`_13`), the old
 one is dropped, then the store (V5; spec §4.9). The `push` call needs no unwind
 cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
 `_11` starts after `_10` is evaluated (V8).

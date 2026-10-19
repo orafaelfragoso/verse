@@ -129,21 +129,24 @@ the program ends naturally: an explicit `exit(code)` always wins, and its code
 is the one the process returns. Discarding a `Task` value (a bare
 `spawn worker(…)` statement) is therefore allowed — an accepted exception to
 the rule that fallible results cannot be dropped, because its outcome cannot be
-lost. A task therefore never outlives the code that
-started it, results are never silently lost, and a program ends only after all
-of its work is done. To deliberately run something in the background beyond the
+lost. A function that returns normally therefore waits for every task it
+started and still holds, results are never silently lost, and a program ends
+only after all of its work is done. To deliberately run something in the background beyond the
 current function, return its `Task` or pass it to someone who will wait on it.
 
 A task held inside another value (a list, a record, a tuple) follows that
 value. When the value is dropped and the task was never waited on, the task is
-first **cancelled** and then waited for. A child that ends only because of that
+**cancelled**, and it finishes before the task that dropped the value ends; the
+drop itself does not wait (§13.4). A child that ends only because of that
 cancellation prints nothing; a child that fails with its own panic or error is
 reported as above. To keep the results, give the tasks to `wait_all` or wait on
 each one before the value is dropped.
 
-When the function does not finish normally — it panics, or it is cancelled and
-unwinds (§11.5) — it first **cancels** its unwaited tasks and then waits for
-them, so a panicking parent never blocks behind a long child. A child that ends
+When the function does not finish normally, because it panics or it is
+cancelled and unwinds (§11.5), it **cancels** its unwaited tasks and does not
+wait for them: the runtime finishes them before the task that started them
+ends, so a panicking parent never blocks behind a long child, and unwinding
+never pauses (§11.5). A child that ends
 only because that cancellation reached it is not an error and prints nothing; a
 child that fails with its own panic or error while unwinding is reported on
 standard error and counts for the exit status, as above.
@@ -159,7 +162,7 @@ always goes through one of these handle types from the `task` module:
 | `Sender<T>` | the sending end of a channel: send owned values to the task that holds the `Receiver` | a new sender to the same channel |
 | `Receiver<T>` | the receiving end of a channel; single consumer in 0.1 | not copyable; it moves (fan-out uses several channels) |
 | `Shared<T>` | **shared read-only ownership**: the value is freed when the last handle goes away (atomically reference-counted) | shares the value; nobody can change it |
-| `Guarded<T>` | **shared mutable state behind a lock**: read it inside `with g.lock() as value`, change it inside `with g.lock() as mut value` | shares the value |
+| `Guarded<T>` | **shared mutable state behind a lock**: `g.lock()` returns a guard that reads and changes the value | shares the value |
 | `Weak<Shared<T>>`, `Weak<Guarded<T>>` | a **non-owning** handle, parameterised over the handle it was made from: `h.downgrade()` on a `Shared<T>` gives a `Weak<Shared<T>>`, and on a `Guarded<T>` a `Weak<Guarded<T>>`; `upgrade()` returns `Shared<T>?` or `Guarded<T>?` respectively (`none` if the value is gone) | a new weak handle to the same value; keeps nothing alive |
 | `Task<T>` | the result of `spawn` (§11.1) | not copyable; `wait` takes it |
 
@@ -219,7 +222,9 @@ an unhandled fallible value (§8.4). `Closed` is a named error type in
 the `task` module, like `Timeout`.
 
 A `Receiver` given to another task moves, like any non-copyable value:
-`spawn consume(rx)`.
+`spawn consume(rx)`. Like every value, a `Receiver` is dropped at its last use
+(§13.1), which closes the channel: a later `send` returns `Closed`. Keep
+receiving until the producers are done, as the loop above does.
 
 | Operation | Signature | Meaning |
 |-----------|-----------|---------|
@@ -250,7 +255,9 @@ b = spawn check(chapter_two, dictionary)              # last use: the handle mov
 `shared.get()` gives a read-only view of the value inside.
 
 **Shared mutable state** is wrapped in `Guarded<T>` and can only be touched
-inside a `with` block that holds its lock:
+through a **lock guard**. `g.lock()` waits until no other guard of the same
+value is alive and returns a `Guard<T>`; the lock is released when the guard is
+dropped, right after its last use (§13.1), even if the code leaves early:
 
 ```verse
 import Guarded, wait_all from task
@@ -258,29 +265,35 @@ import Guarded, wait_all from task
 hits = Guarded(0)
 
 fn record(counter)
-    with counter.lock() as mut value
-        value += 1
+    mut guard = counter.lock()          # the lock is released at `guard`'s last use
+    guard.put(guard.get() + 1)
 
 tasks = (1..=100).map(_ -> spawn record(hits.copy()))       # one handle per task
 for outcome in wait_all(tasks)
     outcome?                       # stop if any task failed
-with hits.lock() as value
-    print("hits: {value}")
+print("hits: {hits.lock().get()}")      # the guard is dropped after this line
 ```
 
-Inside `with guarded.lock() as value`, `value` is an exclusive borrow of the
-protected value; it is **mutable only when written `as mut value`**, as with
-every other binding (§3.9), so `with g.lock() as value` followed by
-`value += 1` is the usual immutable-name error. The lock is released when the
-block ends, even if it ends early. Like every borrow, `value` cannot escape the
-block.
+| Operation | Signature | Meaning |
+|-----------|-----------|---------|
+| `g.lock()` | `lock(self): Guard<T>` | block until the lock is free, then hold it |
+| `guard.get()` | `get(self): T` | a read-only view of the value inside (§4.9), like `shared.get()` |
+| `guard.put(v)` | `put(mut self, take value: T)` | replace the value inside; the old one is dropped |
+| `guard.replace(v)` | `replace(mut self, take value: T): T` | replace the value inside and return the old one |
 
-This is the **one** place where `with … as` binds something other than the
-resource itself. `lock()` returns a lock guard, and the guard type implements
-`Cleanup` (its cleanup releases the lock), so `with` cleans it up like any
-resource. But `with` on a guard binds the *value inside* the guard, as an
-exclusive borrow (mutable with `as mut value`), rather than the guard. No
-other type has this behaviour (§13.1).
+A guard is an ordinary value with one owner, and it is not `Copyable`. `put`
+and `replace` take `mut self`, so the guard is bound with `mut` to change the
+value, and a view from `get()` cannot be used after a change (§5.3). To
+change a large value without copying it, take it out with `replace`, change it, and
+`put` it back:
+
+```verse
+fn add_name(names, take name)            # `names` is a `Guarded<List<Text>>`
+    mut guard = names.lock()
+    mut list = guard.replace([])
+    list.push(name)
+    guard.put(list)
+```
 
 ### 11.5 Cancellation and time
 
@@ -290,16 +303,17 @@ stopped at its next *blocking point* — I/O, `wait`, `sleep`, `send`, or
 
 **Cancellation cannot be caught inside the cancelled task.** At the blocking
 point, the task *unwinds* exactly as it would for a panic: it stops running
-ordinary code, its `with` blocks close their resources in reverse order, and
-nothing — not `otherwise`, not `match`, not `?` — can intercept it. So
+ordinary code, every value it still owns is dropped in reverse declaration
+order, which releases its resources (§13.4), and nothing can intercept it:
+not `otherwise`, not `match`, not `?`. So
 `get(url) otherwise "x"` cannot swallow a cancellation and keep going. Unlike a
 panic, a cancellation prints nothing. The *waiter* sees the outcome as a
 `Cancelled` error (from the `task` module) returned by `.wait()`, which it may handle
 normally.
 
-Cancellation is **masked while a `cleanup` runs** (§13.1): a cancel request that
-arrives during a cleanup takes effect at the first blocking point after the
-cleanup finishes, so a cleanup always runs to completion.
+A drop never pauses the task (§13.4), so unwinding has no blocking point:
+once a task starts to unwind, for a panic or a cancellation, it runs to its
+end, and a cancel request that arrives then changes nothing.
 
 Because cancellation never appears as a value inside the task, blocking
 operations keep simple signatures:

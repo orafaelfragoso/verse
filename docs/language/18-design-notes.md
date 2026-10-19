@@ -110,7 +110,7 @@ infinite-loop keyword (`while true`).
 
 **Why:** `for … in` covers almost all loops; `while` covers the rest. A label
 written as `for row in grid as outer` would misuse `as`, which elsewhere
-(`with x as y`, `import m as n`) names the thing on its *left*, whereas a loop
+(`import m as n`) names the thing on its *left*, whereas a loop
 label names the loop. A leading `outer:` uses the colon in its "is named"
 sense (§1.2), reads like a heading, and is what readers of other languages
 expect.
@@ -153,9 +153,10 @@ a misspelt assignment that silently creates a new name.
 managed by single ownership with **second-class borrows**: parameters borrow
 by default, `mut` borrows exclusively, `take` consumes; borrows cannot be
 stored, returned, or sent to another task; there is no reference or pointer
-type and no lifetime syntax. Values are freed deterministically at the end of
-their owner's scope; recursive types are boxed by the compiler; `Cleanup` runs
-at end of scope. Sharing is opt-in through `Shared<T>`, `Guarded<T>`,
+type and no lifetime syntax. Values are freed deterministically right after
+their owner's last use, which also releases the files, locks and other
+runtime-owned handles in them (§18.12); recursive types are boxed by the
+compiler. Sharing is opt-in through `Shared<T>`, `Guarded<T>`,
 `Weak<Shared<T>>` / `Weak<Guarded<T>>`, the channel ends `Sender<T>`
 (copyable) and `Receiver<T>` (not copyable, single consumer), and `Task<T>`.
 
@@ -256,19 +257,22 @@ functions, building results) never mentions ownership at all.
   is the one visible escape hatch. *Why:* §1.3 promises that failure is
   handled or explicitly propagated; a warning would break that promise.
 
-### 18.12 `with` only cleans up
+### 18.12 Resources close at their last use
 
-**Decision:** `with` never propagates errors by itself. Its resource must be a
-value whose type implements `Cleanup`, so a fallible acquisition is written
-with an explicit `?`:
-`with open("log.txt")? as file`.
+**Decision:** A resource is an ordinary value. It is released when it is
+dropped, right after its owner's last use, and no statement marks that point.
+A drop runs no code of the program: it frees memory and releases
+runtime-owned handles, and it never fails, panics or pauses the task. A close
+that can fail is a named method, such as `file.finish()?`. A lock guard is an
+ordinary value too, read with `get()` and changed with `put()` (§13, §11.4).
 
-**Why:** Letting `with` perform the `?` check implicitly was rejected. §1
-and §8 promise that every early exit is marked with `?` or `return`; `with` is also used for infallible things (`counter.lock()`), so the
-word itself does not signal failure; and an implicit check would make `with`
-mean "cleanup" or "cleanup plus propagation" depending on the type — the same
-two-meanings-by-type problem that §18.4 avoids for `or`. The cost is one
-character.
+**Why:** One rule decides when every value ends, so a resource needs no second
+spelling for "release here" (§1.4): using a file for the last time is what
+closes it. Keeping the program's code out of drops keeps every drop
+infallible and non-blocking, so a panic during unwinding cannot start a second
+panic, and a cancellation never interrupts a drop and needs no mask. The cost
+is that a resource the runtime does not own, such as a temporary directory,
+is released only by its own method.
 
 ### 18.13 Concurrency details
 
@@ -278,7 +282,7 @@ cross; handles copy cheaply), communication and sharing only through
 channels (`Sender`/`Receiver`), `Shared`, `Guarded` and `Weak`, cooperative cancellation, and every task outcome — success, error, or
 panic — delivered by `.wait()` as `T | Error`. A panic is always printed when
 it happens and reaches the waiter as the named type `TaskPanicked`.
-Cancellation unwinds the cancelled task like a panic (running `Cleanup`)
+Cancellation unwinds the cancelled task like a panic (dropping what it owns)
 and cannot be caught inside it; the waiter sees `Cancelled`. An unwaited task
 that fails makes the process exit non-zero on natural program end (an explicit
 `exit(code)` always wins). `rx.recv()` returns `T?`; a channel closes when
@@ -323,9 +327,9 @@ give a half-initialised module to whichever side loads second.
   them gives the same result on every run and every target.
 - `.copy()` is the one duplication method: with no arguments it makes a plain
   copy, with field arguments a copy with changes (`.copy(age: 31)`). There is
-  no `clone` and no `.with` (`with` is a keyword). `.copy()` comes from the
-  built-in `Copyable` trait, which every type has except `Task`, `Cleanup`
-  types and anything containing them; `Copy` (implicit copying) is a separate,
+  no `clone`. `.copy()` comes from the
+  built-in `Copyable` trait, which every type has except `Task`, lock guards,
+  platform handles such as `File`, and anything containing them; `Copy` (implicit copying) is a separate,
   narrower trait.
 - The collection methods are `prefix(n)` / `prefix_while(p)` rather than
   `take(n)` / `take_while(p)`, because `take` is a keyword (§5.3); `prefix`
@@ -343,7 +347,7 @@ give a half-initialised module to whichever side loads second.
   type itself implements the trait, so it can be passed to generic functions.
 - **Foreign functions are plain calls.** An `extern` block (§12.6) declares C
   functions from a plugin named in `verse.toml`, and they are called like any
-  other function. There is no capability gate, no `with` block and no `unsafe`
+  other function. There is no capability gate, no special block and no `unsafe`
   marker, because Verse cannot see what foreign code does and a marker would
   promise a check that does not exist. Declaring the library is the opt-in.
   Only plain data crosses, and `Text` crosses as its `.bytes()`, so the

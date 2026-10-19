@@ -313,8 +313,8 @@ _ = fs.remove("cache.tmp")             # deliberately ignored
 
 Some failures are bugs, not conditions to handle: indexing a list out of range,
 integer overflow, dividing an integer by zero, a failed `assert`, or
-`.expect(...)` on `none`. These **panic**: the current task stops (running its
-`with` cleanups), the message and a stack trace are **always printed to
+`.expect(...)` on `none`. These **panic**: the current task stops (dropping
+every value it still owns, §13), the message and a stack trace are **always printed to
 standard error at the moment of the panic**, and — if the task is the main
 program — the program exits with status 101. A panic in a spawned task is
 delivered to its waiter as a `TaskPanicked` error (§11.2). Panics are not caught by `?` and are not meant

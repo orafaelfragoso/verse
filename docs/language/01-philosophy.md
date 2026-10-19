@@ -10,7 +10,7 @@ Everything else in the language follows from a handful of principles.
 ### 1.1 Code is read far more often than it is written
 
 Verse optimizes for the reader. Keywords are short English words (`mut`, `if`,
-`for`, `match`, `with`, `and`, `or`, `not`). Punctuation is used only where it
+`for`, `match`, `take`, `and`, `or`, `not`). Punctuation is used only where it
 carries real meaning. Blocks are marked by indentation, so the visual shape of
 the code *is* its structure.
 
@@ -47,8 +47,8 @@ lists every use honestly:
   never changes, `mut count = 0` one that can. A name is bound once per
   function — there is no shadowing — so `x = …` on a name that already exists
   can only be an assignment to a `mut` binding.
-- Every value has **exactly one owner** and is freed deterministically when its
-  owner's scope ends. There is **no garbage collector**, no manual allocation,
+- Every value has **exactly one owner** and is freed deterministically right
+  after its owner's last use. There is **no garbage collector**, no manual allocation,
   no pointer or reference you can write down, no dangling reference and no
   use-after-free. Functions *borrow* their arguments unless they say `mut`
   (exclusive, mutable) or `take` (consume).

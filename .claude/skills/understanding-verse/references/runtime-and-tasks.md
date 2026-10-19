@@ -18,7 +18,7 @@ statuses.
    [§11.3 Structured lifetimes](../../../../docs/language/11-concurrency.md#113-structured-lifetimes),
    [§11.5 Cancellation and time](../../../../docs/language/11-concurrency.md#115-cancellation-and-time).
 4. [14 §14.7 Tasks, scheduler and seed](../../../../docs/architecture/bytecode-and-vm.md#147-tasks-scheduler-and-seed)
-   and [§14.8 Unwinding and Cleanup](../../../../docs/architecture/bytecode-and-vm.md#148-unwinding-and-cleanup).
+   and [§14.8 Unwinding and cleanup](../../../../docs/architecture/bytecode-and-vm.md#148-unwinding-and-cleanup).
 5. [15 §15.6 Tasks across the ABI](../../../../docs/architecture/target-and-abi.md#156-tasks-across-the-abi),
    [§15.7 Unwinding and abort ABI](../../../../docs/architecture/target-and-abi.md#157-unwinding-and-abort-abi),
    [§15.8 Exit codes](../../../../docs/architecture/target-and-abi.md#158-exit-codes),
@@ -90,8 +90,8 @@ R0004, at the same call in the VM and in native code unless a native stack
 fills first (it can on `cooperative` targets, small Wasm shadow stacks, and
 hosted targets with frames over about 830 bytes). The stack is the
 backstop: the prologue of each non-leaf function compares the stack pointer
-with `stack_limit` in the TCB, set `headroom` above the real end, so `Cleanup`
-runs in the reserve, and a full stack prints the second form of R0004. The
+with `stack_limit` in the TCB, set `headroom` above the real end, so cleanup
+blocks run in the reserve, and a full stack prints the second form of R0004. The
 guard page is the last backstop: it prints that second form and exits with
 101, running no cleanup
 ([15 §15.6.4](../../../../docs/architecture/target-and-abi.md#1564-stack-bounds-and-overflow)).
@@ -126,18 +126,17 @@ counted on the call graph, or it is V0917
 
 - **The same semantics on every strategy**: arguments are moved into a task
   before it starts; a panic becomes `TaskPanicked` at `.wait()`; cancellation
-  unwinds like a panic and runs `Cleanup`; unwaited failed tasks set the exit
+  unwinds like a panic and drops what the task owns; unwaited failed tasks set the exit
   status ([05 §5.3](../../../../docs/architecture/runtime.md#53-tasks-and-scheduling)).
 - **Functions outside the may-yield set pay nothing** on any target
   ([ADR-0007](../../../../docs/decisions/0007-task-model.md)).
-- **A cleanup always runs to completion**, even if it blocks. Cancellation is
-  masked while it runs. Only `exit(code)` ignores a blocked cleanup
-  ([14 §14.8](../../../../docs/architecture/bytecode-and-vm.md#148-unwinding-and-cleanup)).
-- **A panic inside `Cleanup` is task-level.** It is recorded and printed, the
-  rest of the value is still dropped, and the process is not aborted (R0009)
-  ([15 §15.7.4](../../../../docs/architecture/target-and-abi.md#1574-a-panic-inside-cleanup)).
-- **The runtime owns every catch**, and there are exactly three: the task
-  boundary, the `cleanup` call and the program entry. A foreign frame is never
+- **A drop never panics and never parks.** Drop glue runs no user code, so a
+  cleanup block has no switch point: an unwinding task cannot be interrupted,
+  a cancel request then changes nothing, and a task has at most one panic
+  ([15 §15.7.4](../../../../docs/architecture/target-and-abi.md#1574-drops-while-unwinding),
+  [14 §14.8](../../../../docs/architecture/bytecode-and-vm.md#148-unwinding-and-cleanup)).
+- **The runtime owns every catch**, and there are exactly two: the task
+  boundary and the program entry. A foreign frame is never
   unwound through
   ([15 §15.7.5](../../../../docs/architecture/target-and-abi.md#1575-catch-points)).
 - **Intrinsics cannot unwind or yield.** A runtime function that can fail
@@ -148,10 +147,10 @@ counted on the call graph, or it is V0917
   It raises R0008 and exits with 70
   ([15 §15.8.1](../../../../docs/architecture/target-and-abi.md#1581-statuses)).
 - **Exit statuses and their precedence** are fixed: `exit(code)`, then 70,
-  then 101, then 1, then 0. `exit(code)` runs no `Cleanup`, and a code outside
+  then 101, then 1, then 0. `exit(code)` drops nothing, and a code outside
   0 to 255 is the panic R0013
   ([15 §15.8.1](../../../../docs/architecture/target-and-abi.md#1581-statuses)).
-- **`abort` only when no `Cleanup` is live** at any panic site (V0908), and
+- **`abort` only when no platform handle is live** at any panic site (V0908), and
   never with a reachable `spawn` (V0910)
   ([15 §15.7.6](../../../../docs/architecture/target-and-abi.md#1576-the-abort-profile-and-unreachable)).
 - **Interrupts only wake tasks.** No Verse code runs in interrupt context
@@ -187,7 +186,7 @@ counted on the call graph, or it is V0917
    - the safety runs of
      [10 §10.4](../../../../docs/architecture/testing-and-verification.md#104-safety-properties-we-test-explicitly):
      poisoning debug allocator, Valgrind and sanitizers for the runtime crate,
-     ThreadSanitizer, panic and cleanup order;
+     ThreadSanitizer, panic and drop order;
    - the exit status table and the unwinding matrix of
      [15 §15.12](../../../../docs/architecture/target-and-abi.md#1512-conformance-and-tests);
    - benchmarks for spawn, channels and memory per task

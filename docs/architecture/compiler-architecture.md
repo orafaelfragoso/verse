@@ -42,9 +42,9 @@ runs in every build of `verse`: in `build`, when running a file and in
 | Parser | token stream | CST whose text round-trips byte for byte; error nodes where parsing failed, never a panic | syntax errors, with recovery at line and block boundaries |
 | AST lowering | CST | each node has a stable `NodeId` and span; trivia discarded | none |
 | Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule (§3.9) enforced; import graph acyclic (§12.2, [ADR-0010](../decisions/0010-import-cycles-are-an-error.md)) | unknown name, hidden name, an import cycle (V0310), visibility |
-| HIR lowering | resolved AST | no sugar: `otherwise`, `?`, `if…is`, key-path lambdas, postfix guards, string interpolation, `with` and `for` are expanded to a small core. Optional-lifting positions (§8.1) are marked but not yet typed | none |
+| HIR lowering | resolved AST | no sugar: `otherwise`, `?`, `if…is`, key-path lambdas, postfix guards, string interpolation and `for` are expanded to a small core. Optional-lifting positions (§8.1) are marked but not yet typed | none |
 | Type inference | HIR | every expression has a type or a recorded unresolved variable; unresolved variables become the "cannot infer, annotate here" error (§4.2 rule 4) | type errors, missing annotations, optional misuse, non-exhaustive patterns |
-| Ownership | THIR | every use is classified as move, copy, borrow, mut borrow, or view; every drop point is known; see 2.4 | use after move, borrow rules, `Copy` bound errors, resource and task rules (`with`, views sent to tasks) |
+| Ownership | THIR | every use is classified as move, copy, borrow, mut borrow, or view; every drop point is known; see 2.4 | use after move, borrow rules, `Copy` bound errors, task rules (views and `mut` borrows sent to tasks, one owner per `Receiver`) |
 | MIR build | THIR plus ownership facts | CFG of basic blocks; locals typed; explicit `Move`, `Copy`, `Drop`, unwind edges | none |
 | Monomorphization | generic MIR | no type parameters, no structural constraints, no `Show` or `Eq` left abstract; trait calls resolved except calls through a trait name used as a type; every instance carries `recursive` exactly when it is on a cycle of the call graph ([13 §13.3](mir-specification.md#133-types-and-layout-facts)) | none |
 | Optimizer | mono MIR | semantics preserved; verifier passes after every pass in debug builds | none |
@@ -88,7 +88,8 @@ unmet written or inferred bound (§4.2 rule 9, final paragraph).
 1. **Liveness and last use** for every local, by backward dataflow over the
    function's CFG. Needed because `b = a`, `for x in items`, pattern bindings
    and chain results are views when the source is used later and owners at the
-   source's last use (§4.9, §18.10).
+   source's last use (§4.9, §18.10), and because a value is dropped right
+   after its last use (§13.1), which places every drop.
 2. **Place states**: each place (local, field path, element-in-place) is in
    one of `Owned`, `MovedAt(site)`, `Borrowed(kind)`, `View(of, until)`.
    Conditional moves produce **drop flags**, as in Rust MIR drop elaboration.

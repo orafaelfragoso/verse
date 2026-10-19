@@ -49,7 +49,7 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 | Types | V04xx | mismatches, missing annotations, optionals, errors as values |
 | Ownership | V05xx | moves, views, `mut`, borrows, `Copy` bounds |
 | Patterns | V06xx | `match`, `is`, destructuring |
-| Resources and tasks | V07xx | `Cleanup`, `with`, `spawn`, channels, locks |
+| Resources and tasks | V07xx | `spawn` arguments, channels |
 | Packages and API | V08xx | `verse.toml`, `verse.lock`, `verse.api`, versions |
 | Capabilities and targets | V09xx | grants, targets, `--no-heap`, reachability |
 | Foreign calls | V10xx | `extern` blocks and plugins (07) |
@@ -212,10 +212,8 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
-| V0702 | error | `{expr}` is `{T} \| Error`, which cannot be cleaned up | `with` needs the resource itself | add `?` to propagate the error | §13 |
 | V0703 | error | a task cannot use `{name}` | it is a view | send a copy with `.copy()`, or move it in | §11.1 |
 | V0705 | error | a `Receiver` has one owner | `{name}` was moved at {position} | give the receiver to one task | §11.4 |
-| V0707 | error | `{name}` is locked here and cannot be used outside `with` | `Guarded` values are read inside the block | read it as `with {g}.lock() as {value}` | §11.4 |
 | V0708 | error | `spawn` cannot pass `{name}` as `mut` | a task cannot give an exclusive borrow back to the spawner | move `{name}` in and get it back from `wait()`, or share it through a `Guarded` | §11.1 |
 
 ### V08xx Packages and API
@@ -260,7 +258,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0905 | error | this package uses {n} KB, but its size budget is {m} KB | the biggest part is `{item}` | see `verse build --size-report` | 06 |
 | V0906 | error | `{module}` has different public items on `{target}` | the target variant exports `{item}` only here | make every variant match `verse.api` | 06 §6.9 |
 | V0907 | error | the file `{f}` for target `{t}` does not exist | listed in `[targets.{t}.files]` | create it or remove the line | 19 §19.3 |
-| V0908 | error | this panic would skip the cleanup of `{x}` | `{x}` is alive here | turn the `abort` profile off, or move the panic site after the cleanup | 05 §5.4 |
+| V0908 | error | this panic would skip the cleanup of `{x}` | `{x}` is alive here | turn the `abort` profile off, or move the panic site after the last use of `{x}` | 05 §5.4 |
 | V0909 | error | `{f}` waits and calls itself, which `{target}` cannot run | the wait is here | build for a native target, or make the recursive part not wait | 03 pass 14 (`task-lower`), 04 §4.2 |
 | V0910 | error | this `abort` build cannot report a task's panic to its waiter | `spawn` is reachable here | turn the `abort` profile off, or remove the `spawn` | 15 §15.7.6 |
 | V0911 | error | `{key}` cannot be used with `{other}` in target `{t}` | {reason} | change one of them in `{file}` | 15 §15.9.4 |
@@ -355,11 +353,12 @@ Format of every long form: the four headings above, in this order, at most 25
 lines, one example that compiles. The long form is part of the catalog and has
 its own test (16.1 rule 9).
 
-Codes V0701, V0704 and V0706 are intentionally unassigned: a resource not
-used with `with` is cleaned up when its owner's scope ends (§13.1), the spec
-has no `Sendable` rule (sharing uses `Shared` and `Guarded`, §11.4), and an
-unwaited task is waited for automatically (§11.3), so none needs a
-diagnostic.
+Codes V0701, V0702, V0704, V0706 and V0707 are intentionally unassigned: a
+resource is released at its owner's last use, so there is no release to check
+(§13.1); acquiring a resource is an ordinary fallible call (§13.1); the spec
+has no `Sendable` rule (sharing uses `Shared` and `Guarded`, §11.4); an
+unwaited task is waited for automatically (§11.3); and a `Guarded` value is
+reached only through its lock guard (§11.4). None needs a diagnostic.
 
 ## 16.6 Run-time panics
 
@@ -417,8 +416,7 @@ explain: R0004 (run `verse explain R0004`)
 | R0005 | `{x}` is none, and the program expected a value | `{msg}` | spec §8.5 |
 | R0006 | assertion failed: `{expr}` | this expression is false | spec §8.5 |
 | R0007 | the program ran out of memory | {size} requested here | 05 §5.2 |
-| R0008 | every task is waiting and none can continue | {task}: waiting for {what} (one label per task); a task blocked inside a `Cleanup` says "waiting inside the cleanup of {cleanup_of}", where the fact `cleanup_of` is the type name and replaces `what` for that task | spec §11 |
-| R0009 | the cleanup of `{x}` panicked while the task was stopping | the first panic was {first} | 15 §15.7.4 |
+| R0008 | every task is waiting and none can continue | {task}: waiting for {what} (one label per task) | spec §11 |
 | R0010 | the range {from}..{to} is out of range, the {what} has {n} {unit} | this range | spec §9.3 |
 | R0011 | the exponent {n} is negative, and an `Int` power needs 0 or more | this exponent | spec §3.8 |
 | R0012 | `{a}` cannot be converted to `{T}` | {reason: it is too large, it is too small, it is not a number, or it is not a Unicode character} | spec §3.8 |
@@ -445,8 +443,9 @@ same placeholders from them).
 
 A panic kind with no row here is a bug in the compiler, and the build's
 verifier reports it as V9902. `what` is `list` or `text`; `unit` is `items` or
-`characters`. R0008, R0009 and R0013 are not MIR panic kinds: the runtime raises them
-(`exit` is 15 §15.8). A full stack found by the guard page, not by the prologue check, prints the second form of R0004.
+`characters`. R0008 and R0013 are not MIR panic kinds: the runtime raises them
+(`exit` is 15 §15.8). R0009 is intentionally unassigned: a drop runs no user
+code, so nothing can panic while a task unwinds (spec §13.4, 15 §15.7.4). A full stack found by the guard page, not by the prologue check, prints the second form of R0004.
 
 Rules for panic wording:
 
