@@ -434,7 +434,7 @@ none of the peripherals it gave out: each is released by its own drop.
 | `fn Board.take(): Board raises Error` | once per program; a second call is an error value |
 | `fn output_pin(mut self, number: Int): Pin raises Error` | `Board` method; a pin already taken is an error naming its first owner |
 | `fn input_pin(mut self, number: Int): Pin raises Error` | |
-| `fn set(mut self, level: Level)`, `fn toggle(mut self)`, `fn read(self): Level` | `Pin` methods; no heap |
+| `fn write(mut self, level: Level)`, `fn toggle(mut self)`, `fn read(self): Level` | `Pin` methods; no heap |
 | `fn send_edges(take self, take tx: Sender<Edge>): Nothing raises Error` | interrupts arrive as channel messages on the program's own channel; the pin moves to the runtime, which releases it when the channel closes |
 | `fn i2c(mut self, bus: Int, speed_hz: Int): I2c raises Error` | |
 | `fn read_register(mut self, address: Int, register: Int): Int raises Error` | `I2c`; one byte, no buffer |
