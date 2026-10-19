@@ -1,6 +1,6 @@
 ---
 name: opening-a-pull-request
-description: Covers how a change reaches `main` in the Verse repository. Branch naming, one change per pull request, the `<type>(<scope>): <summary>` title format checked by the `pr-title` job, the Why / What changed / Verification body that becomes the squash commit body, linking issues, labels and milestones, `gh pr create`, and squash merge. Use when opening, titling, describing or merging a pull request, writing a commit message, running `gh pr create` or `gh pr merge`, or when a push to `main` is rejected.
+description: Covers how a change reaches `main` in the Verse repository. Branch naming, one change per pull request, the `<type>(<scope>): <summary>` title format checked by the `pr-title` job, the Why / What changed / Verification body that becomes the squash commit body, linking issues with `Closes` and `Refs`, the labels and milestone every pull request gets, `gh pr create`, and squash merge. Use when opening, titling, describing or merging a pull request, writing a commit message, running `gh pr create` or `gh pr merge`, or when a push to `main` is rejected.
 ---
 
 # Opening a pull request
@@ -146,9 +146,8 @@ The template has three headings:
 all three. The body becomes the commit body on `main`, so it must read as
 finished prose.
 
-- **Why**: the problem this solves, in one to three sentences. Link the issue
-  with `Closes #12` so merging closes it. Use `Refs #12` when the pull request
-  does only part of the issue.
+- **Why**: the problem this solves, in one to three sentences, and the
+  issues it answers (see Linking issues).
 - **What changed**: the changes a reviewer cannot see at a glance. One bullet
   each. Do not restate the diff file by file.
 - **Verification**: the commands you ran and what they printed. Paste the
@@ -181,17 +180,52 @@ pull request. Closes #14.
 - A broken anchor in a skill and a `std.http` reference each made it exit 1.
 ```
 
+## Linking issues
+
+Put the links in **Why**. GitHub closes an issue when a commit on `main`
+says `Closes #N`, and the body becomes that commit.
+
+| Keyword | Use when |
+|---------|----------|
+| `Closes #12` | merging finishes the issue: a task, a bug, or a design proposal whose decision this `spec` pull request writes into the docs |
+| `Refs #12` | the pull request does part of the issue, or touches a related issue it does not finish |
+
+- One keyword per issue: `Closes #12. Closes #14.` A list after one keyword
+  (`Closes #12, #14`) closes only the first.
+- A pull request that finishes a design proposal closes it. The task that
+  builds the design is a new issue (see the `filing-an-issue` skill).
+- A pull request with no issue says so in **Why** and explains the problem
+  there.
+
 ## Labels and milestone
 
-Labels and milestones belong mainly on issues (see the `filing-an-issue`
-skill). Add them to a pull request when it has no issue, or when they help a
-reviewer filter:
+Every pull request gets labels, so the list of pull requests filters the same
+way as the list of issues:
 
-- one type label: `bug`, `feature`, `design`, `docs`, `perf`, `chore`;
-- the `area:` label that matches the title scope;
-- the milestone of the roadmap stage the work belongs to, for example
-  `M0: Foundations`. List them with
-  `gh api repos/{owner}/{repo}/milestones --jq '.[].title'`.
+1. **One type label**, from the title type:
+
+   | Title type | Label |
+   |------------|-------|
+   | `feat` | `feature` |
+   | `fix` | `bug` |
+   | `perf` | `perf` |
+   | `docs` | `docs` |
+   | `spec` | `design` |
+   | `refactor`, `test`, `build`, `ci`, `chore` | `chore` |
+
+2. **The `area:` labels of the areas it changes.** The title scope names
+   one; add the others it touches. A title with no scope (`ci:`, `build:`)
+   takes the `area:` label of each area it touches, or none when it changes
+   only how the repository works: CI, settings, CONTRIBUTING.md or skills.
+3. **The milestone of the issue it closes.** With no issue, the milestone of
+   the roadmap stage the work belongs to. A pull request that closes a design
+   proposal with no milestone gets none. List the milestones with
+   `gh api repos/{owner}/{repo}/milestones --jq '.[].title'`.
+
+Do not put `status:` labels on a pull request. They describe issues.
+
+Fix labels after opening with
+`gh pr edit --add-label docs --add-label area:spec`.
 
 ## After merge
 
