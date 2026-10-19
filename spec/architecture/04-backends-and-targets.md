@@ -134,15 +134,15 @@ cannot provide".
 - **Executable** (`verse build`): object code for reachable functions plus a
   prebuilt runtime slice for the target, linked with `lld` (bundled) and
   section garbage collection.
-- **Static or shared library** with a C ABI for exported items (needs a ruling
-  on foreign interfaces, [12](12-open-questions.md) Q2).
+- **Static or shared library** with a C ABI for exported items (foreign interfaces
+  are specified in the 0.2 `extern` section, [12](12-open-questions.md) Q2).
 - **Wasm module or component** with WIT generated from `export` items.
 - **Bytecode bundle** (`.vsb`): a single file the VM runs. Useful for shipping
   a script without recompiling. Versioned with the compiler version.
 - **Reproducible builds**: no embedded paths or timestamps; builds from the
   same `verse.lock` produce identical bytes.
 
-**Wasm library plugins.** A `library` plugin shipped as a Wasm component is translated to mono MIR before linking on every target except Wasm, where it is linked as a component. No engine is embedded in a native binary ([07 §7.4](07-plugins.md)).
+**Wasm-implemented packages.** A package shipped as a Wasm component (an ordinary dependency, not a plugin) is translated to mono MIR before linking on every target except Wasm, where it is linked as a component. No engine is embedded in a native binary ([07 §7.4](07-plugins.md)).
 
 ## 4.5 Calling convention and ABI
 
@@ -150,6 +150,6 @@ cannot provide".
   calls use a compiler-chosen convention: small values in registers, large
   values by hidden pointer, `mut` and borrowed arguments by pointer.
 - **Stable ABI**: only the C ABI for explicit `extern` exports and imports
-  (once Q2 is ruled on) and the Wasm component ABI for components.
+  (0.2, [12](12-open-questions.md) Q2) and the Wasm component ABI for components.
 - **Interop** with C, Rust and Wasm components goes through generated
   bindings (`verse bindgen`, a plugin type: [07](07-plugins.md)).

@@ -3550,6 +3550,24 @@ the import line. Unlike an unused binding (§3.9), it cannot be silenced, not
 even with a leading <code>_</code>: the fix is to delete the name, or the whole line. An
 import never adds code by itself; it only makes names visible (§12.4), and a
 build includes only what the program actually uses.</p>
+<p><strong>Variants of an imported type.</strong> Importing a type does not import its
+variants, because every name in a file traces to an import line. <em>Matching</em>
+needs no import: in a pattern, a variant name is looked up in the type of the
+value being matched. <em>Building</em> a value needs the variant in scope: import it,
+or qualify it with the type name as §4.4 allows.</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>import Shape from shapes
+
+fn area(shape: Shape): Float
+    match shape
+        Circle(r) -&gt; 3.14159 * r * r      # a pattern: no import needed
+        Square(s) -&gt; s * s
+
+unit = Shape.Circle(1.0)                  # building: qualified, or `import Circle from shapes`
+</code></pre></div>
+
+<p>A bare <code>Circle(1.0)</code> without the import is an error that names both fixes:
+"<code>Circle</code> is a case of <code>Shape</code>; write <code>Shape.Circle(…)</code> or add
+<code>import Circle from shapes</code>".</p>
 <h3 id="123-visibility-with-export">12.3 Visibility with <code>export</code></h3>
 <p>Everything is <strong>private to its module by default</strong>. Mark items public with
 <code>export</code>:</p>
@@ -4058,15 +4076,15 @@ manager.</p>
 </tr>
 <tr>
 <td><code>verse build</code></td>
-<td>produce an optimized native executable</td>
+<td>build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle</td>
 </tr>
 <tr>
 <td><code>verse build --size-report</code></td>
 <td>build, and list every included item with its size and why it was included</td>
 </tr>
 <tr>
-<td><code>verse why &lt;item&gt;</code></td>
-<td>show the chain of uses from the program's entry statements to one included item</td>
+<td><code>verse why &lt;item-or-path&gt;</code></td>
+<td>one command, told apart by the form of its argument: for an item (<code>std.net.get</code>), the chain of uses from the program's entry statements; for a file path (<code>generated/item.vs</code>), the plugin that wrote it</td>
 </tr>
 <tr>
 <td><code>verse run --deny &lt;capability&gt;</code></td>
@@ -4143,7 +4161,7 @@ help: or branch:            if user.email is email?  …
 <h3 id="163-packages">16.3 Packages</h3>
 <p>A project is described by <code>verse.toml</code>:</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #007020; font-weight: bold">[package]</span>
-name<span style="color: #BBB"> </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"word-tools"</span>
+name<span style="color: #BBB"> </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"word_tools"</span>
 version<span style="color: #BBB"> </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"0.3.0"</span>
 description<span style="color: #BBB"> </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"Small text utilities"</span>
 license<span style="color: #BBB"> </span><span style="color: #666">=</span><span style="color: #BBB"> </span><span style="color: #4070A0">"MIT"</span>
@@ -4161,7 +4179,9 @@ snapshot<span style="color: #BBB"> </span><span style="color: #666">=</span><spa
 <li>Packages are fetched from the central registry (or git/path sources) and
   pinned in <code>verse.lock</code>, which is committed for applications.</li>
 <li>A package's modules are imported by package name:
-  <code>import red, bold from colors</code>.</li>
+  <code>import red, bold from colors</code>. A package name therefore looks like an
+  identifier: lowercase letters, digits and <code>_</code>, starting with a letter
+  (<code>[a-z][a-z0-9_]*</code>), so <code>word_tools</code>, never <code>word-tools</code>.</li>
 <li>Resolution chooses a single version of each package per major version.</li>
 <li>Builds are reproducible: the same <code>verse.lock</code> gives the same build.</li>
 <li>Packages declare no install scripts; building a dependency cannot run
@@ -4769,6 +4789,10 @@ caller, so it must not be able to fail.</p>
   item. An <code>extern</code> function will be callable only inside a <code>with</code> block that
   holds the matching system capability, and will take and return plain-data
   types only. Verse 0.1 adds no syntax for it, and no <code>extern</code> word.</li>
+<li><strong>Reserved for 0.2: a fixed-size mutable byte buffer.</strong> <code>Bytes</code> is
+  immutable and <code>List&lt;Int&gt;</code> allocates, so bulk I/O on boards without a heap
+  (SPI, UART, I2C reads) needs a buffer whose size is fixed when it is made.
+  It is a 0.2 item together with <code>extern</code>; 0.1 adds no type for it.</li>
 </ul>
 <h3 id="1816-standard-library-and-tooling">18.16 Standard library and tooling</h3>
 <p><strong>Decision:</strong> A compact, consistently named standard library (<code>std.fs</code>,
@@ -6731,6 +6755,51 @@ and 06 P6-2…P6-5). No section is reopened.</p>
 <td>Order rule stated</td>
 <td>One sentence in §9.4 for <code>Map</code> and <code>Set</code> alike: replacing the value of an existing key keeps its position; removing a key and inserting it again puts it at the end. §9.2 uses the same words. Makes R7-1 explicit.</td>
 <td>§9.2, §9.4</td>
+</tr>
+</tbody>
+</table>
+<h3 id="round-8-architecture-follow-ups">Round 8 (architecture follow-ups)</h3>
+<p>Fixes carried over from architecture 19 (P19-8, P19-9), 20 (P20-6) and
+Michelangelo's <code>reviews/review-6.md</code> (R6-2). No section is reopened.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>Resolved decision</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R8-1</td>
+<td>Package names</td>
+<td>A package is imported by name, so its name looks like an identifier: <code>[a-z][a-z0-9_]*</code>. The §16.3 example is <code>word_tools</code>.</td>
+<td>§16.3</td>
+</tr>
+<tr>
+<td>R8-2</td>
+<td><code>verse why</code></td>
+<td>One command, <code>verse why &lt;item-or-path&gt;</code>, told apart by the form of its argument: an item gives the chain of uses from the entry statements; a file path gives the plugin that wrote it (architecture 07 §7.7).</td>
+<td>§16</td>
+</tr>
+<tr>
+<td>R8-3</td>
+<td><code>verse build</code></td>
+<td>Builds for the selected profile and target (dev or release executable, WebAssembly module, bytecode bundle), not only "an optimized native executable".</td>
+<td>§16</td>
+</tr>
+<tr>
+<td>R8-4</td>
+<td>Variants of an imported type</td>
+<td>Importing a type does not import its variants. A pattern looks a variant name up in the type being matched, so matching needs no import; building a value needs <code>import Circle from shapes</code> or the qualified <code>Shape.Circle(2.0)</code> (§4.4). The error names both fixes. Ruled in review-6 R6-2.</td>
+<td>§12.2</td>
+</tr>
+<tr>
+<td>R8-5</td>
+<td>No-heap byte buffer</td>
+<td>A fixed-size mutable byte buffer for bulk I/O on boards without a heap is reserved for 0.2, together with <code>extern</code>; 0.1 adds no type.</td>
+<td>§18.15</td>
 </tr>
 </tbody>
 </table></body></html>

@@ -15,11 +15,11 @@
 ## 3.2 HIR: the desugared core
 
 HIR removes every piece of convenience syntax so later stages handle a small
-language. The table gives the mapping. Source forms are from the spec.
+language. The table gives the mapping. Source forms are from the spec. The core notation in the table and in the MIR blocks below is the compiler's own notation for its data. It is not Verse code.
 
 | Surface form | HIR core |
 |--------------|----------|
-| `a otherwise b` (§3.8.2) | `match a { Present(x) -> x; Absent -> b }` over the optional or fallible type, typed later |
+| `a otherwise b` (§3.8.2) | `match a { present(x) -> x; none -> b }` over the optional or fallible type, typed later |
 | `expr?` (§8.3) | early `return` of the absent or error case from the enclosing function or lambda |
 | `if x is p` (§6.2) | single-arm match with fallthrough |
 | `.name` key-path lambda (§5.4) | lambda with one parameter |

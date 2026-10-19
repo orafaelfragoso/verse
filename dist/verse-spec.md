@@ -3281,6 +3281,27 @@ even with a leading `_`: the fix is to delete the name, or the whole line. An
 import never adds code by itself; it only makes names visible (§12.4), and a
 build includes only what the program actually uses.
 
+**Variants of an imported type.** Importing a type does not import its
+variants, because every name in a file traces to an import line. *Matching*
+needs no import: in a pattern, a variant name is looked up in the type of the
+value being matched. *Building* a value needs the variant in scope: import it,
+or qualify it with the type name as §4.4 allows.
+
+```verse
+import Shape from shapes
+
+fn area(shape: Shape): Float
+    match shape
+        Circle(r) -> 3.14159 * r * r      # a pattern: no import needed
+        Square(s) -> s * s
+
+unit = Shape.Circle(1.0)                  # building: qualified, or `import Circle from shapes`
+```
+
+A bare `Circle(1.0)` without the import is an error that names both fixes:
+"`Circle` is a case of `Shape`; write `Shape.Circle(…)` or add
+`import Circle from shapes`".
+
 ### 12.3 Visibility with `export`
 
 Everything is **private to its module by default**. Mark items public with
@@ -3750,9 +3771,9 @@ manager.
 | `verse test [path]` | run `test` blocks and doc tests; `--filter "name"`, `--watch` |
 | `verse fmt [path]` | format code in the one canonical style; `--check` for CI |
 | `verse check` | type-check without running; fast feedback for editors |
-| `verse build` | produce an optimized native executable |
+| `verse build` | build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle |
 | `verse build --size-report` | build, and list every included item with its size and why it was included |
-| `verse why <item>` | show the chain of uses from the program's entry statements to one included item |
+| `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`std.net.get`), the chain of uses from the program's entry statements; for a file path (`generated/item.vs`), the plugin that wrote it |
 | `verse run --deny <capability>` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
 | `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `std.fs` on a browser WebAssembly target, for example) |
 | `verse doc` | generate HTML documentation from doc comments |
@@ -3802,7 +3823,7 @@ A project is described by `verse.toml`:
 
 ```toml
 [package]
-name = "word-tools"
+name = "word_tools"
 version = "0.3.0"
 description = "Small text utilities"
 license = "MIT"
@@ -3819,7 +3840,9 @@ snapshot = "0.9"
 - Packages are fetched from the central registry (or git/path sources) and
   pinned in `verse.lock`, which is committed for applications.
 - A package's modules are imported by package name:
-  `import red, bold from colors`.
+  `import red, bold from colors`. A package name therefore looks like an
+  identifier: lowercase letters, digits and `_`, starting with a letter
+  (`[a-z][a-z0-9_]*`), so `word_tools`, never `word-tools`.
 - Resolution chooses a single version of each package per major version.
 - Builds are reproducible: the same `verse.lock` gives the same build.
 - Packages declare no install scripts; building a dependency cannot run
@@ -4467,6 +4490,10 @@ caller, so it must not be able to fail.
   item. An `extern` function will be callable only inside a `with` block that
   holds the matching system capability, and will take and return plain-data
   types only. Verse 0.1 adds no syntax for it, and no `extern` word.
+- **Reserved for 0.2: a fixed-size mutable byte buffer.** `Bytes` is
+  immutable and `List<Int>` allocates, so bulk I/O on boards without a heap
+  (SPI, UART, I2C reads) needs a buffer whose size is fixed when it is made.
+  It is a 0.2 item together with `extern`; 0.1 adds no type for it.
 
 ### 18.16 Standard library and tooling
 
@@ -5159,3 +5186,16 @@ and 06 P6-2…P6-5). No section is reopened.
 | R7-6 | Domain libraries | One sentence: they ship as optional packages, not in `std`. | §15.2 |
 | R7-7 | `extern` | Reserved for 0.2: callable only inside a `with` block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: `reviews/extern-semantics.md` (proposal). | §18.15 |
 | R7-8 | Order rule stated | One sentence in §9.4 for `Map` and `Set` alike: replacing the value of an existing key keeps its position; removing a key and inserting it again puts it at the end. §9.2 uses the same words. Makes R7-1 explicit. | §9.2, §9.4 |
+
+### Round 8 (architecture follow-ups)
+
+Fixes carried over from architecture 19 (P19-8, P19-9), 20 (P20-6) and
+Michelangelo's `reviews/review-6.md` (R6-2). No section is reopened.
+
+| # | Item | Resolved decision | Where |
+|---|------|-------------------|-------|
+| R8-1 | Package names | A package is imported by name, so its name looks like an identifier: `[a-z][a-z0-9_]*`. The §16.3 example is `word_tools`. | §16.3 |
+| R8-2 | `verse why` | One command, `verse why <item-or-path>`, told apart by the form of its argument: an item gives the chain of uses from the entry statements; a file path gives the plugin that wrote it (architecture 07 §7.7). | §16 |
+| R8-3 | `verse build` | Builds for the selected profile and target (dev or release executable, WebAssembly module, bytecode bundle), not only "an optimized native executable". | §16 |
+| R8-4 | Variants of an imported type | Importing a type does not import its variants. A pattern looks a variant name up in the type being matched, so matching needs no import; building a value needs `import Circle from shapes` or the qualified `Shape.Circle(2.0)` (§4.4). The error names both fixes. Ruled in review-6 R6-2. | §12.2 |
+| R8-5 | No-heap byte buffer | A fixed-size mutable byte buffer for bulk I/O on boards without a heap is reserved for 0.2, together with `extern`; 0.1 adds no type. | §18.15 |

@@ -13,33 +13,35 @@ only where they change what a user sees.
    annotation, macro or grammar rule. A `.vs` file parses, type-checks and
    means exactly the same on every machine, whatever plugins are installed.
 2. **A plugin never changes what a valid program means.** It may read the
-   program, report on it, write new source files next to it, and provide
-   libraries. It may not rewrite the program behind the author's back.
+   program, report on it, write new source files next to it. It may not rewrite the program behind the author's back.
 
 Why: spec §1.4 promises one spelling per meaning, and a reader must be able to
 understand a file by reading that file. A syntax plugin would turn "what does
 this line mean?" into "which plugins does this project use?". Flexibility
-comes from libraries, traits and generated code, all of which are visible
+comes from packages, traits and generated code, all of which are visible
 Verse.
 
 *Script and compile modes.* Plugins run at `check` and `build` time, never
 inside the program. So a plugin cannot make `verse run` and `verse build`
 differ. The only plugin output that reaches the running program is ordinary
-Verse source (7.3) and capability libraries (7.4), and both are present in
-every tier.
+Verse source (7.3), and it is present in every tier. Packages written as Wasm
+components (7.4) are dependencies, not plugins, and run the same way in every tier.
 
 ## 7.2 What a plugin can be
 
-Five kinds, and no others in 0.1. A plugin declares exactly one kind in its
+Four kinds, and no others in 0.1. A plugin declares exactly one kind in its
 manifest.
 
 | Kind | What it does | Reads | Writes | Example |
 |------|--------------|-------|--------|---------|
 | `lint` | Reports warnings and suggested edits | typed program (read only) | diagnostics | "this loop can be `.map(…)`" |
 | `generator` | Produces Verse source files from a description | its declared inputs | files in `generated/` | records from a JSON schema |
-| `bindgen` | A generator for foreign libraries | a C header or Wasm component | `.vs` module with `extern` declarations (needs spec ruling Q2) | bindings for a C library |
-| `library` | Supplies a package of functions, written in Verse or compiled to a Wasm component, imported like any module | nothing at build time | nothing | a GUI toolkit, a PLC driver |
+| `bindgen` | A generator for foreign libraries | a C header or Wasm component | `.vs` module with `extern` declarations (0.2, with the `extern` section; Q2) | bindings for a C library |
 | `tool` | Adds a `verse <name>` subcommand or a debugger value renderer | what the user grants | what the user grants | `verse bench`, a renderer for a `Decimal` |
+
+A package whose functions are compiled to a Wasm component is **not a plugin**:
+it is an ordinary dependency (7.4). Only code that runs while your project
+builds is a plugin.
 
 Not extension points in 0.1: syntax, the type checker, the ownership checker,
 the formatter (it has no options, §16.1), the optimizer, and the target
@@ -67,11 +69,13 @@ export type Item
   an annotation in source**, because an annotation would be new syntax.
 - Same inputs and same plugin version give the same bytes (spec §16.3).
 
-## 7.4 Libraries are packages, and only what is used is built in
+## 7.4 Wasm-implemented packages are ordinary packages
 
-A `library` plugin is a package in the sense of §16.3 with one difference: its
-implementation may be a Wasm component rather than Verse source. It is
-imported with the normal form:
+A package may write its functions as a Wasm component instead of Verse source
+(a GUI toolkit, a PLC driver). It is **not a plugin**, because it runs no code
+while your project builds; it only becomes part of your program, like any other
+dependency. So it is listed under `[dependencies]`, a published package can
+depend on it, and no root-only rule applies. It is imported with the normal form:
 
 ```verse
 import window, button from gui
@@ -79,15 +83,19 @@ import window, button from gui
 
 It shows up in the build only if the program reaches it ([06](06-stdlib-and-shaking.md)).
 Its exported signatures live in a `verse.api` file like any package, so the
-compiler never needs its implementation to check a caller.
+compiler never needs its implementation to check a caller. The capabilities it
+may reach are declared in its `[library] capabilities` (§16.3) and are visible
+to `verse update` and to `[capabilities] grant` in the application.
 
-**How a Wasm library runs inside a native binary (decision, Bob).** It is translated ahead of time, never run by an embedded engine, in every tier. A Wasm frontend lowers the component's functions to mono MIR, so the same optimizer, reachability analysis and backends handle it as handle Verse source. This keeps three promises: only reached functions are built in ([06](06-stdlib-and-shaking.md)), script mode and compile mode behave the same (tier 0 runs the translated MIR, so `verse run` needs no engine either), and no engine is added to the binary. On the Wasm target the component is linked directly. A library may import only declared capabilities, and a component using Wasm features the frontend cannot lower is rejected at build time with a message naming the feature. See [ADR-0005](adr/0005-wasm-component-plugins.md) and [04 §4.4](04-backends-and-targets.md).
+**How a Wasm-implemented package runs inside a native binary (decision, Bob).** It is translated ahead of time, never run by an embedded engine, in every tier. A Wasm frontend lowers the component's functions to mono MIR, so the same optimizer, reachability analysis and backends handle it as handle Verse source. This keeps three promises: only reached functions are built in ([06](06-stdlib-and-shaking.md)), script mode and compile mode behave the same (tier 0 runs the translated MIR, so `verse run` needs no engine either), and no engine is added to the binary. On the Wasm target the component is linked directly. A package may import only its declared capabilities, and a component using Wasm features the frontend cannot lower is rejected at build time with a message naming the feature. See [ADR-0005](adr/0005-wasm-component-plugins.md) and [04 §4.4](04-backends-and-targets.md).
 
 ## 7.5 Trust and grants
 
 - **Opt-in at the root project only.** Spec §16.3 says a dependency cannot
   run code at build time. Plugins keep that promise: only the root `verse.toml`
-  may list plugins, and a dependency that needs one says so in its docs.
+  may list plugins, and a dependency that needs one says so in its docs. A
+  Wasm-implemented package is not a plugin (7.4) and may be a dependency of
+  anything.
 - **Sandboxed by default.** A plugin runs in a Wasm sandbox with no file
   system, no network, no clock, no randomness and no environment. It gets
   only the inputs and capabilities the root project grants.
@@ -122,7 +130,7 @@ editors, `check --json` and the debugger treat it alike.
 ## 7.7 Discoverability
 
 - `verse plugins` lists installed plugins with kind, version and grants.
-- `verse why <path>` says whether a file was written by a generator, and which
+- `verse why <path>` (the same command as `verse why <item>`, 19 §19.11) says whether a file was written by a generator, and which
   one.
 - `verse check --json` marks each diagnostic with `source: "compiler"` or the
   plugin name.
@@ -142,4 +150,4 @@ editors, `check --json` and the debugger treat it alike.
    language has a stable form for them.
 4. **Plugin discovery by name.** Registry trust, signing and revocation belong
    to the package manager design and are not decided here.
-5. **Wasm libraries inside native binaries.** Ruled by Bob in §7.4: ahead-of-time translation to mono MIR in every tier, with no embedded engine, not even for `verse run`. This replaces the earlier proposal that kept an engine for `verse run`, because an engine would make script and compile modes differ.
+5. **Wasm-implemented packages inside native binaries.** Ruled by Bob in §7.4: ahead-of-time translation to mono MIR in every tier, with no embedded engine, not even for `verse run`. This replaces the earlier proposal that kept an engine for `verse run`, because an engine would make script and compile modes differ.

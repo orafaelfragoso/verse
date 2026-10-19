@@ -301,3 +301,16 @@ and 06 P6-2…P6-5). No section is reopened.
 | R7-6 | Domain libraries | One sentence: they ship as optional packages, not in `std`. | §15.2 |
 | R7-7 | `extern` | Reserved for 0.2: callable only inside a `with` block holding the matching system capability, plain-data types only; no syntax or word in 0.1. Draft semantics: `reviews/extern-semantics.md` (proposal). | §18.15 |
 | R7-8 | Order rule stated | One sentence in §9.4 for `Map` and `Set` alike: replacing the value of an existing key keeps its position; removing a key and inserting it again puts it at the end. §9.2 uses the same words. Makes R7-1 explicit. | §9.2, §9.4 |
+
+### Round 8 (architecture follow-ups)
+
+Fixes carried over from architecture 19 (P19-8, P19-9), 20 (P20-6) and
+Michelangelo's `reviews/review-6.md` (R6-2). No section is reopened.
+
+| # | Item | Resolved decision | Where |
+|---|------|-------------------|-------|
+| R8-1 | Package names | A package is imported by name, so its name looks like an identifier: `[a-z][a-z0-9_]*`. The §16.3 example is `word_tools`. | §16.3 |
+| R8-2 | `verse why` | One command, `verse why <item-or-path>`, told apart by the form of its argument: an item gives the chain of uses from the entry statements; a file path gives the plugin that wrote it (architecture 07 §7.7). | §16 |
+| R8-3 | `verse build` | Builds for the selected profile and target (dev or release executable, WebAssembly module, bytecode bundle), not only "an optimized native executable". | §16 |
+| R8-4 | Variants of an imported type | Importing a type does not import its variants. A pattern looks a variant name up in the type being matched, so matching needs no import; building a value needs `import Circle from shapes` or the qualified `Shape.Circle(2.0)` (§4.4). The error names both fixes. Ruled in review-6 R6-2. | §12.2 |
+| R8-5 | No-heap byte buffer | A fixed-size mutable byte buffer for bulk I/O on boards without a heap is reserved for 0.2, together with `extern`; 0.1 adds no type. | §18.15 |

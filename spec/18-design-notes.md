@@ -346,6 +346,10 @@ caller, so it must not be able to fail.
   item. An `extern` function will be callable only inside a `with` block that
   holds the matching system capability, and will take and return plain-data
   types only. Verse 0.1 adds no syntax for it, and no `extern` word.
+- **Reserved for 0.2: a fixed-size mutable byte buffer.** `Bytes` is
+  immutable and `List<Int>` allocates, so bulk I/O on boards without a heap
+  (SPI, UART, I2C reads) needs a buffer whose size is fixed when it is made.
+  It is a 0.2 item together with `extern`; 0.1 adds no type for it.
 
 ### 18.16 Standard library and tooling
 

@@ -107,7 +107,7 @@ MIR has explicit unwind edges. Each backend chooses how to realize them:
 | native with `unwind = "native"` | DWARF unwind tables and a personality routine in `verse-rt` |
 | Wasm with exception handling | `try_table` and `throw` |
 | Wasm without it, and embedded | the compiler emits a status check after calls that can unwind and branches to the cleanup block (zero cost on the success path except the check) |
-| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification and rejected unless the program has no `Cleanup` types in scope of any panic site. Needs a ruling: [12](12-open-questions.md), Q5 |
+| `abort` (opt-in profile) | no cleanup runs; documented as a deviation from the specification and rejected unless the program has no `Cleanup` types in scope of any panic site. Ruled in [12](12-open-questions.md) Q5: panics clean up on every target, and `abort` is allowed only when the compiler proves no `Cleanup` value is live at any panic site; otherwise the build fails |
 
 Panic output is a structured record first (message, task, source span, stack),
 rendered as text for humans and emitted as JSON when `VERSE_PANIC=json` or when
@@ -121,14 +121,16 @@ a debugger is attached ([08](08-debugging-and-mcp.md)).
 - Everything else in the collections API (§9.5) is **written in Verse** on top
   of these primitives, so it is monomorphized and inlined into user code. That
   is how iterator chains reach the performance of a hand-written loop.
-- Hash iteration order is insertion order for `Map` (spec §9.2). `Set` needs a
-  ruling for determinism (Q4).
+- Hash iteration order is insertion order for `Map` (spec §9.2). `Set` also iterates in
+  insertion order (spec §9.4, [12](12-open-questions.md) Q4).
 
 ## 5.6 The `sys` capability interface
 
 All platform access goes through one small interface of **capabilities**.
 `std.fs` calls `sys.fs.*`, never an OS function directly. A target provides the
 capabilities it can.
+
+This is a description of the interface, not Verse code.
 
 ```
 capability fs      { open, read, write, close, stat, list, remove, ... }
@@ -158,8 +160,8 @@ Reasons:
 Microcontrollers need explicit rules, because the language's defaults assume a
 heap and a 64-bit `Int`.
 
-- Heap is allowed but sized at build time (`[embedded] heap = "32K"` in
-  `verse.toml`). Out-of-memory is a panic.
+- Heap is allowed but sized at build time (`[targets.<target>] heap = "32K"` in
+  `verse.toml`, see [19](19-cli-and-manifest.md)). Out-of-memory is a panic.
 - `verse build --no-heap` checks that no reachable function allocates, using
   the MIR (reachability plus allocation intrinsics). Records, tuples, variants,
   `Int`, `Float`, fixed ranges and borrowed `Text` literals work without a heap.
@@ -168,5 +170,5 @@ heap and a 64-bit `Int`.
   32-bit operations where it can prove values fit, and sized types
   (`std.num.Int32`) are the explicit tool for hot code.
 - Interrupt handlers are written in Verse as ordinary functions registered
-  through the `gpio` or `timer` capability. They run on the cooperative
+  through the `gpio` or `clock` capability. They run on the cooperative
   executor's context and may not block.

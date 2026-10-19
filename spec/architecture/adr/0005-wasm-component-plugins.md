@@ -37,4 +37,4 @@ root project's `verse.toml`. Details in [07](../07-plugins.md).
 
 ## Addendum: libraries in native binaries
 
-A Wasm `library` plugin is translated ahead of time to mono MIR (a Wasm frontend), so native and script builds contain no Wasm engine. Only the compiler host embeds wasmtime, to run `lint`, `generator`, `bindgen` and `tool` plugins. See [07 §7.4](../07-plugins.md).
+A Wasm-implemented package (an ordinary dependency, not a plugin) is translated ahead of time to mono MIR (a Wasm frontend), so native and script builds contain no Wasm engine. Only the compiler host embeds wasmtime, to run the four plugin kinds: `lint`, `generator`, `bindgen` and `tool`. See [07 §7.4](../07-plugins.md).

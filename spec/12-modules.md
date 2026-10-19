@@ -60,6 +60,27 @@ even with a leading `_`: the fix is to delete the name, or the whole line. An
 import never adds code by itself; it only makes names visible (§12.4), and a
 build includes only what the program actually uses.
 
+**Variants of an imported type.** Importing a type does not import its
+variants, because every name in a file traces to an import line. *Matching*
+needs no import: in a pattern, a variant name is looked up in the type of the
+value being matched. *Building* a value needs the variant in scope: import it,
+or qualify it with the type name as §4.4 allows.
+
+```verse
+import Shape from shapes
+
+fn area(shape: Shape): Float
+    match shape
+        Circle(r) -> 3.14159 * r * r      # a pattern: no import needed
+        Square(s) -> s * s
+
+unit = Shape.Circle(1.0)                  # building: qualified, or `import Circle from shapes`
+```
+
+A bare `Circle(1.0)` without the import is an error that names both fixes:
+"`Circle` is a case of `Shape`; write `Shape.Circle(…)` or add
+`import Circle from shapes`".
+
 ### 12.3 Visibility with `export`
 
 Everything is **private to its module by default**. Mark items public with

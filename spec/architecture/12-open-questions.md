@@ -71,7 +71,7 @@ there) for hot loops. No semantic change.
 non-ASCII text. This is the same as the `text.bytes()` mitigation in
 [09](09-performance.md), P1, now with a documented API.
 
-**Status:** ruled. Spec text pending.
+**Status:** ruled. Applied in spec round 7.
 
 ## Q4. `Set` iteration order
 
@@ -100,7 +100,7 @@ per element more than an unordered open-addressing table (assumption, to be
 measured in M1). Budgeted in [09](09-performance.md), P8. Hash seeds are fixed
 in record and replay mode.
 
-**Status:** ruled. Spec text pending.
+**Status:** ruled. Applied in spec round 7.
 
 ## Q5. Panic strategy: `Cleanup` and unwinding on targets without unwinding
 
@@ -192,8 +192,7 @@ instrumentation, but it can change what a program does, which breaks the rule
 that a plugin never changes what a valid program means ([07](07-plugins.md)).
 
 **Ruling (Picasso, accepted in the room):** transforming plugins stay out of
-0.1. Only the five kinds in 07 ship (`lint`, `generator`, `bindgen`, `library`,
-`tool`). A transforming kind may be added later by a spec amendment.
+0.1. Only the four kinds in 07 ship (`lint`, `generator`, `bindgen`, `tool`). A transforming kind may be added later by a spec amendment.
 
 **Implementation consequence.** The optimizer pass list ([03](03-ir-and-passes.md),
 3.4) is closed to plugins. The mono MIR serialization is internal and

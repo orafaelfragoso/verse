@@ -9,6 +9,8 @@ actually uses, found by analysing the program at build time. This document
 says how. The mechanism itself is decided in
 [ADR-0004](adr/0004-whole-program-reachability.md); this document gives the
 details, the report format, the edge cases and the package format.
+The manifest and package manager are in [19](19-cli-and-manifest.md); the
+first-party package APIs are sketched in [20](20-first-party-packages.md).
 
 Labels follow the [README conventions](README.md#conventions): **Fact** (from
 the spec or from a ruling recorded in [12](12-open-questions.md)),
@@ -38,9 +40,9 @@ the spec or from a ruling recorded in [12](12-open-questions.md)),
 |------|------|----------|------------|-----------------------|--------|
 | Prelude | names available without import (spec §15.1) | `print`, `input`, `args`, `env`, `exit`, `error`, built-in types and traits | the toolchain | always visible; still shaken like everything else | Fact |
 | `std` | general-purpose modules (spec §15.2) | `std.fs`, `std.net`, `std.text`, `std.time`, `std.json`, `std.task`, `std.math`, `std.num`, `std.random`, `std.process`, `std.env`, `std.cli`, `std.log` | the toolchain, versioned with it | `import std.fs`, `import get from std.net` | Fact |
-| First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals (names: Proposal P6-1) | the package registry, installed on demand | `verse add finance`, then `import … from finance` | Fact: they are packages, not `std` (ruling on [Q1](12-open-questions.md#q1-first-party-domain-libraries-and-their-names)) |
+| First-party optional packages | domain libraries maintained by the Verse project | finance, machine learning, web services, GUI, IoT peripherals: `finance`, `ml`, `web`, `gui`, `iot` (P6-1, ruled in [Q12](12-open-questions.md#q12-stdlib-packaging-proposals-06-612-p6-1-to-p6-7)) | the package registry, installed on demand | `verse add finance`, then `import … from finance` | Fact: they are packages, not `std` (ruling on [Q1](12-open-questions.md#q1-first-party-domain-libraries-and-their-names)) |
 | Third-party packages | anything published to the registry, git or path | `colors`, `http_extra` (spec §16.3 examples) | the registry | `verse add colors`, then `import red, bold from colors` | Fact |
-| Library plugins | a package whose implementation is a Wasm component ([07 §7.4](07-plugins.md#74-libraries-are-packages-and-only-what-is-used-is-built-in)) | a GUI toolkit, a PLC driver | the registry | listed under `[plugins]` with `kind = "library"`, imported like any module | Fact (07) |
+| Wasm-implemented packages | a package whose functions are a Wasm component; not a plugin ([07 §7.4](07-plugins.md#74-wasm-implemented-packages-are-ordinary-packages)) | a GUI toolkit, a PLC driver | the registry | an ordinary dependency under `[dependencies]`, imported like any module | Fact (07 §7.4) |
 
 Notes:
 
@@ -185,7 +187,7 @@ the verifier to prove that every `CallDyn` slot index is in the called set).
   can prove dead; the size report shows the rest.
 - **What would break exactness.** Run-time reflection, dynamic loading, or a
   plugin that injects code. The language has none of these, and plugins are
-  limited to the five kinds in [07 §7.2](07-plugins.md#72-what-a-plugin-can-be),
+  limited to the four kinds in [07 §7.2](07-plugins.md#72-what-a-plugin-can-be),
   none of which rewrites a program ([Q11](12-open-questions.md#q11-transforming-plugins-plugins-that-rewrite-mir)).
 
 ## 6.5 Capabilities and runtime slices
@@ -362,7 +364,7 @@ The chain is the stored reason of each node, followed back to a root
 | Function values and lambdas (spec §4.7, §5.4) | taking a function's value or creating a closure includes its body (`fn-value`); a call through a function value then needs nothing new | Assumption (detail of ADR-0004) |
 | Reflection | none in the spec; `Show`, `Eq`, `Hash`, `ToJson`, `FromJson` are derived per used type and shaken like any function | Fact |
 | `Show` for interpolation and `print` | each interpolated or printed type pulls in its own `Show` instance and nothing else | Fact (spec §10.4) |
-| Library plugins | a Verse-source library is shaken like any package. A Wasm-component library is shaken at component granularity: the component's imports and its `verse.api` exports are known, its inside is opaque (see risk R-4 in §6.11) | Assumption |
+| Wasm-implemented packages | translated ahead of time to mono MIR in every tier, with no engine embedded ([07 §7.4](07-plugins.md#74-wasm-implemented-packages-are-ordinary-packages), [ADR-0005](adr/0005-wasm-component-plugins.md)), so it is shaken per function like Verse code; on the Wasm target it is linked as a component | Fact (07 §7.4) |
 | Generator plugins | output is ordinary `.vs` source, reached through imports | Fact (07 §7.3) |
 | `extern` functions (0.2) | callable only inside a `with` block that holds the matching `sys` capability, with plain-data types only, so each call site is a capability use the analysis already sees | Fact (ruling on Q2); spec text pending |
 | Test builds | roots are the selected tests (§6.4); `[dev-dependencies]` are visible only here (spec §16.3); fakes for capabilities (virtual clock, in-memory fs, [05 §5.6](05-runtime.md#56-the-sys-capability-interface)) replace slices | Fact / Assumption |
@@ -418,7 +420,7 @@ verse = "0.1"
 
 [library]
 modules      = ["finance", "finance.bonds", "finance.calendar"]
-capabilities = ["clock"]            # the most any module may need
+capabilities = []                   # none: finance is pure, dates are passed in (20 §20.2); time would be `clock`
 size_budget  = "150K"               # fails `verse publish` if the example build exceeds it
 
 [library.targets]                   # where the package is available
@@ -479,8 +481,8 @@ finance package API is not designed yet.)
 | R-1 | **Generic libraries are monomorphized in the consumer.** A library of unannotated functions is compiled once per concrete type, in every program that uses it | compile time and code size grow with use ([09](09-performance.md), P6) | identical code folding; the size report shows instance counts; library authors can annotate concrete types where specialization does not pay |
 | R-2 | **ML needs native kernels and GPUs** | BLAS and GPU compute are not Verse code | 0.1: pure-Verse kernels and a `gpu` capability proposal (P6-6); 0.2: `extern` for BLAS-like libraries, under the Q2 rules |
 | R-3 | **GUI needs platform toolkits** | windows and input are per-OS; the browser has its own | a `surface` capability with per-target platform layers (P6-6); a pure-Verse widget library on top; the web target uses `std-web` |
-| R-4 | **Wasm-component libraries are opaque** | a component is shaken as a unit, and running one inside a native binary needs an embedded engine or ahead-of-time translation | prefer Verse-source libraries; treat a component as one item in the report with its size; decision on native embedding left to Bob ([07](07-plugins.md), [12](12-open-questions.md)) |
-| R-5 | **Names of first-party packages** | Michelangelo's rule: one obvious name per idea. 07 already uses `ui` in an example (`import window, button from ui`) while this document says "GUI" | a reserved name list ruled once (P6-1, Q8) |
+| R-4 | **Wasm-component libraries must be lowerable** | a component is translated ahead of time to mono MIR in every tier, with no engine embedded (07 §7.4, ADR-0005); a component using Wasm features the frontend cannot lower is rejected at build time | the rejection names the feature; once lowered, the component is shaken per function and its items appear in the size report like Verse code |
+| R-5 | **Names of first-party packages** | Michelangelo's rule: one obvious name per idea | ruled: `finance`, `ml`, `web`, `gui`, `iot` (P6-1, Q12); 07's example uses `gui` |
 | R-6 | **Plugins never add syntax** | a plugin that changed meaning would also break exactness | already a rule ([07 §7.1](07-plugins.md#71-the-two-rules)); transforming plugins are out of 0.1 (Q11) |
 | R-7 | **`print` pulls in `stdio` and the failed-`?` report pulls in `stderr`** | even "silent" programs may need `stdio` because a failed top-level `?` prints (spec §12.5) | acceptable; the report shows why |
 | R-8 | **Test builds and fakes** | capability fakes must not leak into release builds | fakes live in a test-only slice selected only in `verse test` |
@@ -493,7 +495,7 @@ before we rely on them. Bob should file them in
 
 | # | Proposal | Touches | Recommendation |
 |---|----------|---------|----------------|
-| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a `std` module (HTTP serving stays `std.net.serve`; `web` adds routing and templates on top). 07's example name `ui` is changed to `gui`, or the list uses `ui` | spec §15 (a short paragraph listing first-party packages), [Q1](12-open-questions.md#q1-first-party-domain-libraries-and-their-names), [Q8](12-open-questions.md#q8-package-namespace-for-first-party-libraries-and-plugins), 07 | rule the list once, with Michelangelo choosing between `gui` and `ui` |
+| P6-1 | **Reserved names for first-party packages**: `finance`, `ml`, `web`, `gui`, `iot`. Each covers one idea; none duplicates a `std` module (HTTP serving stays `std.net.serve`; `web` adds routing and templates on top). 07's example uses `gui` | spec §15 (a short paragraph listing first-party packages), [Q1](12-open-questions.md#q1-first-party-domain-libraries-and-their-names), [Q8](12-open-questions.md#q8-package-namespace-for-first-party-libraries-and-plugins), 07 | ruled (Q12) |
 | P6-2 | **`[library]` section in `verse.toml`** (modules, capabilities, per-target availability, size budget; `native` in 0.2) and a supported-toolchain range for first-party packages | spec §16.3 | accept; it is data only and keeps §16.3's "no build scripts" promise |
 | P6-3 | **Unused import warning**: an import whose names are never used warns (it never costs code) | spec §12.2, §3.9 (the unused-binding warning already exists for locals) | accept, as a warning only |
 | P6-4 | **Add `verse build --size-report` and `verse why <item>`** to the §16 tool table | spec §16 | accept; both are already planned (01, 11 M2, 08 `size_report`) |
@@ -522,4 +524,4 @@ Reported by Picasso and **fixed by Bob** in each named file. Item 6 is decided i
    (sized integers live in `std.num`, names unspecified).
 5. [03 §3.2](03-ir-and-passes.md#32-hir-the-desugared-core) writes the
    `with` form as `with x = e as y`; the spec form is `with e as y` (§13).
-6. A Wasm `library` plugin inside a native binary: decided as ahead-of-time translation to mono MIR in every tier, no embedded engine ([07 §7.4](07-plugins.md)).
+6. A Wasm-implemented package (no longer a plugin kind, 07 §7.4) inside a native binary: decided as ahead-of-time translation to mono MIR in every tier, no embedded engine ([07 §7.4](07-plugins.md)).

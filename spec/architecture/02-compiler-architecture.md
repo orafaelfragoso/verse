@@ -15,6 +15,7 @@ flowchart LR
     OWN --> GMIR["Generic MIR<br/>CFG, moves, drops, unwind edges"]
     GMIR --> MONO["Monomorphization<br/>demand driven"]
     MONO --> MMIR["Mono MIR"]
+    WLIB["Wasm-implemented package<br/>(07 §7.4)"] --> WFE["Wasm frontend<br/>translates to mono MIR"] --> MMIR
     MMIR --> OPT["MIR optimizer"]
     OPT --> SHAKE["Reachability and<br/>capability analysis"]
     SHAKE --> BC["Bytecode<br/>script tier"]
@@ -22,6 +23,8 @@ flowchart LR
     SHAKE --> LL["LLVM<br/>release AOT"]
     SHAKE --> WA["Wasm emitter"]
 ```
+
+A package implemented as a Wasm component enters at `Mono MIR` through a Wasm frontend, so it is optimized, shaken and compiled like Verse source ([07 §7.4](07-plugins.md)).
 
 Everything left of `Generic MIR` is **target independent and library
 independent**. Everything from `Mono MIR` onward knows the target. Nothing

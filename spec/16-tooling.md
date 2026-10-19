@@ -10,9 +10,9 @@ manager.
 | `verse test [path]` | run `test` blocks and doc tests; `--filter "name"`, `--watch` |
 | `verse fmt [path]` | format code in the one canonical style; `--check` for CI |
 | `verse check` | type-check without running; fast feedback for editors |
-| `verse build` | produce an optimized native executable |
+| `verse build` | build for the selected profile and target: a dev or release executable, a WebAssembly module, or a bytecode bundle |
 | `verse build --size-report` | build, and list every included item with its size and why it was included |
-| `verse why <item>` | show the chain of uses from the program's entry statements to one included item |
+| `verse why <item-or-path>` | one command, told apart by the form of its argument: for an item (`std.net.get`), the chain of uses from the program's entry statements; for a file path (`generated/item.vs`), the plugin that wrote it |
 | `verse run --deny <capability>` | run, refusing a system capability named after its `std` module (`net`, `fs`, `process`, …); a program that can reach it fails before it starts |
 | `verse check --target <T>` | check that everything the program can reach is available on target `T` (no `std.fs` on a browser WebAssembly target, for example) |
 | `verse doc` | generate HTML documentation from doc comments |
@@ -62,7 +62,7 @@ A project is described by `verse.toml`:
 
 ```toml
 [package]
-name = "word-tools"
+name = "word_tools"
 version = "0.3.0"
 description = "Small text utilities"
 license = "MIT"
@@ -79,7 +79,9 @@ snapshot = "0.9"
 - Packages are fetched from the central registry (or git/path sources) and
   pinned in `verse.lock`, which is committed for applications.
 - A package's modules are imported by package name:
-  `import red, bold from colors`.
+  `import red, bold from colors`. A package name therefore looks like an
+  identifier: lowercase letters, digits and `_`, starting with a letter
+  (`[a-z][a-z0-9_]*`), so `word_tools`, never `word-tools`.
 - Resolution chooses a single version of each package per major version.
 - Builds are reproducible: the same `verse.lock` gives the same build.
 - Packages declare no install scripts; building a dependency cannot run

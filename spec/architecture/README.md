@@ -25,6 +25,8 @@ Facts, assumptions and hypotheses are labelled as such.
 | 10 | [Testing and verification](10-testing-and-verification.md) | Conformance, differential testing, fuzzing, soundness checks |
 | 11 | [Roadmap](11-roadmap.md) | Milestones with dependencies and exit criteria |
 | 12 | [Open questions](12-open-questions.md) | Spec-level decisions that need an explicit ruling before we rely on them |
+| 19 | [CLI, manifests and package manager](19-cli-and-manifest.md) | The `verse` commands, `verse.toml`, `verse.lock`, `verse.api` versioning, registry, resolution |
+| 20 | [First-party packages](20-first-party-packages.md) | API sketches for `finance`, `ml`, `web`, `gui`, `iot` |
 | adr/ | [Architecture decision records](adr/) | One file per major decision, with alternatives and trade-offs |
 | adr/0001 | [Implementation language: Rust](adr/0001-implementation-language.md) | Why Rust for compiler, runtime and tooling |
 | adr/0004 | [Whole-program reachability](adr/0004-whole-program-reachability.md) | Why tree-shaking runs on optimized mono MIR |
