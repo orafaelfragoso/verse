@@ -198,7 +198,8 @@ older = ana.copy(age: 31)         # ana is unchanged
 `.copy()` is the one way to duplicate a value, with or without changes. It is
 provided by the built-in trait `Copyable` (§10.4), which almost every type has
 automatically; the exceptions are `Task<T>`, lock guards and platform handles
-such as files (§13.4), and anything that contains them.
+such as files (§13.4), types that implement `Unique` (§10.4), and anything
+that contains them.
 
 ### 4.4 Variant types
 
@@ -335,7 +336,9 @@ type UserId
 
 Every value has **exactly one owner**: a binding, a field of a record, an
 element of a collection, or a task. Right after the owner's last use, the
-value is dropped, immediately and deterministically (§4.10).
+value is dropped, immediately and deterministically (§4.10). A `Task` owned by a binding, or discarded by a bare `spawn`, is the one
+exception: it is not dropped at its last use but waited for when its scope
+ends (§11.3).
 
 **Copy types.** Scalars (`Int`, `Float`, `Bool`, `Char`, `Nothing`) and
 records, variants and tuples made *only* of copy types (a `Point(x: Float, y:

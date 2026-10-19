@@ -164,10 +164,12 @@ import sqlite3_open, sqlite3_close from sqlite_c
 export type Database
     handle: Pointer
 
+impl Unique for Database                  # `Pointer` is `Copy`; this keeps one owner
+
 impl Database
     ## Closes the database. A `Database` dropped without `close` stays open.
     export fn close(take self)
-        sqlite3_close(self.handle)
+        _ = sqlite3_close(self.handle)    # fails only while statements are open
 
 export fn open(path: Text): Database | Error
     mut db: Pointer? = none

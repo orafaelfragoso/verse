@@ -9,7 +9,9 @@ releases it, however the code goes on from there: normally, by `return`,
 `break`, `continue`, `?` propagation, a panic or a cancellation. A use through
 a view of the value (§4.9), such as the iterator of `file.lines()`, counts as
 a use of the value. A temporary that no name owns is dropped at the end of
-the statement that made it.
+the statement that made it. A `Task` owned by a binding, or discarded by a bare `spawn`, is the one
+exception: it is not dropped at its last use but waited for when its scope
+ends (§11.3).
 
 ```verse
 import open from fs
@@ -67,6 +69,12 @@ writer.finish()?                        # the fallible close: `writer` is consum
 |-----------|-----------|---------|
 | `file.finish()` | `finish(take self): Nothing \| Error` | write what is buffered and close the file; consumes it |
 
+When a task of the same program reads the other end of the file, as with a
+pipe, call `finish()` before the last use. The write in a drop is a system
+call that blocks the whole worker thread while the pipe is full, so the
+reading task may never run; `finish()` is an ordinary I/O call that pauses
+only its own task while it waits.
+
 ### 13.4 What a drop does
 
 A drop runs no code of the program. It frees the value's memory and releases
@@ -84,7 +92,9 @@ A drop never fails, never panics, and never pauses the task, so no other task
 runs in the middle of one and a cancellation cannot interrupt it (§11.5). A
 value that contains a runtime-owned handle releases it when the value is
 dropped. A platform handle or a lock guard is not `Copyable`, and neither is a
-value that contains one (§10.4).
+value that contains one (§10.4). A type the program writes for something the
+runtime does not own implements the marker trait `Unique` to get the same
+rule, so no copy can release the resource a second time.
 
 Something the runtime does not own, such as a temporary directory or a handle
 from a foreign library (§12.6), is released by a named method that the type
@@ -96,6 +106,8 @@ import random
 
 type TempDir
     path: Text
+
+impl Unique for TempDir                    # one owner: no `.copy()`, so `remove` runs once
 
 impl TempDir
     fn create()                            # inferred: TempDir | Error

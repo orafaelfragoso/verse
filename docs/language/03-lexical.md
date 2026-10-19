@@ -126,13 +126,17 @@ export     extern     false      fn         for        from       if
 impl       import     in         is         let        match      mut
 none       not        or         otherwise  pass       return     self
 Self       set        spawn      take       test       then       trait
-true       type       while
+true       type       while      with
 ```
 
 `let` is reserved but not used: Verse has no `let` (bindings are written
 `x = …` and `mut x = …`, §3.9), and the compiler answers a `let` with the
 error "`let` is not part of Verse" and the help "write `x = …`; use
-`mut x = …` if it changes".
+`mut x = …` if it changes". `with` is reserved the same way: Verse has no
+resource statement, because a value closes at its last use (§13.1). The
+compiler answers a `with` with the error "`with` is not part of Verse" and
+the help "a value closes at its last use; call a close method such as
+`finish()` to close it at a written place".
 
 ### 3.7 Literals
 

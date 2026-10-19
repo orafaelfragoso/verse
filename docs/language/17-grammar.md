@@ -80,7 +80,8 @@ extern_fn     = [ doc ] [ "export" ] "fn" name [ "as" IDENT ]
 trait_decl    = "trait" TYPE_IDENT [ generics ] [ ":" bound { "+" bound } ]
                 NEWLINE INDENT { [ doc ] ( fn_sig | fn_decl ) } DEDENT ;
 impl_block    = "impl" [ generics ] [ bound "for" ] type
-                NEWLINE INDENT { [ doc ] [ "export" ] fn_decl } DEDENT ;
+                ( NEWLINE INDENT { [ doc ] [ "export" ] fn_decl } DEDENT
+                | NEWLINE ) ;          (* no body: only for a trait with no methods, such as `Unique` *)
 
 (* ---------- Statements ---------- *)
 block         = NEWLINE INDENT statement { statement } DEDENT ;

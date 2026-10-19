@@ -79,7 +79,7 @@ executor); tier 0 has its own **VM coroutine tasks**, described last.
   of each non-leaf function raises the second form of R0004, "task {n} ran out
   of stack in `{f}`", when the stack fills before the call limit. A fault
   cannot run cleanup, because cleanup needs stack that is exhausted, so the
-  check fires `headroom` above the real end and `Cleanup` runs in the reserve
+  check fires `headroom` above the real end and cleanup blocks run in the reserve
   ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)). The
   **guard page** stays only as a backstop for code that does not check (a
   runtime function, foreign code): a fault there prints the same second form

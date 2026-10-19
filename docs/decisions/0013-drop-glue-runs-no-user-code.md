@@ -22,8 +22,11 @@ support code inside drop glue.
    use, on every path: normal flow, `?`, `return`, `break`, a panic and a
    cancellation. Values whose last use is the same point drop in reverse
    declaration order, and the parts of one value in declaration order (spec
-   §4.10, §13). There is no statement that ends a resource's life at a
-   written place.
+   §4.10, §13). A use through a view of the value counts as a use of it, and
+   a temporary that no name owns is dropped at the end of the statement that
+   made it. A `Task` owned by a binding, or discarded by a bare `spawn`, is the
+   one exception: it is waited for when its scope ends (spec §11.3). There is
+   no statement that ends a resource's life at a written place.
 2. **Drop glue runs no user code.** There is no trait a program implements to
    run code at a drop. Drop glue frees memory and releases runtime-owned
    handles: it closes a file or a socket (a `File` writes what is still
@@ -35,7 +38,9 @@ support code inside drop glue.
    is a method with a name: `file.finish()?` reports the error of the final
    write. A type the program writes that holds something to release, such as
    a temporary directory or a foreign pointer, offers such a method, and a
-   value dropped without it is not released.
+   value dropped without it is not released. Such a type implements the
+   marker trait `Unique` (spec §10.4), so it is neither `Copy` nor
+   `Copyable` and its close method runs at most once per resource.
 4. **Lock guards are ordinary values.** `g.lock()` returns a `Guard<T>`. The
    protected value is read with `guard.get()` and changed with
    `guard.put(value)` or `guard.replace(value)`; the lock is released at the
@@ -50,8 +55,12 @@ support code inside drop glue.
    The `cleanup` layout fact means that the glue releases a runtime-owned
    handle; `drop-opt` never moves such a drop (13 §13.3). The `abort` profile
    is allowed only when no platform handle, whose release reaches outside the
-   process, is live at a panic site (V0908). The VM has one drop instruction, `DROP`, and no switch point in
-   a drop (14 §14.4).
+   process, is live at a panic site (V0908). The VM has one drop
+   instruction, `DROP`, and no switch point in a drop (14 §14.4).
+8. **`with` stays reserved.** `with` is a keyword with no statement, like
+   `let`: the compiler answers it with the error "`with` is not part of
+   Verse" and the help "a value closes at its last use; call a close method
+   such as `finish()` to close it at a written place" (spec §3.6).
 7. **Codes.** V0702, V0707 and R0009 stay unassigned and are never reused
    (16 §16.5, §16.6). The verifier rules V4, V5, V7, V14, V15, V17 and V18
    keep their numbers and state only what a drop that runs no user code needs
@@ -90,8 +99,8 @@ error, which is why a fallible close is a named method there too.
   no glue can call foreign code ([07 §7.5](../architecture/plugins.md#75-ownership-and-lifetime)).
   A wrapper dropped without it leaks the foreign resource.
 - Tasks a function abandons, by unwinding or by dropping a value that holds
-  them, finish before the task that started them ends, not before the
-  function returns (spec §11.3). A function that returns normally still waits
+  them, finish before the task that drops or abandons them ends, not before
+  the function returns (spec §11.3). A function that returns normally still waits
   for the tasks it holds.
 - A `Receiver` dropped at its last use closes its channel, so a producer that
   sends later gets `Closed` (spec §11.4).

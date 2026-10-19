@@ -90,8 +90,8 @@ R0004, at the same call in the VM and in native code unless a native stack
 fills first (it can on `cooperative` targets, small Wasm shadow stacks, and
 hosted targets with frames over about 830 bytes). The stack is the
 backstop: the prologue of each non-leaf function compares the stack pointer
-with `stack_limit` in the TCB, set `headroom` above the real end, so `Cleanup`
-runs in the reserve, and a full stack prints the second form of R0004. The
+with `stack_limit` in the TCB, set `headroom` above the real end, so cleanup
+blocks run in the reserve, and a full stack prints the second form of R0004. The
 guard page is the last backstop: it prints that second form and exits with
 101, running no cleanup
 ([15 §15.6.4](../../../../docs/architecture/target-and-abi.md#1564-stack-bounds-and-overflow)).

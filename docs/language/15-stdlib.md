@@ -20,7 +20,7 @@ file-level import may hide one (an import warns); see §3.9.
 | `exit(code: Int)` | end the program immediately with a status code from 0 to 255; it flushes standard output and error but drops nothing (§12.5) |
 | `error(message, cause: none): Error` | build a simple error |
 | Types | `Int`, `Float`, `Bool`, `Char`, `Text`, `Bytes`, `Nothing`, `List`, `Map`, `Set`, `Range`, `Task`, `ParseError` |
-| Traits | `Show`, `Eq`, `Order`, `Hash`, `Iterable`, `Index`, `Default`, `Copy`, `Copyable`, `Error`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` |
+| Traits | `Show`, `Eq`, `Order`, `Hash`, `Iterable`, `Index`, `Default`, `Copy`, `Copyable`, `Unique`, `Error`, `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` |
 
 `Error` is a trait, not a type. Written where a type is expected, as in
 `T | Error`, a trait name means "any type that implements it" (§8.2, §10.3),

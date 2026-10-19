@@ -129,7 +129,7 @@ the program ends naturally: an explicit `exit(code)` always wins, and its code
 is the one the process returns. Discarding a `Task` value (a bare
 `spawn worker(…)` statement) is therefore allowed — an accepted exception to
 the rule that fallible results cannot be dropped, because its outcome cannot be
-lost. A task that finishes normally therefore waits for every task it
+lost. A function that returns normally therefore waits for every task it
 started and still holds, results are never silently lost, and a program ends
 only after all of its work is done. To deliberately run something in the background beyond the
 current function, return its `Task` or pass it to someone who will wait on it.
@@ -304,8 +304,8 @@ stopped at its next *blocking point* — I/O, `wait`, `sleep`, `send`, or
 **Cancellation cannot be caught inside the cancelled task.** At the blocking
 point, the task *unwinds* exactly as it would for a panic: it stops running
 ordinary code, every value it still owns is dropped in reverse declaration
-order, which releases its resources (§13.4), and nothing — not `otherwise`,
-not `match`, not `?` — can intercept it. So
+order, which releases its resources (§13.4), and nothing can intercept it:
+not `otherwise`, not `match`, not `?`. So
 `get(url) otherwise "x"` cannot swallow a cancellation and keep going. Unlike a
 panic, a cancellation prints nothing. The *waiter* sees the outcome as a
 `Cancelled` error (from the `task` module) returned by `.wait()`, which it may handle

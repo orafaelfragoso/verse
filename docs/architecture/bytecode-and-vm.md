@@ -68,7 +68,7 @@ allocated is `out_of_memory` (R0007). The VM has no stack reservation.
 supplies the facts `n`, `f` and `limit`. The panic fires before the `CALL`
 pushes the callee's call record, so the stack lines start at the caller.
 `RET` takes the call back; unwinding pops call records and keeps their calls
-in the count, with the reserve of 15 §15.6.4. Compiled code counts the same
+in the count. Compiled code counts the same
 calls, so a compiled task whose stack does not fill first stops at the same
 call ([ADR-0012](../decisions/0012-one-call-limit-and-trace.md)).
 

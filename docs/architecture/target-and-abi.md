@@ -751,9 +751,6 @@ reservation is a backstop behind it, and on some targets it fills first
   in the count, on every mechanism of 15.7.2 and in the VM. The task ends when
   its unwinding reaches the catch point (15.7.5), so nothing reads the count
   after that.
-- **The unwinding reserve.** Once a task starts to unwind, its calls left
-  grow by 100, a chosen constant. Its only purpose is the cleanup code that
-  unwinding runs: that code can make calls after a first-form R0004.
 - **The prologue** of a function that is not a leaf compares the stack pointer
   (minus the frame size) with `stack_limit` in the TCB and, if it is below,
   branches to a cold block that panics with the second form of R0004, "task
@@ -817,7 +814,6 @@ struct PanicRecord {            // allocated by verse-rt; layout private, shown 
     task:      u32,             // task id (the main task is t0, 14.7)
     vals:      [i64; 2],        // index_oob: index, len; overflow: the operands; assert: message id;
                                 // convert: the value
-    secondary: *PanicRecord,    // chain of later panics of the same task (15.7.4)
 }
 ```
 
@@ -1542,8 +1538,8 @@ All **proposals**; they extend the plan of [10](testing-and-verification.md).
 6. **Target files.** Every shipped target file is loaded, validated and
    round-tripped by the schema of 15.9.2; every example in this document is a
    test fixture.
-7. **Call limit.** A program that recurses past `--max-calls`, and one whose
-   cleanup code makes calls during that unwinding (the reserve of 15.6.4),
-   run on every tier and every profile; the suite compares the R0004 text and
+7. **Call limit.** A program that recurses past `--max-calls` and unwinds
+   through frames that own runtime handles runs on every tier and every
+   profile; the suite compares the R0004 text and
    the folded stack lines byte for byte (14.12). A program with large frames on a small reservation runs
    on each compiled tier and must print the second form of R0004 (15.6.4).
