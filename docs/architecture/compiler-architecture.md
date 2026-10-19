@@ -44,7 +44,7 @@ runs in every build of `verse`: in `build`, when running a file and in
 | Name resolution | AST of all modules in a package | every identifier is a `Def` id or a local id; the no-shadowing rule (§3.9) enforced; import graph acyclic (§12.2, [ADR-0010](../decisions/0010-import-cycles-are-an-error.md)) | unknown name, hidden name, an import cycle (V0310), visibility |
 | HIR lowering | resolved AST | no sugar: `otherwise`, `?`, `if…is`, key-path lambdas, postfix guards, string interpolation and `for` are expanded to a small core. Optional-lifting positions (§8.1) are marked but not yet typed | none |
 | Type inference | HIR | every expression has a type or a recorded unresolved variable; unresolved variables become the "cannot infer, annotate here" error (§4.2 rule 4) | type errors, missing annotations, optional misuse, non-exhaustive patterns |
-| Ownership | THIR | every use is classified as move, copy, borrow, mut borrow, or view; every drop point is known; see 2.4 | use after move, borrow rules, `Copy` bound errors, task rules (views and `mut` borrows sent to tasks, one owner per `Receiver`) |
+| Ownership | THIR | every use is classified as move, copy, borrow or mut borrow; every drop point is known; see 2.4 | use after move, borrow rules, `Copy` bound errors, task rules (`mut` borrows sent to tasks, one owner per `Receiver`) |
 | MIR build | THIR plus ownership facts | CFG of basic blocks; locals typed; explicit `Move`, `Copy`, `Drop`, unwind edges | none |
 | Monomorphization | generic MIR | no type parameters, no structural constraints, no `Show` or `Eq` left abstract; trait calls resolved except calls through a trait name used as a type; every instance carries `recursive` exactly when it is on a cycle of the call graph ([13 §13.3](mir-specification.md#133-types-and-layout-facts)) | none |
 | Optimizer | mono MIR | semantics preserved; verifier passes after every pass in debug builds | none |
@@ -86,27 +86,32 @@ unmet written or inferred bound (§4.2 rule 9, final paragraph).
 **What it computes.**
 
 1. **Liveness and last use** for every local, by backward dataflow over the
-   function's CFG. Needed because `b = a`, `for x in items`, pattern bindings
-   and chain results are views when the source is used later and owners at the
-   source's last use (§4.9, §18.10), and because a value is dropped right
-   after its last use (§13.1), which places every drop.
+   function's CFG. Needed because a copy at the source's last use is compiled
+   as a move, which costs no count (§4.9), and because a value is dropped
+   right after its last use (§13.1), which places every drop. Last use never
+   changes what a program means, only what a copy costs.
 2. **Place states**: each place (local, field path, element-in-place) is in
-   one of `Owned`, `MovedAt(site)`, `Borrowed(kind)`, `View(of, until)`.
+   one of `Owned`, `MovedAt(site)`, `Borrowed(kind)`. Only a value that is not
+   `Copy` reaches `MovedAt`; a `Copy` value at its last use is moved, but its
+   source is dead, so the state is never read.
    Conditional moves produce **drop flags**, as in Rust MIR drop elaboration.
 3. **Second-class borrow rules**. Because borrows cannot be stored, returned
    or sent to a task, a borrow's lifetime is the dynamic extent of one call.
    The check is therefore a local rule, not a lifetime solver:
    - a `mut` argument is exclusive for the call, with arguments evaluated
      first and the borrow starting after (§4.10 example);
-   - a view cannot flow into a stored position, a return, or `spawn`.
-4. **Chain classification**: adapters such as `filter` and `zip` pass views;
-   the chain end decides (§9.5, §18.10). The pass records, for each chain, the
-   owning step that collects it.
+   - a borrowed value that flows into a stored position, a return or `spawn`
+     is copied there, and one that is not `Copy` cannot flow there.
+4. **Chain classification**: adapters such as `filter` and `zip` hand
+   elements along without copying them, and the chain end builds the result
+   (§9.5). The pass records, for each chain, the step that collects it, and
+   whether its source is at its last use, so the elements move instead of
+   being counted.
 5. **Inferred `Copy` bounds** for unannotated getters, written to the
    function's interface record (and to `verse.api` for exports).
 6. **Explanations.** Every ownership error carries a structured explanation:
-   the move site, the later use that kept a source alive, the rule number, and
-   the suggested fix. This is a hard requirement from spec §18.10 ("error
+   the move site, the branch condition of a move made on one path, the rule
+   number, and the suggested fix. This is a hard requirement from spec §18.10 ("error
    messages carry the burden") and it is also what the debugger shows
    (see [08](debugging.md)).
 
@@ -114,7 +119,8 @@ unmet written or inferred bound (§4.2 rule 9, final paragraph).
 solves lifetimes across stored references. Verse has none, so a full
 region-inference engine would be unused complexity ([ADR-0002](../decisions/0002-ownership-on-generic-code.md) explains why we
 do not copy it; compare Hylo and Swift's ownership model, where
-second-class values also make the analysis local).
+second-class values also make the analysis local). Value semantics and
+shared storage are [ADR-0014](../decisions/0014-assignment-copies.md).
 
 ## 2.5 Type inference
 
@@ -212,7 +218,7 @@ Diagnostic {
   secondary: [Span + label]
   rule:      "§4.9"                   // the spec section that defines the rule
   help:      [Suggestion]             // machine-applicable edits when safe
-  facts:     { ... }                  // structured: move site, later use, bound name
+  facts:     { ... }                  // structured: move site, branch condition, bound name
 }
 ```
 

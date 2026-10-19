@@ -74,35 +74,17 @@ counts[word] = counts.get(word, default: 0) + 1
 ```
 
 `default:` is a parameter of `get` only; it is not a general language feature.
-`get(k, default: x)` follows the same ownership table as `otherwise`
-(§3.8.2), with the element as the left side and the default as the right:
 
-| Element | Default | Result |
-|---------|---------|--------|
-| a view (always, from a borrowed collection) | a view or a static literal (`0`, `""`) | a **view**: `names.get(id, default: "anonymous")` |
-| a view | an owned temporary (`Text.new()`, `make_label()`) | **owned**, so the element side needs `.copy()`: write `names.get(id, default: Text.new())` as `names.get(id).copy() otherwise Text.new()` |
+**Ownership of lookups.** `list[i]`, `m[k]` and `get` give a copy of the
+element, which costs a count (§4.9), so the result can be stored, returned or
+sent to a task like any value. `remove` and `pop` on a `mut` collection take
+the element out, which moves it. An element of a type that is not `Copy`,
+such as a `Task`, can only be taken out this way.
 
-Without the copy, the second row is a compile-time error: a view of an owned
-temporary default would not outlive the call. `names.get(id).copy() otherwise
-Text.new()` is the intended way to get an owned element with an owned
-default. It works because `.copy()` on an optional view `V?` of a `Copyable`
-`V` yields an owned `V?` (`none` stays `none`), which then meets the owned
-default as in the second row of the `otherwise` table (`.copy()` is one of
-the optional's own methods, §8.1). Where an owned value is needed —
-storing it, returning it, sending it to a task — copy the view result:
-`names.get(id, default: "anonymous").copy()`.
-
-**Ownership of lookups.** `list[i]`, `m[k]` and `get` give a *view* of the
-element — a second-class borrow that can be read, passed to functions, or bound
-to a name, but not stored in a field or collection, returned, or sent to a
-task. To keep an element beyond that, copy it (`m["ana"].copy()`) or take it
-out of a `mut` collection with `remove`/`pop`, which return owned values.
-`Copy` types (numbers, `Bool`, `Char`, and records made only of them) are
-simply copied.
-
-**Slices are views too.** `nums[1..]`, `nums[2..5]` and `name[0..=2]` give a
-view of part of the list or text, with the same rules as `list[i]`. Write
-`nums[1..].copy()` or `name[0..=2].copy()` to get an owned list or text.
+**Slices.** `nums[1..]`, `nums[2..5]` and `name[0..=2]` are a list or a text
+of their own with the elements of the range. A slice that is only read, as in
+`for n in nums[1..]` or `total(nums[1..])`, is read in place, and storing it
+copies the range.
 
 ### 9.4 Sets
 
@@ -130,9 +112,8 @@ chain with dots and take lambdas. Chains read top to bottom like a recipe.
 A chain that is bound to a name or returned is evaluated eagerly and collected
 into a `List` at the end of the statement; only a chain used as a `for` target
 or consumed in the middle of a longer chain stays lazy, so a lazy iterator
-value is never stored, bound or returned. A collected chain that ends in an
-owning step is an owned `List<…>`; one that ends in adapters only is a local
-view (see *Ownership* below):
+value is never stored, bound or returned. A collected chain is a `List<…>`
+of its own (see *Ownership* below):
 
 ```verse
 total = numbers.filter(n -> n % 2 == 0).map(n -> n * 2).sum()
@@ -141,7 +122,7 @@ top_scorers = players
     .filter(p -> p.active)
     .sort_by(.score, descending: true)
     .prefix(3)
-    .map(.name.copy())
+    .map(.name)
 ```
 
 | Method | Result |
@@ -150,11 +131,11 @@ top_scorers = players
 | `filter(pred)` | keep elements where `pred` is true |
 | `reduce(initial, f)` | combine into one value |
 | `sum()`, `product()`, `average()` | numeric summaries |
-| `min()`, `max()`, `min_by(key)`, `max_by(key)` | the smallest or largest element, `T?` (a view) |
+| `min()`, `max()`, `min_by(key)`, `max_by(key)` | the smallest or largest element, `T?` |
 | `count()`, `count(pred)` | number of elements (matching) |
 | `any(pred)`, `all(pred)` | `Bool` |
-| `find(pred)` | first match, `T?` (a view) |
-| `first()`, `last()` | `T?` (a view) |
+| `find(pred)` | first match, `T?` |
+| `first()`, `last()` | `T?` |
 | `sort()`, `sort_by(key, descending: false)` | a sorted list |
 | `group_by(key)` | `Map<K, List<T>>` |
 | `prefix(n)`, `skip(n)`, `prefix_while(p)`, `skip_while(p)` | prefixes and suffixes |
@@ -163,77 +144,52 @@ top_scorers = players
 | `flat_map(f)`, `flatten()` | flatten nested collections (an owning step) |
 | `unique()` | remove duplicates, keeping first occurrences |
 | `reverse()` | the elements in reverse order |
-| `chunks(n)`, `windows(n)` | groups of elements, each a view of a slice (§9.3) |
+| `chunks(n)`, `windows(n)` | groups of elements, each a slice of the source (§9.3) |
 | `join(sep)` | `Text` from a collection of `Show` values |
 | `to_list()`, `to_set()`, `to_map()` | collect into a concrete collection (an owning step) |
 
-**Ownership: views flow through a chain; the end of the chain decides.** These
-methods borrow the collection they are called on and pass each element to the
-lambda as a borrow. Nothing is ever copied silently:
+**Ownership: every result is a value.** These methods read the collection
+they are called on and pass each element to the lambda. What a chain produces
+is a value of its own, like the result of any expression (§4.9):
 
-- **Adapters pass views.** Within one expression chain, the methods that hand
-  elements along (`filter`, `sort`, `sort_by`, `prefix`, `skip`,
+- **Adapters** (`filter`, `sort`, `sort_by`, `prefix`, `skip`,
   `prefix_while`, `skip_while`, `unique`, `reverse`, `zip`, `enumerate`, …)
-  pass second-class views of the source's elements. Nothing is copied.
-- **The chain ends in an owning step**, which decides what the result owns:
-  - `map(f)` — the result holds what the lambda returns, which must be owned:
-    `.map(p -> p.age)` copies an `Int` (a `Copy` type), while
-    `.map(p -> p.name)` is an error that asks for `.map(p -> p.name.copy())`
-    (or the key path `.map(.name.copy())`);
-  - a reduction (`sum`, `count`, `join`, `any`, `all`, `reduce`, …), which
-    produces a new value;
-  - a move out of an owned source at its last use (a temporary, or a binding
-    that is not used afterwards), which moves the elements instead of copying
-    them;
-  - an explicit `.copy()`, which duplicates the remaining elements:
-    `people.filter(p -> p.active).copy()` is an owned `List<Person>`;
-  - a collecting step — `to_list()`, `to_set()`, `to_map()`, `flat_map(f)`,
-    `flatten()` — which builds a new owned collection: it moves the elements
-    from a source at its last use, and otherwise needs `.copy()` before it.
-    A bound or returned chain is collected into an owned list at the end of
-    the statement, and side effects in its lambdas run then:
-    `tasks = urls.map(url -> spawn fetch(url.copy()))` is a `List<Task<…>>`
-    whose tasks are spawned when that statement executes. `to_list()` is
-    needed only where the chain would otherwise be consumed as something
-    else — as a `for` target, or to name the element type — not for binding.
-    (`chunks(n)` and `windows(n)` are not owning steps: each group is a view
-    of a slice of the source, §9.3.)
-- **No implicit duplication of non-`Copy` elements.** If a chain would have
-  to duplicate an element that is not `Copy` to produce an owned result — for
-  example `adults: List<Person> = people.filter(p -> p.age >= 18)` while
-  `people` is still used later — that is a compile error with the usual
-  suggestion: add `.copy()` (which needs `Copyable`, §10.4) or move the later
-  use. `Copy` elements (numbers, `Bool`, `Char`, …) are copied implicitly as
-  everywhere else.
-- **Single-element results are views.** `find`, `first`, `last`, `min`, `max`,
-  `min_by` and `max_by` return a view of the element, as `list[i]`, `m[k]`
-  and `get(k, default: x)` do (§9.3). So
-  `people.find(p -> p.id == id).email otherwise "none"` copies nothing, and
-  keeping the element is written `people.find(p -> p.id == id).copy()` (an
-  owned `Person?`; `.copy()` acts on the optional, §8.1).
-  That is the rule for a *borrowed* source. On an **owned source at its last
-  use** — a `take` parameter or a temporary — the single element **moves
-  out** and the rest of the collection is freed; this is the owned
-  counterpart of the view rule (see `largest` in §20.3).
-- **A binding to a chain is a local view.** `adults = people.filter(…)`
-  is allowed when `people` is used later: `adults` is a view that lives only in
-  the current scope, exactly like `b = a` (§4.9). It can be read, iterated
-  and passed to functions, but not stored, returned or sent to a task.
+  hand elements along without copying them.
+- **The end of the chain** builds the result. `map(f)` holds what the lambda
+  returns, a reduction (`sum`, `count`, `join`, `any`, `all`, `reduce`, …)
+  produces a new value, and a collecting step (`to_list()`, `to_set()`,
+  `to_map()`, `flat_map(f)`, `flatten()`) builds a new collection. Elements
+  of `Copy` types are copied into it, which costs a count each, and move
+  instead when the source is at its last use (a temporary, or a binding that
+  is not used afterwards).
+- **A bound or returned chain** is collected into a `List` at the end of the
+  statement, and side effects in its lambdas run then:
+  `tasks = urls.map(url -> spawn fetch(url))` is a `List<Task<…>>` whose
+  tasks are spawned when that statement executes. `to_list()` is needed only
+  where the chain would otherwise be consumed as something else, as a `for`
+  target or to name the element type, not for binding.
+- **Single-element results** (`find`, `first`, `last`, `min`, `max`, `min_by`,
+  `max_by`) are a copy of the element, as `list[i]`, `m[k]` and
+  `get(k, default: x)` are (§9.3). On a source at its last use, such as a
+  `take` parameter or a temporary, the element moves out and the rest of the
+  collection is dropped (see `largest` in §20.3).
+- **Elements that are not `Copy`.** A chain over a collection of `Task`s,
+  `File`s or handles (§4.9) can only move its elements, so its source must be
+  at its last use. Otherwise it is a compile error that names the element
+  type and the later use of the source.
 
 ```verse
-adults = people.filter(p -> p.age >= 18)           # a local view; nothing copied
+adults = people.filter(p -> p.age >= 18)           # a list of its own
 print(adults.len())
-names = adults.map(.name.copy())                   # the one visible copy
-oldest = people.max_by(.age).copy()                # an owned Person?
-print(people.len())                                # `people` is still usable
+names = adults.map(.name)
+oldest = people.max_by(.age)                       # a Person?
+print(people.len())                                # `people` is unchanged
 ```
 
 **Key functions.** Comparison key functions (`sort_by`, `min_by`, `max_by`)
-may return views, so `people.sort_by(.name)` needs no copy of each name.
-`group_by` stores its keys in the resulting map, so its key function must
-return an owned value: `people.group_by(.city.copy())`. Its groups hold the
-elements themselves, so `group_by` is an owning step: it moves from a source
-at its last use, or needs `.copy()` before it.
+read their keys in place, so `people.sort_by(.name)` copies no name.
+`group_by` stores its keys and groups in the resulting map, which owns copies
+of them: `people.group_by(.city)`.
 
 `min()`, `max()` and `average()` on a possibly empty collection return `T?`;
 on a list known non-empty by the caller, combine with `otherwise` or `.expect()`.

@@ -41,11 +41,11 @@ mut people = [
 ]
 add_guest(mut people, Person(name: "Carla", age: 41))
 
-for person in people                      # each person is borrowed
+for person in people                      # each person is a value of its own
     print(greet(person, greeting: "Welcome"))
     print("  contact: {person.email otherwise "no email"}")
 
-adults = people.filter(p -> p.age >= 18).map(.name.copy())
+adults = people.filter(p -> p.age >= 18).map(.name)
 label = if adults.len() == 1 then "adult" else "adults"
 print("{adults.len()} {label}: {adults.join(", ")}")
 
@@ -80,11 +80,10 @@ test "negative ages are rejected"
 
 Run it with `verse tour.vs`; run its tests with `verse test tour.vs`.
 Two things are worth noticing. `greet` and `add_guest` have no type
-annotations at all, yet everything is checked at compile time (§4.2). And the
-`.copy()` in the `adults` line is the one place ownership shows: `filter`
-passes views of the people along without copying anything, and the chain ends
-in `map`, whose result is a new list that must own its names — so each name is
-copied, visibly (§4.9, §9.5).
+annotations at all, yet everything is checked at compile time (§4.2). And no
+line shows ownership: `adults` is a list of its own, and the names in it share
+their storage with the people they came from until one of them changes, so
+nothing is duplicated (§4.9, §9.5).
 
 ---
 

@@ -30,9 +30,9 @@ refer to the specification.
 4. **No garbage collector, no stored references** (§4.10, §5.3, §18.10).
    Borrows are second-class. This removes the need for lifetime inference and
    keeps the borrow checker a local dataflow analysis.
-5. **Whether a binding is a view or an owner depends on later use** (§4.9,
-   §18.10). The ownership pass needs last-use liveness and must be able to say
-   which later use kept a source alive.
+5. **Assignment copies, and a copy at the source's last use is a move**
+   (§4.9, §18.10). The ownership pass needs last-use liveness to turn copies
+   into moves and to place drops; it never changes what a program means.
 6. **Inference never crosses a module boundary** and exported signatures are
    pinned in `verse.api` (§4.2, §12.3, §16.4). This makes per-module,
    parallel and incremental compilation natural.

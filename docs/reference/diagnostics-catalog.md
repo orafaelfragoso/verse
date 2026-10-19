@@ -47,7 +47,7 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
 | Syntax | V02xx | the grammar: blocks, parentheses, keywords |
 | Names and imports | V03xx | unknown names, hidden names, import lines, visibility |
 | Types | V04xx | mismatches, missing annotations, optionals, errors as values |
-| Ownership | V05xx | moves, views, `mut`, borrows, `Copy` bounds |
+| Ownership | V05xx | moves, `mut`, borrows, `Copy` bounds |
 | Patterns | V06xx | `match`, `is`, destructuring |
 | Resources and tasks | V07xx | `spawn` arguments, channels |
 | Packages and API | V08xx | `verse.toml`, `verse.lock`, `verse.api`, versions |
@@ -167,7 +167,7 @@ gives every rule an identifier.
 | V0414 | error | `otherwise` needs an optional or fallible value on its left | this is `{T}`, which is always there | remove `otherwise` | §3.8.2 |
 | V0415 | error | `{x}` is `{T}?` and cannot be used as `{T}` here | the dot looks through an optional only when the chain ends in `otherwise`, `?`, `is`, `match`, or an optional-typed position | add one of those at the end of the chain | §8.1 |
 | V0416 | error | the `Error` of `{f}` is not handled here | `{f}` can return `{E}` | add `?`, `otherwise` or a `match` arm for `{E}` | §8.4 |
-| V0417 | error | `{x}` is not a `Text`, so it cannot be indexed by character | | use `.bytes()` for a byte view | §4.1 |
+| V0417 | error | `{x}` is not a `Text`, so it cannot be indexed by character | | use `.bytes()` for the UTF-8 bytes | §4.1 |
 | V0418 | error | missing type for a public item | `export` items need types in `verse.api` | annotate the parameters and the result | §16.4 |
 | V0419 | error | `{f}` needs a new copy for every depth of this call | `{f}` calls itself with `{T}` wrapped in `{W}` | annotate the parameter with one concrete type | §4.2 rule 1 |
 
@@ -179,22 +179,23 @@ fact has a position.
 
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
-| V0501 | error | `{name}` was moved and cannot be used | moved to {to} at {position} | use `{name}.copy()` before the move, or move it last | §4.9 |
-| V0502 | error | `{name}` is a view and cannot be stored | it is a view of `{of}`, which {reason} | store `{name}.copy()` | §4.9 |
-| V0503 | error | a view cannot be returned | `{name}` is a view of `{of}` | return `{name}.copy()`, or take the parameter with `take` | §4.9 |
-| V0504 | error | a view cannot be sent to a task | `{name}` is a view of `{of}` | send `{name}.copy()`, or move it with `take` | §11.1 |
+| V0501 | error | `{name}` was moved and cannot be used | moved to {to} at {position}, or, when the move is in one branch, moved at {position} only when `{cond}` | use `{name}` before the move, or move it last; for a handle, move `{name}.copy()` | §4.9 |
 | V0505 | error | `{name}` is borrowed exclusively by this call and cannot be used in it again | the first use is here | call it with a copy | §4.10 |
 | V0506 | error | `{name}` is not `mut`, but `{f}` needs to change it | `{f}` takes `mut {param}` | bind it as `mut {name}` | §4.10 |
 | V0507 | error | `{T}` cannot be copied | `{why}` | move it instead | §4.9 |
-| V0508 | error | `{f}` needs `{T}` to be `Copyable`, because it returns `{x}` | the bound is inferred from the body | return `{x}.copy()`, or take the parameter with `take` | §4.2 rule 9 |
+| V0508 | error | `{f}` needs `{T}` to be `Copy`, because it returns `{x}` | the bound is inferred from the body | take the parameter with `take` | §4.2 rule 9 |
 | V0509 | error | this call needs `{T}` to be `Copyable` | `{T}` contains `{part}`, which is not | pass a type that can be copied | §4.2 rule 9 |
-| V0510 | error | `{name}` is moved in one branch and used after it | moved at {position} only when `{cond}` | move it in both branches, or copy it | §4.9 |
-| V0511 | error | a chain bound to a name is collected here | `{name}` holds the whole result | no change needed; this note explains why `{name}` is owned | §9.5 |
-| V0512 | warning | `{name}` is only a view because `{other}` uses it later | | move the later use first, or copy | §4.9 |
+| V0511 | error | a chain bound to a name is collected here | `{name}` holds the whole result | no change needed; this note shows where the chain runs | §9.5 |
 | V0513 | error | `{name}` is a borrowed function and cannot outlive this call | `{name}` is a parameter without `take`; it is {use: stored, returned, sent to a task, or captured by an escaping lambda} here | declare the parameter as `take {name}` | §5.4 |
 | V0514 | error | `{name}` is not `mut`, so `{place}` cannot be changed | bound without `mut` at {position} | write `mut {name} = …` at the first binding | §4.9 |
 
 V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
+
+Codes V0502, V0503, V0504, V0510 and V0512 are intentionally unassigned:
+assignment gives every owner its own value, so no binding is a view that
+could be stored, returned or sent to a task, and no later use changes what a
+line means (§4.9). A move made in one branch is V0501, whose label names the
+condition.
 
 ### V06xx Patterns
 
@@ -212,7 +213,6 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
-| V0703 | error | a task cannot use `{name}` | it is a view | send a copy with `.copy()`, or move it in | §11.1 |
 | V0705 | error | a `Receiver` has one owner | `{name}` was moved at {position} | give the receiver to one task | §11.4 |
 | V0708 | error | `spawn` cannot pass `{name}` as `mut` | a task cannot give an exclusive borrow back to the spawner | move `{name}` in and get it back from `wait()`, or share it through a `Guarded` | §11.1 |
 
@@ -353,10 +353,11 @@ Format of every long form: the four headings above, in this order, at most 25
 lines, one example that compiles. The long form is part of the catalog and has
 its own test (16.1 rule 9).
 
-Codes V0701, V0702, V0704, V0706 and V0707 are intentionally unassigned: a
-resource is released at its owner's last use, so there is no release to check
-(§13.1); acquiring a resource is an ordinary fallible call (§13.1); the spec
-has no `Sendable` rule (sharing uses `Shared` and `Guarded`, §11.4); an
+Codes V0701, V0702, V0703, V0704, V0706 and V0707 are intentionally unassigned:
+a resource is released at its owner's last use, so there is no
+release to check (§13.1); acquiring a resource is an ordinary fallible call
+(§13.1); a task gets its own copy of every `Copy` argument, so no argument is
+a view it cannot use (§11.1); the spec has no `Sendable` rule (sharing uses `Shared` and `Guarded`, §11.4); an
 unwaited task is waited for automatically (§11.3); and a `Guarded` value is
 reached only through its lock guard (§11.4). None needs a diagnostic.
 

@@ -50,8 +50,9 @@ lists every use honestly:
 - Every value has **exactly one owner** and is freed deterministically right
   after its owner's last use. There is **no garbage collector**, no manual allocation,
   no pointer or reference you can write down, no dangling reference and no
-  use-after-free. Functions *borrow* their arguments unless they say `mut`
-  (exclusive, mutable) or `take` (consume).
+  use-after-free. Assignment gives the new owner its own value, so a line
+  means the same whatever follows it. Functions *borrow* their arguments
+  unless they say `mut` (exclusive, mutable) or `take` (consume).
 - Integer overflow, out-of-bounds list indexing and division by zero **stop the
   program with a clear message** rather than silently producing garbage.
 - Concurrency is **race-free by construction**: a task owns what it is given;

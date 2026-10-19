@@ -1,14 +1,16 @@
 # Ownership checking
 
-The ownership pass: it classifies every use as a move, copy, borrow, mut
-borrow or view, finds every drop point, and explains every ownership error.
+The ownership pass: it classifies every use as a move, copy, borrow or mut
+borrow, finds every drop point, and explains every ownership error.
 
 ## Read first
 
 1. [02 §2.4 The ownership pass](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass).
    This is the pass's contract.
 2. [ADR-0002](../../../../docs/decisions/0002-ownership-on-generic-code.md):
-   why a local dataflow pass on generic code.
+   why a local dataflow pass on generic code, and
+   [ADR-0014](../../../../docs/decisions/0014-assignment-copies.md): why
+   assignment copies and storage is shared until written.
 3. Spec [§4.9 Ownership, moves and copies](../../../../docs/language/04-types.md#49-ownership-moves-and-copies)
    and [§4.10 Memory model](../../../../docs/language/04-types.md#410-memory-model).
 4. Spec [§4.2 rule 9](../../../../docs/language/04-types.md#inference-rules):
@@ -17,7 +19,7 @@ borrow or view, finds every drop point, and explains every ownership error.
    [Borrows are second-class](../../../../docs/language/05-functions.md#borrows-are-second-class)
    and [§5.4 Captures](../../../../docs/language/05-functions.md#captures-borrowed-or-moved).
 6. Spec [§9.5 Transforming collections](../../../../docs/language/09-collections.md#95-transforming-collections):
-   chains pass views, the end decides.
+   every chain result is a value; a source at its last use moves its elements.
 7. Spec [§11.1 Ownership across tasks](../../../../docs/language/11-concurrency.md#ownership-across-tasks)
    and [§13.1 Release at last use](../../../../docs/language/13-resources.md#131-release-at-last-use).
 8. Spec [§18.10 Why no garbage collector](../../../../docs/language/18-design-notes.md#1810-why-no-garbage-collector):
@@ -29,7 +31,7 @@ borrow or view, finds every drop point, and explains every ownership error.
 
 | Input invariant | Output invariant | Errors it owns |
 |-----------------|------------------|----------------|
-| THIR | every use is classified as move, copy, borrow, mut borrow, or view; every drop point is known | use after move, borrow rules, `Copy` bound errors, task rules (views and `mut` borrows sent to tasks, one owner per `Receiver`) |
+| THIR | every use is classified as move, copy, borrow or mut borrow; every drop point is known | use after move, borrow rules, `Copy` bound errors, task rules (`mut` borrows sent to tasks, one owner per `Receiver`) |
 
 Source: [02 §2.2](../../../../docs/architecture/compiler-architecture.md#22-stage-contracts).
 
@@ -49,24 +51,28 @@ The pass computes six things
 ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass)):
 
 1. **Liveness and last use** for every local, by backward dataflow over the
-   function's CFG. Why: `b = a`, `for x in items`, pattern bindings and chain
-   results are views when the source is used later and owners at the source's
-   last use.
+   function's CFG. Why: a copy at the source's last use is compiled as a move,
+   and a value is dropped right after its last use. Last use never changes
+   what a program means.
 2. **Place states.** Each place (local, field path, element-in-place) is
-   `Owned`, `MovedAt(site)`, `Borrowed(kind)` or `View(of, until)`.
+   `Owned`, `MovedAt(site)` or `Borrowed(kind)`; only a value that is not
+   `Copy` reaches `MovedAt`.
    Conditional moves produce drop flags, as in Rust MIR drop elaboration.
 3. **Second-class borrow rules.** A borrow cannot be stored, returned or sent
    to a task, so its lifetime is the dynamic extent of one call. The check is
    a local rule, not a lifetime solver: a `mut` argument is exclusive for the
-   call, with arguments evaluated first; a view cannot flow into a stored
-   position, a return, or `spawn`.
-4. **Chain classification.** Adapters such as `filter` and `zip` pass views;
-   the chain end decides. The pass records the owning step that collects each
-   chain.
+   call, with arguments evaluated first; a borrowed value that flows into a
+   stored position, a return or `spawn` is copied there, and one that is not
+   `Copy` cannot flow there.
+4. **Chain classification.** Adapters such as `filter` and `zip` hand
+   elements along without copying them; the chain end builds the result. The
+   pass records the step that collects each chain, and whether its source is
+   at its last use.
 5. **Inferred `Copy` bounds** for unannotated getters, written to the
    function's interface record and to `verse.api` for exports.
-6. **Explanations.** Every error carries the move site, the later use that
-   kept a source alive, the rule number, and the suggested fix.
+6. **Explanations.** Every error carries the move site, the branch
+   condition of a move made on one path, the rule number, and the suggested
+   fix.
 
 **Why a custom pass.** Rust's borrow checker solves lifetimes across stored
 references. Verse has none, so region inference would be unused complexity
@@ -79,25 +85,27 @@ The analysis is linear-time per function and parallel across functions.
 
 **Language rules the pass enforces:**
 
-- Copy types are scalars and records, variants and tuples made only of copy
-  types. Everything else moves when it gets a new owner, and is never
-  duplicated implicitly; the compiler asks for `.copy()`
+- Assignment, passing, storing and returning give the new owner its own
+  value. `Copy` types are scalars, `Text`, `Bytes`, the collections, and
+  records, variants and tuples of `Copy` parts; their copy shares storage
+  until a write. Handles, `Task`, `Receiver`, lock guards, platform handles
+  and `Unique` types are not `Copy` and move
   ([§4.9](../../../../docs/language/04-types.md#49-ownership-moves-and-copies)).
-- A value moves when bound with `mut b = a` (or `b = a` at `a`'s last use),
-  stored, returned, passed to `take` or `spawn`, or captured by an escaping
-  lambda. Moves are tracked per control-flow path; a move in a loop counts as
-  moved on the next iteration
+- A value that is not `Copy` moves when it gets a new owner. Moves are
+  tracked per control-flow path; a move in a loop counts as moved on the next
+  iteration
   ([§4.9](../../../../docs/language/04-types.md#49-ownership-moves-and-copies)).
 - A parameter is a read-only borrow by default; `mut p` is an exclusive
   borrow; `take p` consumes. `merge(mut a, a)` is an error
   ([§5.3](../../../../docs/language/05-functions.md#borrow-mut-and-take)).
 - In `place = value`, the right side is evaluated completely first
   ([§4.9](../../../../docs/language/04-types.md#49-ownership-moves-and-copies)).
-- A non-escaping lambda borrows its captures; an escaping one moves them. A
+- A non-escaping lambda borrows its captures; an escaping one copies its
+  `Copy` captures and moves the others. A
   function-typed parameter is non-escaping unless declared `take`
   ([§5.4](../../../../docs/language/05-functions.md#captures-borrowed-or-moved)).
-- `spawn f(x)` moves `x`; views (V0504, V0703) and `mut` arguments (V0708)
-  cannot cross into a task
+- `spawn f(x)` gives the task its own `x`: a copy of a `Copy` value, a move
+  of any other; `mut` arguments (V0708) cannot cross into a task
   ([§11.1](../../../../docs/language/11-concurrency.md#ownership-across-tasks)).
 - Inside generic or unannotated code, a parameter type is opaque and non-`Copy`
   unless a `Copy` bound says otherwise
@@ -115,7 +123,8 @@ The analysis is linear-time per function and parallel across functions.
 - Errors appear at the definition. A call site fails only on an unmet
   written or inferred bound
   ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass)).
-- Every error that a later use caused must name that later use
+- No later use changes what an earlier line means: last use decides only
+  whether a copy is compiled as a move
   ([§4.9](../../../../docs/language/04-types.md#49-ownership-moves-and-copies),
   [§18.10](../../../../docs/language/18-design-notes.md#1810-why-no-garbage-collector)).
 - Monomorphization never adds or removes a move, drop or panic, and does not

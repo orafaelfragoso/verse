@@ -92,9 +92,6 @@ text = "owned"
 [states.moved]
 fields = ["moved_at", "moved_to"]
 text = "moved to {moved_to} at {moved_at}"
-[states.view]
-fields = ["of", "until"]
-text = "a view of `{of}` until {until}"
 [states.borrowed]
 text = "borrowed for this call"
 [states.exclusive]

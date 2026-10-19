@@ -57,8 +57,8 @@ type DayCount = Act360 | Act365 | ActAct | Thirty360
 type Roll = Following | ModifiedFollowing | Preceding | Unadjusted
 ```
 
-`Money` is `Copy` if `Decimal` is (Assumption), so passing it costs nothing
-and needs no `.copy()`.
+`Money` is a `Copy` record of scalars if `Decimal` has no heap storage
+(Assumption), so copying it costs no count.
 
 ### Functions (sketch)
 
@@ -80,7 +80,7 @@ and needs no `.copy()`.
 | `fn roll(self, day: Date, rule: Roll): Date` | |
 | `fn Series.new(): Series<T>` | ordered by date; inserting an earlier date keeps the order |
 | `fn insert(mut self, day: Date, value: T)` | |
-| `fn window(self, from: Date, to: Date): Series<T>` | an owned copy, not a view, so it can be stored |
+| `fn window(self, from: Date, to: Date): Series<T>` | a series of its own with the points in the range |
 | `fn returns(self): Series<Decimal>` | for `Series<Money>` and `Series<Decimal>` |
 
 ### Example
@@ -116,8 +116,8 @@ form is considered.
 
 ### Ownership notes
 
-- `Series<T>` owns its points; `window` returns an owned copy because a view
-  of a series could not be stored in a report record.
+- `Series<T>` owns its points in shared storage, like a `List` (spec §4.9),
+  so storing a series or a `window` of it in a report record costs a count.
 - No `Money` arithmetic allocates, so finance code works inside tight loops
   and on boards.
 
@@ -140,9 +140,10 @@ type Shape
 type DType = F32 | F64 | I32 | U8
 ```
 
-`Tensor` is an opaque owned type: a shape, a dtype and one buffer. It is
-`Copyable` (`.copy()` duplicates the buffer, explicitly) and **not** `Copy`,
-so every expensive duplicate is visible in the source (spec §4.3).
+`Tensor` is an opaque owned type: a shape, a dtype and one buffer of shared
+storage. It is `Copy` like a `List` (spec §4.9): a copy shares the buffer, and
+the first in-place change through a `mut self` method duplicates it, so every
+expensive duplicate happens at a call the source marks as a change.
 
 ### Functions (sketch)
 
@@ -155,7 +156,7 @@ so every expensive duplicate is visible in the source (spec §4.3).
 | `fn add(self, other: Tensor): Tensor \| Error` | broadcasting as in NumPy |
 | `fn map(self, f: fn(Float): Float): Tensor` | |
 | `fn sum(self): Float`, `fn argmax(self): Int` | |
-| `fn row(self, index: Int): Tensor` | a view (spec §9.3): readable, bindable, not storable; `.copy()` to keep |
+| `fn row(self, index: Int): Tensor` | a tensor of its own with the row's values, read in place when it is only read (spec §9.3) |
 | `fn scale(mut self, factor: Float)` | in-place variants take `mut self`, so the change is visible at the call |
 | `fn load_model(path: Text): Model \| Error` | a documented subset of ONNX (Assumption; the format is chosen in M9) |
 | `fn run(self, input: Tensor): Tensor \| Error` | `Model` method; inference only |
@@ -437,7 +438,7 @@ none of the peripherals it gave out: each is released by its own drop.
 | `fn send_edges(take self, take tx: Sender<Edge>): Nothing \| Error` | interrupts arrive as channel messages on the program's own channel; the pin moves to the runtime, which releases it when the channel closes |
 | `fn i2c(mut self, bus: Int, speed_hz: Int): I2c \| Error` | |
 | `fn read_register(mut self, address: Int, register: Int): Int \| Error` | `I2c`; one byte, no buffer |
-| `fn write_bytes(mut self, address: Int, data: Bytes): Nothing \| Error` | data from a `b"…"` literal or a byte view (spec §4.1) |
+| `fn write_bytes(mut self, address: Int, data: Bytes): Nothing \| Error` | data from a `b"…"` literal or `.bytes()` (spec §4.1) |
 | `fn uart(mut self, port: Int, baud: Int): Uart \| Error` | also `spi(…)` |
 
 ### Example: blinky and a button
@@ -489,7 +490,7 @@ interrupt context, so it can use the whole language (05 §5.7).
   since `iot` and `net` would both use it. It is a 0.2 item (spec §18.15):
   its capacity is visible where the buffer is made, and writing past it
   returns an `Error`. Until then, `iot` offers byte-at-a-time reads and
-  writes from literals and views.
+  writes from literals and `Bytes` values.
 
 ### Shaking
 

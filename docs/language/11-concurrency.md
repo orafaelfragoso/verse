@@ -42,31 +42,31 @@ block of work, give it a name with `fn` and spawn the call.
 
 #### Ownership across tasks
 
-- **`spawn f(x)` moves `x` into the task.** The task owns its arguments for the
-  whole call, so a spawned function's parameters are always owned values, even
-  when the function declares them as plain borrows.
-- **A borrowed value cannot cross into a task.** Inside a function, a borrowed
-  parameter (or a view from `list[i]`, a `for` loop over a still-used list, or
-  a key-path) cannot be passed to `spawn`; pass `.copy()` instead. Tasks cannot
-  borrow from the spawner in 0.1.
+- **`spawn f(x)` gives the task its own `x`.** The task owns its arguments
+  for the whole call, so a spawned function's parameters are always owned
+  values, even when the function declares them as plain borrows. A `Copy`
+  value is copied into the task (§4.9), and any other value moves. A copy
+  shares storage with the spawner's value only under the atomic count, and a
+  change on either side copies the storage first (§4.10), so neither task sees
+  the other's changes. Tasks cannot borrow from the spawner in 0.1.
 - **No `mut` arguments.** `spawn f(mut x)` is a compile error: an exclusive
   borrow must end when the call returns, and a task cannot hand a `mut` borrow
   back to the spawner. Move the value in and get the changed value back from
   `wait()`, or share it through a `Guarded<T>`.
-- **Using a value after spawning it is a use-after-move error.** In a loop, the
-  error is reported on the second iteration and suggests `.copy()`:
+- **Using a moved value after spawning it is a use-after-move error.** In a
+  loop, the error is reported on the second iteration:
 
   ```verse
-  config = load_config()
+  (tx, rx) = Channel.new<Page>()
   for url in urls
-      spawn crawl(url.copy(), config)   # error: `config` was moved and cannot be used
+      spawn crawl(url, tx)              # error: `tx` was moved and cannot be used
                                         #   (moved into the task in one iteration, used in the next)
-                                        #   help: use `config.copy()` before the move, or move it last
+                                        #   help: pass `tx.copy()`, a second handle
   ```
 
 - **Handles are copied explicitly, and cheaply.** `Sender<T>`, `Shared<T>`,
-  `Guarded<T>` and `Weak<Shared<T>>` / `Weak<Guarded<T>>` values are handles. Passing one to `spawn` follows the same
-  rule as every other value — it moves — so to keep using it, pass
+  `Guarded<T>` and `Weak<Shared<T>>` / `Weak<Guarded<T>>` values are handles. A handle is
+  not `Copy` (§4.9): passing one to `spawn` moves it, so to keep using it, pass
   `handle.copy()`: a new handle to the same channel or shared value, not a copy
   of the value inside (§11.4). There is no implicit copy on `spawn`. A
   `Receiver<T>` is not `Copyable`: it is moved into the one task that consumes
@@ -77,10 +77,10 @@ block of work, give it a name with `fn` and spawn the call.
 ```verse
 import wait_all, wait_any from task
 
-tasks = urls.map(url -> spawn fetch(url.copy()))       # `url` is a borrow: copy it
+tasks = urls.map(url -> spawn fetch(url))             # each task gets its own `url`
 pages = wait_all(tasks)                  # takes the tasks; List<Text | Error>, in order
 
-mirrors = mirror_urls.map(url -> spawn fetch(url.copy()))
+mirrors = mirror_urls.map(url -> spawn fetch(url))
 fastest = wait_any(mirrors)?             # the first to finish; the others are cancelled
 ```
 
@@ -169,8 +169,8 @@ always goes through one of these handle types from the `task` module:
 `Sender`, `Shared`, `Guarded` and `Weak` are `Copyable` (§10.4) whatever
 their inner type — even `Guarded<File>` — and their `.copy()` copies the
 **handle**: it returns a new reference to the same shared value and never
-duplicates the value inside. As everywhere else, the copy is written
-explicitly — including when a handle is passed to `spawn`. `Receiver<T>` is
+duplicates the value inside. A handle is not `Copy`, so a second handle is
+always written `.copy()`, including when a handle is passed to `spawn`. `Receiver<T>` is
 not `Copyable` in 0.1. `Weak` accepts only a `Shared` or `Guarded` handle;
 `Sender` and `Receiver` are not weakable, so `Weak<Sender<T>>` and
 `Weak<Receiver<T>>` are compile errors (a channel closes when its last
@@ -252,7 +252,8 @@ a = spawn check(chapter_one, dictionary.copy())       # a new handle, same words
 b = spawn check(chapter_two, dictionary)              # last use: the handle moves
 ```
 
-`shared.get()` gives a read-only view of the value inside.
+`shared.get()` reads the value inside in place, as a borrowed parameter is
+read (§5.3). Binding or storing the result copies it, which needs `T: Copy`.
 
 **Shared mutable state** is wrapped in `Guarded<T>` and can only be touched
 through a **lock guard**. `g.lock()` waits until no other guard of the same
@@ -277,15 +278,15 @@ print("hits: {hits.lock().get()}")      # the guard is dropped after this line
 | Operation | Signature | Meaning |
 |-----------|-----------|---------|
 | `g.lock()` | `lock(self): Guard<T>` | block until the lock is free, then hold it |
-| `guard.get()` | `get(self): T` | a read-only view of the value inside (§4.9), like `shared.get()` |
+| `guard.get()` | `get(self): T` | reads the value inside in place, like `shared.get()`; binding the result copies it (§4.9) |
 | `guard.put(v)` | `put(mut self, take value: T)` | replace the value inside; the old one is dropped |
 | `guard.replace(v)` | `replace(mut self, take value: T): T` | replace the value inside and return the old one |
 
 A guard is an ordinary value with one owner, and it is not `Copyable`. `put`
 and `replace` take `mut self`, so the guard is bound with `mut` to change the
-value, and a view from `get()` cannot be used after a change (§5.3). To
-change a large value without copying it, take it out with `replace`, change it, and
-`put` it back:
+value. A copy taken with `get()` keeps the value it had. Changing a copy of a
+large value copies its storage on the first change (§4.10); to change it
+without that copy, take it out with `replace`, change it, and `put` it back:
 
 ```verse
 fn add_name(names, take name)            # `names` is a `Guarded<List<Text>>`

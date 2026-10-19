@@ -6,9 +6,9 @@ External resources, such as files, network connections, locks and channel
 ends, must be released promptly and reliably. Every value has one owner (§4.9), and a
 value is **dropped right after its owner's last use**. Dropping a resource
 releases it, however the code goes on from there: normally, by `return`,
-`break`, `continue`, `?` propagation, a panic or a cancellation. A use through
-a view of the value (§4.9), such as the iterator of `file.lines()`, counts as
-a use of the value. A temporary that no name owns is dropped at the end of
+`break`, `continue`, `?` propagation, a panic or a cancellation. A use of
+something that reads the value, such as the iterator of `file.lines()`,
+counts as a use of the value. A temporary that no name owns is dropped at the end of
 the statement that made it. A `Task` owned by a binding, or discarded by a bare `spawn`, is the one
 exception: it is not dropped at its last use but waited for when its scope
 ends (§11.3).

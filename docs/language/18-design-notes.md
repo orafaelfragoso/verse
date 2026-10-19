@@ -121,10 +121,10 @@ expect.
 `let`: `x = expr` binds a new immutable name, `mut x = expr` a mutable one,
 and `x = expr` on an existing `mut` name reassigns it; on an existing
 immutable name it is an error. `mut` means "can change" everywhere — bindings,
-parameters, `self`. Every value has exactly one owner; assignment and passing
-either copy (copy types), borrow (function parameters, local views), or move
-(new owners), and moves are checked per control-flow path. `.copy()` — with no
-arguments, or with field changes — is the single way to duplicate a value.
+parameters, `self`. Every value has exactly one owner, and assignment gives
+the new owner its own value: a `Copy` value is copied, with its storage
+shared until one side writes, and any other value moves. Moves are checked
+per control-flow path. A plain parameter is read in place for the call.
 **Shadowing is removed:** a name is bound once per function; parameters, loop
 variables and pattern bindings may not reuse a visible name, though sibling
 blocks may reuse one. Only locals count: a local may hide a prelude, imported
@@ -150,47 +150,43 @@ a misspelt assignment that silently creates a new name.
 ### 18.10 Why no garbage collector
 
 **Decision:** No garbage collector and no manual memory management. Memory is
-managed by single ownership with **second-class borrows**: parameters borrow
-by default, `mut` borrows exclusively, `take` consumes; borrows cannot be
-stored, returned, or sent to another task; there is no reference or pointer
-type and no lifetime syntax. Values are freed deterministically right after
-their owner's last use, which also releases the files, locks and other
+managed by single ownership with **value semantics**: assignment, passing,
+storing and returning give the new owner its own value. `Text`, `Bytes` and
+the collections keep their contents in storage that copies share under an
+atomic count until one side writes, and a write to shared storage copies it
+first (copy on write). Parameters are read in place by default, `mut`
+borrows exclusively, `take` consumes; there is no reference or pointer type
+and no lifetime syntax. Values are freed deterministically right after their
+owner's last use, which also releases the files, locks and other
 runtime-owned handles in them (§18.12); recursive types are boxed by the
-compiler. Sharing is opt-in through `Shared<T>`, `Guarded<T>`,
-`Weak<Shared<T>>` / `Weak<Guarded<T>>`, the channel ends `Sender<T>`
-(copyable) and `Receiver<T>` (not copyable, single consumer), and `Task<T>`.
+compiler. Sharing a value that changes is opt-in through `Shared<T>`,
+`Guarded<T>`, `Weak<Shared<T>>` / `Weak<Guarded<T>>`, the channel ends
+`Sender<T>` (copyable) and `Receiver<T>` (not copyable, single consumer), and
+`Task<T>`.
 
 **Why:** Deterministic, pause-free memory and resource management, with the
-same safety guarantees as Rust — no use-after-free, no data races — but
-without lifetime annotations or elision rules, because a borrow can never
-outlive the call that made it. Most everyday code (transforming data, calling
-functions, building results) never mentions ownership at all.
+same safety guarantees as Rust (no use-after-free, no data races) but without
+lifetime annotations or elision rules, because a borrow can never outlive the
+call that made it. Every line has one reading: what `b = a`, a `for`
+variable or a pattern binding means never depends on the code after it
+(§1.2). Most everyday code (transforming data, calling functions, building
+results) never mentions ownership at all.
 
 **The honest trade-offs:**
 
-- **Some programs need `.copy()`.** Because a borrow cannot be returned or
-  stored, code that would hand out a view into a structure must copy instead
-  (`p.name.copy()`), restructure to work in place with `mut`, or return an
-  index. Copies of large values cost time and memory, and the compiler only
-  removes copies it can prove unnecessary (a source at its last use is moved).
-- **Collection chains pass views; the end of the chain decides.** Adapters
-  such as `filter`, `sort_by` or `zip` hand along views of the elements and
-  copy nothing; the chain ends in an owning step — `map` (the lambda must
-  return an owned value), a reduction, a move from a source at its last use,
-  or an explicit `.copy()`. `find`, `first`, `last`, `min` and `max` return
-  views, and a name bound to a chain is a local view. A non-`Copy` element is
-  never duplicated implicitly: where that would be needed, the compiler asks
-  for `.copy()` (§9.5). The cost is that keeping a filtered list while the
-  source is still in use needs a visible `.copy()`.
-- **Ownership can flip with later code.** `b = a`, `for x in items`,
-  pattern bindings and chain results are views when the source is used later
-  and owners when it is the last use, so adding a line below can turn working
-  code into an error. Every such error must name the later use that kept the
-  source alive ("`person` is a view and cannot be stored", labelled "it is
-  a view of `people`, which is used again on line 12"), §4.9.
+- **Copies cost a count, and writes to shared storage cost a copy.** A copy
+  of a `Text` or a collection is an atomic count update, and the first change
+  to storage that another copy shares duplicates it. The compiler moves a
+  source at its last use, which costs nothing, and reads a plain parameter in
+  place. A program that keeps a copy and then changes the original pays for
+  one duplicate, as in Swift (§4.10).
+- **Values that are not `Copy` move.** Handles, tasks, channel receivers,
+  lock guards, platform handles and `Unique` types move when they get a new
+  owner, and a second handle is written `.copy()`, so every place that
+  shares a changing value is visible (§4.9).
 - **Generic code is checked once.** Unannotated and generic parameter types
   are treated as opaque, non-`Copy` types during the ownership check, so a
-  generic body sometimes needs a `Copy` or `Copyable` bound (or `.copy()`)
+  generic body sometimes needs a `Copy` or `Copyable` bound
   where a concrete type would not (§4.2, §10.6). Unannotated getters are the
   exception that keeps types visually optional: returning a field read
   through a borrowed parameter infers a `Copy` bound, recorded in
@@ -203,8 +199,8 @@ functions, building results) never mentions ownership at all.
 - **Tasks cannot borrow from their spawner** in 0.1; they receive owned values,
   copies, or handles.
 - **Error messages carry the burden.** Every ownership error must point at the
-  move and the later use, explain the rule in one sentence, and offer the fix
-  (usually `.copy()`, `mut`, or `take`). This is a requirement on the
+  move, explain the rule in one sentence, and offer the fix (usually `mut`,
+  `take`, or a second handle with `.copy()`). This is a requirement on the
   compiler, not a nicety.
 
 ### 18.11 Missing values and errors in detail
@@ -325,12 +321,12 @@ give a half-initialised module to whichever side loads second.
 - `set` is a reserved word, so `set{…}` has exactly one reading.
 - `Map` and `Set` both iterate in insertion order, so printing or looping over
   them gives the same result on every run and every target.
-- `.copy()` is the one duplication method: with no arguments it makes a plain
-  copy, with field arguments a copy with changes (`.copy(age: 31)`). There is
-  no `clone`. `.copy()` comes from the
-  built-in `Copyable` trait, which every type has except `Task`, lock guards,
-  platform handles such as `File`, and anything containing them; `Copy` (implicit copying) is a separate,
-  narrower trait.
+- `.copy()` with field arguments makes a copy with changes
+  (`.copy(age: 31)`), and on a handle with no arguments it makes a second
+  handle. There is no `clone`: assignment already copies every `Copy` value.
+  `.copy()` comes from the built-in `Copyable` trait, which every `Copy` type
+  and every handle has, and which `Task`, lock guards, platform handles such
+  as `File`, `Unique` types and anything containing them lack.
 - The collection methods are `prefix(n)` / `prefix_while(p)` rather than
   `take(n)` / `take_while(p)`, because `take` is a keyword (§5.3); `prefix`
   and `skip` read as a pair.

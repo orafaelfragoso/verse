@@ -19,3 +19,4 @@ were accepted on 2026-10-18.
 | [0011](0011-verify-before-first-statement.md) | Verify every reachable instance before the first statement | accepted (2026-10-19) |
 | [0012](0012-one-call-limit-and-trace.md) | One call limit and one trace on every tier | accepted (2026-10-19) |
 | [0013](0013-drop-glue-runs-no-user-code.md) | Values close at their last use, and drop glue runs no user code | accepted (2026-10-19) |
+| [0014](0014-assignment-copies.md) | Assignment copies, and storage is shared until written | accepted (2026-10-19) |

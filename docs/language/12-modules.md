@@ -312,7 +312,7 @@ status = sqlite3_open("app.db".bytes(), mut db)
   block.
 - **Only plain data crosses.** Parameters and results are numbers
   (`Int`, `Float`, `Int8` … `UInt64`, `Float32`), `Bool`, `Char`,
-  `Pointer`, `Pointer?`, `Bytes` and byte views (parameters only), and `Copy`
+  `Pointer`, `Pointer?`, `Bytes` (parameters only), and `Copy`
   records made only of these. `Text` does not cross: call `.bytes()` on it.
   Collections, other optionals, variants, trait types, function values, `Task`,
   lock guards and platform handles such as `File` do not cross.

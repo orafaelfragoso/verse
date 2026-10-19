@@ -26,8 +26,7 @@ be absent has type `T?`, and is either a `T` or `none`.
 
 ```verse
 fn find_user(id: Int): User?
-    users.find(u -> u.id == id).copy()      # `users`: a module constant; `find`
-                                            #   returns a view (§9.5), so copy it
+    users.find(u -> u.id == id)             # `users`: a module constant (§12.4)
 
 maybe: Text? = none
 present: Text? = "here"         # a T is automatically a T?
@@ -87,11 +86,11 @@ The rules of a lifted chain:
   chain answers, so `order.customer.nickname` (with `nickname: Text?`) is a
   plain `Text?`. Lookups keep their own types: `m.get(k)` on a
   `Map<Text, Int?>` is still `Int??` (below).
-- **Ownership follows the view rule** (§9.5): views flow along the chain and
-  the end of the chain decides, exactly as for chains without optionals.
+- **The result is a value**, as for chains without optionals (§9.5).
 - **The optional's own methods win.** `.expect(msg)`, `.or_error(msg)` and
   `.copy()` on a `V?` act on the optional itself, not on the value inside:
-  `find_user(id).copy()` is an owned `User?`. If a name is both a method of
+  `shared_user.copy()` on a `Shared<User>?` is a second handle, or `none`. If
+  a name is both a method of
   the optional and a field or method of the inner type, the call is a
   compile-time error that asks you to choose with `is` or `otherwise`.
 - **`.or_error(msg)` applies to the final result of the chain.** In
@@ -230,24 +229,6 @@ The same rule makes an `Int??` need two steps. In expressions, two postfix
 `?` in a row are not allowed — write `(x?)?` — or use
 `x otherwise none otherwise 0`. (`x??` exists only as a *pattern*, meaning
 "present and present", §7.5.)
-
-**Views and `otherwise`.** `a otherwise b` is a view when both sides are views
-(text and number literals and other static data count as views), and owned
-when the right side is an owned temporary; in that case a view on the left
-needs `.copy()`, and leaving it out is a compile-time error that suggests it
-(§3.8.2):
-
-```verse
-greeting = args.first() otherwise "world"                  # a view
-label = labels["x"].copy() otherwise build_label()         # owned
-wrong = labels["x"] otherwise build_label()                # error: the left side
-                                                           #   is a view; write
-                                                           #   labels["x"].copy()
-```
-
-The full table, including an owned left side with a non-static view on the
-right (copy the right side), literals materialised in owned positions, and
-lifted chains on owned temporaries, is in §3.8.2.
 
 **Where `?` returns to.** `?` always returns from the *innermost* function-like
 body that contains it:

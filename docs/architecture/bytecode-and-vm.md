@@ -87,7 +87,7 @@ not "frame").
 **Debug-only state.** In a debug session each proto has a local table (name,
 slot range, type id, mode word, bound-at pc) and each task keeps a **shadow
 init bitmap**, one bit per local, updated by `MOV`/`DROP` through the event
-table. The debugger derives `owned`, `moved`, `view`, `exclusive`, `dropped`
+table. The debugger derives `owned`, `moved`, `exclusive`, `dropped`
 and `not_yet_bound` from these ([13.7](mir-specification.md#137-debug-info-and-source-spans)). Non-debug runs have neither.
 
 **Side tables per proto**: constant pool, span table (`pc -> span id, dbg id`),
@@ -109,7 +109,8 @@ check-and-branch that costs one dispatch.
 
 | Group | Instructions | Operands | Semantics | Panics |
 |-------|--------------|----------|-----------|--------|
-| Move | `MOV`, `MOVN`, `LDI`, `LDK`, `ZERO` | `a b`, `a b n`, `a imm16`, `a k`, `a n` | copy 1 or n slots; load small or pooled constant. MIR `move` and `copy` both compile here; they differ only in the event table | none |
+| Move | `MOV`, `MOVN`, `LDI`, `LDK`, `ZERO` | `a b`, `a b n`, `a imm16`, `a k`, `a n` | copy 1 or n slots; load small or pooled constant. MIR `move` and a bitwise `copy` both compile here; they differ only in the event table | none |
+| Retain | `RETAIN` | `a glue16` | a MIR `copy` of a type whose `copy` fact is `counted` (13.3): `MOV`, then add one to the count of each shared storage the value holds, through the glue of its type | none |
 | Address | `REF`, `LEA`, `LDF8/16/32/64`, `STF8/16/32/64`, `LD*`, `ST*`, `LDN`, `STN` | `a b`, `a b off`, `a b off` | address of a slot, pointer plus offset, frame-relative and pointer-relative loads and stores of 1, 2, 4, 8 or n bytes | none (index checks are separate, V12) |
 | Integer | `WADD`, `WSUB`, `WMUL`, `AND`, `OR`, `XOR`, `SHL`, `SHR`, `NEG`, `NOT` | `a b c` | 64-bit wrapping and bit ops; `SHL`, `SHR` mask the count to 0..63 | none |
 | Checked | `ADD_CHK`, `SUB_CHK`, `MUL_CHK`, `DIV_CHK`, `REM_CHK`, `NEG_CHK`, `POW_CHK`, `CAST_CHK` (**+J**) | `a b c`; `CAST_CHK a b kind` | write the value to `a`, the overflow flag to `a+1` (the fixed `(T, Bool)` layout of [13.3](mir-specification.md#133-types-and-layout-facts)); when the flag is set jump by the `J` word, else skip it. `CAST_CHK` is MIR `checked_cast` (`narrow`, `f2i`, `int_char`); its jump goes to a `panic convert` block (R0012) | none: the jump goes to a MIR `panic` block |

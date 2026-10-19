@@ -35,7 +35,7 @@ Diagnostics are data first, text second. Every stage produces one record
 | `secondary` | more spans with labels |
 | `rule` | the spec section that defines the rule |
 | `help` | suggestions, with machine-applicable edits when safe |
-| `facts` | structured data: move site, later use, bound name |
+| `facts` | structured data: move site, branch condition, bound name |
 
 - The terminal renderer, the language server, `verse check --json` and the
   debug adapter all consume the same record
@@ -78,7 +78,7 @@ is a key of `facts`
 Why: the same fact gets the same words in the compiler and the debugger
 ([08 §8.7](../../../../docs/architecture/debugging.md#rules)).
 
-**Vocabulary.** Say "binding", "view", "moved", "copied", "dropped",
+**Vocabulary.** Say "binding", "moved", "copied", "dropped",
 "`none`", "error value", "task". Do not say "variable", "reference",
 "cloned", "freed", "null", "exception", "thread". The full table is
 [say and don't say](../../../../docs/architecture/debugging.md#words-say-and-dont-say).
@@ -129,7 +129,8 @@ outside this rule.
 - Each pass reports only the codes of its row in the families-by-pass table.
   A pass with no row, or a family with no pass, is an error in that table
   ([16 §16.2.1](../../../../docs/reference/diagnostics-catalog.md#1621-families-by-pass)).
-- Every ownership error carries the move site, the later use, the rule and
+- Every ownership error carries the move site, the branch condition of a
+  one-path move, the rule and
   the fix ([02 §2.4](../../../../docs/architecture/compiler-architecture.md#24-the-ownership-pass),
   [§18.10](../../../../docs/language/18-design-notes.md#1810-why-no-garbage-collector)).
 - A `V99xx` message ends with "this is a bug in Verse, not in your program"

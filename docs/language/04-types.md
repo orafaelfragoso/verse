@@ -19,11 +19,11 @@ that needs them.
 `Text` is indexed by *characters*, not bytes: `"héllo".len()` is `5`. Because
 positions count characters, indexing or slicing a `Text` by position
 (`text[i]`, `text[2..5]`) may take time proportional to the length of the
-text. For the raw bytes, `text.bytes()` gives a read-only view of the UTF-8
+text. For the raw bytes, `text.bytes()` gives the UTF-8
 bytes with constant-time indexing: `"héllo".bytes().len()` is `6`, and
-`text.bytes()[i]` is the `i`-th byte as an `Int` from 0 to 255. It follows the
-rules for views (§9.3): it can be read, passed and bound to a name, but not
-stored or returned; `.copy()` gives an owned `Bytes`.
+`text.bytes()[i]` is the `i`-th byte as an `Int` from 0 to 255. The result is
+a `Bytes` value that shares the text's storage until one of them changes
+(§4.9).
 
 ### 4.2 Type annotations and inference
 
@@ -129,11 +129,10 @@ and leave the rest to the compiler.
    fn first_name(person)
        person.name            # fine here too: inferred bound "`person.name` is Copy"
 
-   first_name(ana)            # error at the call site: `first_name` needs
-                              #   `Text` to be `Copyable`, because it returns
-                              #   `person.name`
-                              #   help: return `person.name.copy()`, or take
-                              #   the parameter with `take`
+   first_name(ana)            # fine: `Text` is `Copy`
+   log_of(service)            # error at the call site: `log_of` needs `File`
+                              #   to be `Copy`, because it returns `service.log`
+                              #   help: take the parameter with `take`
    ```
 
    Errors about a function's body appear at the definition. The only
@@ -186,20 +185,22 @@ visible to other modules, mark it `export` (§12.3).
 
 #### Copies
 
-Every value has one owner (§4.9). `copy()` with no arguments makes an
-independent duplicate; the same method with named arguments makes a duplicate
-with some fields changed:
+Every value has one owner (§4.9), and assigning it gives the new owner its
+own copy. `copy()` with named arguments makes a copy with some fields
+changed:
 
 ```verse
-twin = ana.copy()                 # an independent User
+twin = ana                        # an independent User
 older = ana.copy(age: 31)         # ana is unchanged
 ```
 
-`.copy()` is the one way to duplicate a value, with or without changes. It is
-provided by the built-in trait `Copyable` (§10.4), which almost every type has
-automatically; the exceptions are `Task<T>`, lock guards and platform handles
+`.copy()` is provided by the built-in trait `Copyable` (§10.4). On a `Copy`
+value, `.copy()` with no arguments is the same as the value itself. On a
+handle (`Shared<T>`, `Guarded<T>`, `Sender<T>`, `Weak`), which is `Copyable`
+but not `Copy`, `.copy()` is the one way to get a second handle to the same
+shared value (§4.10). `Task<T>`, `Receiver<T>`, lock guards, platform handles
 such as files (§13.4), types that implement `Unique` (§10.4), and anything
-that contains them.
+that contains them have no `.copy()`.
 
 ### 4.4 Variant types
 
@@ -340,118 +341,81 @@ value is dropped, immediately and deterministically (§4.10). A `Task` owned by 
 exception: it is not dropped at its last use but waited for when its scope
 ends (§11.3).
 
-**Copy types.** Scalars (`Int`, `Float`, `Bool`, `Char`, `Nothing`) and
-records, variants and tuples made *only* of copy types (a `Point(x: Float, y:
-Float)`, a `Shape`, an `(Int, Int)`) are copied implicitly whenever they are
-assigned or passed. There is no size limit: whether a type is `Copy` depends
-only on the kinds of its fields, never on its size. A copy is never inserted
-silently except for `Copy` types and literals (§3.8.2), and moves happen at a
-value's last use; adding a non-`Copy` field (say a `Text`) to an all-scalar
-record makes it non-`Copy`, and the compiler then reports every place that
-relied on the implicit copy. Everything else — `Text`, `Bytes`, collections, and records that
-contain them — is **moved** when it gets a new owner. A non-`Copy` value is
-never duplicated implicitly; anywhere an implicit duplicate would be needed,
-the compiler asks for `.copy()`.
-
-**Moves.** A value moves when it is:
-
-- bound with `mut b = a`, or with `b = a` when `a` is not used
-  afterwards;
-- stored in a field or a collection (record construction, `push`, `map[k] = v`);
-- returned from a function;
-- passed to a `take` parameter (§5.3) or into a task with `spawn` (§11.1);
-- captured by an escaping lambda (§5.4).
-
-When `b = a` appears and `a` *is* used afterwards, nothing moves: `b` is a
-read-only local view of `a` (a borrow, §5.3), and `a` cannot be changed while
-`b` is in use. A binding to a collection chain is a local view in the same
-way (§9.5).
-
-**Moving a field out.** Moving a field out of an owned value at the value's
-last use is allowed: the field gets its new owner and the rest of the value is
-freed. If the value is used afterwards (or is only borrowed), moving the field
-is the usual move error, with a `.copy()` suggestion:
+**Assignment copies.** Binding a value to a name, assigning it, passing it,
+storing it in a field or a collection, returning it, binding it in a `for`
+loop (§6.3) or a pattern (§7.7), and taking it out of a collection (§9.3,
+§9.5) all give the new owner **its own value**. Changing one never changes
+another, and what a line means never depends on the lines after it:
 
 ```verse
-fn body_of(url)
-    response = get(url)?
-    response.body             # fine: `response` is owned and not used again
+people = load_people()
+mut adults: List<Person> = []
+for person in people
+    if person.age >= 18
+        adults.push(person)      # `adults` owns its own copy
+print(people.len())              # adding or removing this line changes nothing above
+
+names = ["Ana", "Bruno"]
+mut roster = names               # a copy; `names` is unchanged whatever follows
+roster.push("Carla")
+print(names)                     # ["Ana", "Bruno"]
+```
+
+**Copy types.** A type whose values are copied this way is `Copy` (§10.4):
+scalars (`Int`, `Float`, `Bool`, `Char`, `Nothing`), `Text`, `Bytes`,
+`List<T>`, `Map<K, V>` and `Set<T>` of `Copy` types, optionals and unions of
+`Copy` types, and records, variants and tuples made only of `Copy` parts. A
+copy costs no more than a count: `Text`, `Bytes` and the collections keep
+their contents in **shared storage** that copies share until one of them
+changes. The first change to shared storage copies it (**copy on write**),
+so a copy that is never changed is never duplicated (§4.10). When the source
+is not used again, the compiler moves it instead, which costs nothing.
+
+**Moves.** A value of a type that is not `Copy` moves when it gets a new
+owner, and the old owner cannot be used again. These types are the handles
+`Shared<T>`, `Guarded<T>`, `Weak<…>` and `Sender<T>` (§11.4), which move so
+that sharing is always written as `.copy()`; `Task<T>`, `Receiver<T>`, lock
+guards and platform handles such as `File` (§13.4); types that implement
+`Unique` (§10.4); and anything that contains one of them.
+
+**Moving a field out.** Moving a non-`Copy` field out of an owned value at the
+value's last use is allowed: the field gets its new owner and the rest of the
+value is dropped. If the value is used afterwards, moving the field is the
+usual move error:
+
+```verse
+fn log_of(take service: Service)
+    service.log               # fine: `service` is owned and not used again
 ```
 
 Moves are tracked **per control-flow path**. A value moved in one branch of an
 `if` or `match` counts as moved after it on that path, and a value moved inside
 a loop counts as moved on the next iteration.
 
-```verse
-mut a = [1, 2, 3]
-mut b = a.copy()              # an independent list
-b.push(4)
-print(a)                      # [1, 2, 3]
-print(b)                      # [1, 2, 3, 4]
-
-names = ["Ana", "Bruno"]
-mut roster = names            # moves: `names` is not used afterwards
-roster.push("Carla")
-
-p = Point(x: 1.0, y: 2.0)     # an all-Float record: copied implicitly
-q = p
-print(p.x + q.x)              # fine: q is a copy
-```
-
-Using a moved value is a compile-time error that says where the move happened
-and suggests `.copy()`:
+Using a moved value is a compile-time error that says where the move happened:
 
 ```verse
-mut inbox: List<Text> = []
-note = "remember the milk"
-inbox.push(note)
-print(note)
+mut workers: List<Task<Report>> = []
+job = spawn build_report()
+workers.push(job)
+print(job.wait())
 ```
 
 ```
-error: `note` was moved and cannot be used
-  --> notes.vs:4:7
+error: `job` was moved and cannot be used
+  --> reports.vs:4:7
    |
- 3 | inbox.push(note)
-   |            ---- moved here
- 4 | print(note)
-   |       ^^^^ moved to `inbox` at line 3
+ 3 | workers.push(job)
+   |              --- moved here
+ 4 | print(job.wait())
+   |       ^^^ moved to `workers` at line 3
    |
-help: use `note.copy()` before the move, or move it last
+help: use `job` before the move, or move it last
 explain: V0501 (run `verse explain V0501`)
 ```
 
-**Errors name the later use.** Whether `b = a`, a `for` loop variable
-(§6.3), a pattern binding (§7.7) or a chain result (§9.5) owns its value or
-only views it depends on whether the source is used later. So adding a line
-below can turn working code into an error. Every error caused by such a flip
-must name the later use that kept the source alive:
-
-```
-error: `person` is a view and cannot be stored
-  --> people.vs:8:17
-   |
- 8 |     adults.push(person)
-   |                 ^^^^^^ it is a view of `people`, which is used again on line 12
-...
-12 | print(people.len())
-   |       ------ the later use that keeps `people` alive
-   |
-help: store `person.copy()`
-explain: V0502 (run `verse explain V0502`)
-```
-
-Inside a loop, the error points at both the move and the later use — which is
-the same line, one iteration later:
-
-```verse
-greeting = "hi"
-mut all: List<Text> = []
-for name in names
-    all.push(greeting)        # error: `greeting` was moved and cannot be used
-                              #   (moved here in one iteration, used here in the next)
-                              #   help: use `greeting.copy()` before the move, or move it last
-```
+When the move happens in only one branch, the label names the condition:
+"moved at line 3 only when `urgent`".
 
 **Mutability** is a property of the **binding**, and it is deep. `mut` means
 "can change" everywhere it appears — on a binding, a parameter (§5.3) or
@@ -496,7 +460,7 @@ receiver and index expressions on the left are evaluated after the right side,
 left to right among themselves; everything else is evaluated left to right:
 
 ```verse
-counts[word] = counts.get(word, default: 0) + 1   # borrows `word`, then moves it
+counts[word] = counts.get(word, default: 0) + 1   # reads `word`, then stores it
 ```
 
 ### 4.10 Memory model
@@ -507,30 +471,34 @@ Verse has **no garbage collector** and no manual memory management:
    its owner's last use (or when a `mut` owner is reassigned). There is no
    collector running in the background and no pause.
 2. **No references in the surface language.** There are no pointer types, no
-   reference types, and no lifetime syntax. Functions *borrow* their
-   arguments, but borrows are **second-class**: they cannot be stored in a
-   field, returned, or sent to another task (§5.3). This is what lets the
-   compiler prove, without annotations, that nothing is ever used after it is
-   freed.
+   reference types, and no lifetime syntax. A function reads a plain argument
+   in place for the duration of the call, and a value it stores, returns or
+   sends to another task is a copy (§5.3). This is what lets the compiler
+   prove, without annotations, that nothing is ever used after it is freed.
 3. **Recursive types are boxed for you.** Variant types such as `Json` or
    `Tree<T>` are stored with the indirection they need; the boxes are owned
    like any other value and freed with their owner.
 4. **Release is deterministic.** Dropping a value frees its memory and
    releases the runtime-owned handles in it, such as an open file or a lock,
    on every path, a panic included (§13). A drop runs no code of the program.
-   Locals whose last use is the same point are freed in reverse order of
-   declaration, because a later local may borrow an earlier one. The parts of
-   one value cannot borrow each other, so they are freed in the order they were
+   Dropping a copy of shared storage counts the storage down, and the last
+   copy frees it. Locals whose last use is the same point are freed in reverse
+   order of declaration, because a later local may have been made from an
+   earlier one. The parts of one value are freed in the order they were
    written:
    fields and tuple elements in declaration order, list elements by index, and
    `Map` and `Set` entries in insertion order.
-5. **Sharing is opt-in.** The only ways for two owners to share one value are
+5. **Shared storage is invisible.** Copies of a `Text`, `Bytes` or collection
+   share storage under an atomic count until one of them changes, and a change
+   to shared storage first copies it. So no program can observe the sharing:
+   every owner sees its own value, on every task.
+6. **Sharing is opt-in.** The only ways for two owners to reach one value are
    the handle types `Shared<T>` (shared read-only), `Guarded<T>` (shared,
    mutable behind a lock), `Weak<Shared<T>>` / `Weak<Guarded<T>>` (non-owning),
-   and the channel sender `Sender<T>` (§11.4). Copying a handle is cheap and
-   shares the value behind it; the copy must be written explicitly as
-   `.copy()`, like every other copy (a `Task<T>` and a `Receiver<T>` are never
-   shared: they cannot be copied, and they move; `wait` takes a task).
+   and the channel sender `Sender<T>` (§11.4). A handle is not `Copy`: it
+   moves, and a second handle to the same value is written `.copy()`, so
+   every place that shares is visible (a `Task<T>` and a `Receiver<T>` are
+   never shared: they cannot be copied, and they move; `wait` takes a task).
 
 Consequences:
 
