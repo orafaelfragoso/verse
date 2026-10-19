@@ -216,7 +216,9 @@ heap and a 64-bit `Int`.
 - `verse build --no-heap` checks that no reachable function allocates, using
   the MIR (reachability plus allocation intrinsics). Records, tuples, variants,
   `Int`, `Float`, fixed ranges and borrowed `Text` literals work without a heap.
-  `List`, `Map`, `Set`, `Text` building and `Shared` do not.
+  `List`, `Map`, `Set`, `Text` building and `Shared` do not. Neither do
+  `TaskPanicked.message()` and `trace()`, which build `Text`; `code()` does
+  (spec §11.1).
 - Tasks and channels work without a heap. A channel's capacity is a literal,
   and its buffer is static. A `spawn` must run a bounded number of times: it
   is not in a loop, not in a recursive function, and not in a function called

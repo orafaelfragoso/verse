@@ -106,8 +106,8 @@ purpose.
 **printed to standard error immediately, at the moment of the panic** —
 whether or not anyone handles it later. The waiter then receives a value of
 the named error type `TaskPanicked` (from the `task` module, implementing `Error`,
-with `message()` and `trace()`), which `match` can tell apart from ordinary
-errors:
+with `message()`, `trace()` and `code()`), which `match` can tell apart from
+ordinary errors:
 
 ```verse
 import TaskPanicked, Cancelled from task
@@ -122,6 +122,14 @@ match task.wait()                    # `task` runs a function that raises `Fetch
 The task boundary is the one place where a panic becomes a value, so one
 failing request cannot bring down a whole server — but because the panic was
 already printed, `task.wait() otherwise "failed"` can never hide a bug.
+
+`code()` returns the panic's run-time code, such as `"R0002"`
+([16 §16.6](../reference/diagnostics-catalog.md#166-run-time-panics)), as a
+text literal. `message()` and `trace()` build `Text`, so a `--no-heap` build
+that can reach either one, also through an `Error` that holds a
+`TaskPanicked`, fails with V0903 like any other allocation; `code()` needs no heap
+and works there. The report printed at the moment of the panic is the same in
+every build.
 
 ### 11.3 Structured lifetimes
 

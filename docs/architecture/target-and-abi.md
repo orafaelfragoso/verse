@@ -867,8 +867,9 @@ struct PanicRecord {            // allocated by verse-rt; layout private, shown 
   while the walk runs, so building it needs no heap and no memory that grows
   with the depth. When another task can receive the panic as a `TaskPanicked`
   (spec §11.2), the runtime also keeps the folded stack lines as `Text` for
-  `trace()`. That text is the only stored copy of the call list. **Open:** what
-  `trace()` returns in a `--no-heap` build, which cannot build `Text`.
+  `trace()`. That text is the only stored copy of the call list. A
+  `--no-heap` build cannot reach `trace()` (spec §11.1, V0903), so its
+  runtime keeps no copy; the fixed-size panic record below is all it keeps.
 
 ### 15.7.2 The three mechanisms
 

@@ -26,3 +26,4 @@ were accepted on 2026-10-18.
 | [0018](0018-exported-signatures-in-full.md) | Exported signatures are written in full | accepted (2026-10-19) |
 | [0019](0019-constant-initialization-cycles.md) | A cycle among constant initializers is an error | accepted (2026-10-19) |
 | [0020](0020-object-key.md) | Object code is keyed by the instance's optimized body | accepted (2026-10-19) |
+| [0021](0021-task-panicked-without-heap.md) | `TaskPanicked` without a heap | accepted (2026-10-19) |
