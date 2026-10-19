@@ -23,13 +23,17 @@ refuses a cycle with V0310 before any code runs, in `verse check`,
 `verse build` and script mode alike. The diagnostic names every edge of the
 cycle, each in its own file:
 
-- The message is "modules `a` and `b` import each other". `a` is the module of
-  the cycle that comes first in path order, so the report does not depend on
-  the order in which modules are checked. `b` is the module `a` imports.
+- `a` is the module of the cycle that comes first in path order, so the report
+  does not depend on the order in which modules are checked. `b` is the module
+  `a` imports.
+- The message has three forms. A cycle of two modules reads "modules `a` and
+  `b` import each other". A cycle of three or more reads "module `a` imports
+  itself through `b`". A module that imports itself reads "module `a` imports
+  itself".
 - The primary label is on the import of `b` in `a`. Its text names the import
   that closes the cycle: "`b.vs:1` imports `a`". In a cycle of three or more
   modules, a secondary label marks every other import line in the cycle.
-- The help is "move what both need into a third module".
+- The help is "move what they share into a module none of them imports".
 
 Each cycle is reported once. Declarations that refer to each other, such as two
 mutually recursive types, live in one module.
@@ -55,6 +59,6 @@ a module in a cycle can see another one half-initialised.
   constant rule of spec §12.4 needs no cycle case.
 - The modules of a program form a directed acyclic graph, so a module is
   resolved and checked after the modules it imports, against their
-  `verse.api` (spec §12.3).
+  interface records (spec §12.3).
 - Two types in different files that refer to each other move together into
   one module, often a third one that both files import.

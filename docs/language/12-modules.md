@@ -63,7 +63,7 @@ be traced to a declaration or an import. Imports must appear at the top of a
 file, after the module doc comment.
 
 **No import cycles.** Two modules never import each other, directly or through
-other modules. A cycle is a compile error that points at every import line in
+other modules. A cycle is a compile error that names every import line in
 it, each in its own file:
 
 ```
@@ -73,9 +73,13 @@ error: modules `a` and `b` import each other
  1 | import helper from b
    | ^^^^^^^^^^^^^^^^^^^^ `b.vs:1` imports `a`
    |
-help: move what both need into a third module
+help: move what they share into a module none of them imports
 explain: V0310 (run `verse explain V0310`)
 ```
+
+The message above is for a cycle of two modules. A cycle of three or more reads
+"module `a` imports itself through `b`", where `b` is the module `a` imports,
+and a module that imports itself reads "module `a` imports itself".
 
 So a reader of a file knows that nothing it imports depends back on it.
 Declarations that refer to each other, such as two mutually recursive types,

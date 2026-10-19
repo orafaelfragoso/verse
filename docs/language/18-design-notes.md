@@ -306,8 +306,8 @@ or write files. One entry mechanism and one visibility default (`export`, for
 items and fields alike) leave nothing to remember. A lazy constant has no
 caller, so it must not be able to fail. Without cycles, no module that a file
 imports depends back on it, and the order in which constants are first read
-never decides whether a program runs. Python and TypeScript allow cycles and give a
-half-initialised module to whichever side loads second.
+never decides whether a program runs. Python and TypeScript allow cycles and
+give a half-initialised module to whichever side loads second.
 
 ### 18.15 Smaller decisions
 
