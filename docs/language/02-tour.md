@@ -25,7 +25,7 @@ fn area(shape: Shape): Float
         Circle(r) -> 3.14 * r * r
         Square(s) -> s * s
 
-fn parse_age(text: Text): Int | Error
+fn parse_age(text: Text): Int raises Error
     age = text.trim().to_int()?
     if age < 0
         return error("age cannot be negative: {age}")

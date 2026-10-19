@@ -100,11 +100,13 @@ and leave the rest to the compiler.
       |     ^^ a List of something, but nothing says of what
    ```
 
-5. **Fallible return types are inferred from `?`.** A function whose body uses
-   `?` on fallible values (or returns an `error(…)`) gets a fallible return
-   type made of its success type and the errors that can escape, normalized as
-   in §4.6. A `fn load(path)` whose body is `text = read_text(path)?`
-   followed by `text.trim()` returns `Text | Error`. A `?` on an optional gives an optional return type.
+5. **Raise sets are inferred with the return type.** A function whose return
+   type is inferred and whose body uses `?` on fallible values (or returns an
+   error value) gets the raise set of the errors that can escape, exact as in
+   §4.6. A `fn load(path)` whose body is `text = read_text(path)?` followed by
+   `text.trim()` returns `Text raises Error`. A function whose return type is
+   written declares its raise set too; with no `raises` clause it cannot fail
+   (§8.2). A `?` on an optional gives an optional return type.
 6. **Inferred types are visible on demand.** Editors (through `verse lsp`) show
    inferred parameter and return types as inline hints. `verse fmt` never
    inserts or removes annotations.
@@ -277,20 +279,22 @@ print("{result.quotient} remainder {result.remainder}")   # 3 remainder 2
 - `T?` is an **optional**: a `T` or `none`.
 - `A | B` is a **union**: a value that is either an `A` or a `B`. The member
   types must be distinct.
-- A union with a member that implements the `Error` trait is **fallible**:
-  `Int | Error` is "an `Int`, or an error". Members implementing `Error` form
-  the *error side*; the others form the *success side*.
+- `T raises E` is **fallible**: a `T`, or an error of one of the types in the
+  **raise set** `E`, written `raises FetchError | Timeout`. Every type in a
+  raise set implements the `Error` trait, and an error type is written only
+  there, never as a member of a union. `raises Error` is the **open set**:
+  any error type. A set that names `Error` names nothing else.
 
-`?` binds tighter than `|` in types: `Text? | Error` is
-"an optional text, or an error". Optionals nest: `Int??` is a different type
-from `Int?` (§8.1).
+`?` binds tighter than `|` and `|` tighter than `raises`:
+`Text? | Int raises Error` is "an optional text or an int, or any error".
+Optionals nest: `Int??` is a different type from `Int?` (§8.1).
 
-**Union normalization.** Unions are flattened and de-duplicated
-(`(A | B) | A` is `A | B`), and a specific error type in a union that also
-contains `Error` is **absorbed** by `Error`: `Text | FetchError | Error`
-normalizes to `Text | Error`. Once a value has been widened to `Error`, `?`
-cannot narrow it back to `FetchError`; use a typed pattern in `match`
-(`err: FetchError -> …`) to inspect the concrete error.
+**Union normalization.** Unions and raise sets are flattened and
+de-duplicated (`(A | B) | A` is `A | B`). A raise set is **exact**: it keeps
+every member through `?`, tasks and function types (§8.3, §11.1, §4.7), so a
+caller sees what can fail as precisely as the function's body does. Only an
+open set hides the concrete type; a typed pattern in `match`
+(`err: FetchError -> …`) inspects it there.
 
 Both are covered in depth in [§8](08-errors.md#8-errors-and-missing-values).
 
@@ -303,6 +307,11 @@ double: fn(Int): Int = n -> n * 2
 fn apply_twice(f: fn(Int): Int, x: Int): Int
     f(f(x))
 ```
+
+A fallible function's type carries its raise set:
+`handler: fn(Request): Response raises HttpError`. A function value with a
+smaller set fits a type with a larger one, and one that cannot fail fits any
+fallible function type of the same signature.
 
 A parameter in a function type may carry the mode word of its declaration,
 `mut` or `take` (§5.3), and a name. The mode word is part of the type; the name
@@ -317,8 +326,8 @@ new type; the two names are interchangeable.
 
 ```verse
 alias Headers = Map<Text, Text>
-alias Handler = fn(Request): Response | Error
-alias Loaded = Config | Error
+alias Handler = fn(Request): Response raises Error
+alias Loaded = Config raises Error
 ```
 
 `alias` is required to name a union of *existing* types. In a `type`

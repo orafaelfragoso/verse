@@ -56,8 +56,10 @@ variant       = TYPE_IDENT [ "(" field_list ")" ] ;
 field_list    = IDENT ":" type { "," IDENT ":" type } [ "," ] ;
 alias_decl    = "alias" TYPE_IDENT [ generics ] "=" type NEWLINE ;  (* incl. unions *)
 
-type          = union_type ;
-union_type    = optional_type { "|" optional_type } ;   (* normalized, §4.6 *)
+type          = union_type [ "raises" raise_set ] ;
+union_type    = optional_type { "|" optional_type } ;   (* normalized, §4.6; no member is an error type *)
+raise_set     = error_name { "|" error_name } ;         (* exact, §4.6; `Error` stands alone *)
+error_name    = { IDENT "." } TYPE_IDENT ;
 optional_type = base_type { "?" } ;                       (* T?? is not T? *)
 base_type     = { IDENT "." } TYPE_IDENT [ type_args ]      (* `time.Duration` *)
               | "(" type "," type { "," type } ")"               (* tuple   *)

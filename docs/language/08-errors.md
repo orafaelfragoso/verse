@@ -4,7 +4,7 @@ Verse has two related, but distinct, ideas:
 
 - **Missing values** — "there may be nothing here" — use optional types `T?`.
 - **Errors** — "something went wrong, and here is why" — use fallible types
-  `T | E`.
+  `T raises E`.
 
 Neither involves exceptions or null. Two forms of `?`, one pattern and one
 word, `otherwise`, cover almost everything:
@@ -12,6 +12,7 @@ word, `otherwise`, cover almost everything:
 | Form | Where | Meaning |
 |------|-------|---------|
 | `T?` | type | a value that may be missing |
+| `T raises E` | type | a value, or an error of one of the types in `E` (§8.2) |
 | `expr?` | postfix | stop early: if `expr` is an error or missing, return it from the current function |
 | `x?` | pattern | match a present value (§7.3) |
 | `a otherwise b` | expression | fallback: `a` if usable, else `b` |
@@ -131,28 +132,50 @@ match scores["bruno"]          # Int??
 On ordinary maps and lists (whose elements are not optional), lookups are plain
 `V?` and none of this comes up.
 
-### 8.2 Fallible types `T | E`
+### 8.2 Fallible types `T raises E`
 
-A function that can fail declares it in its return type:
+A function that can fail declares what it can raise after its return type:
 
 ```verse
-fn read_text(path: Text): Text | Error      # signatures only
-fn parse_port(text: Text): Int | ParseError
+fn read_text(path: Text): Text raises Error        # signatures only
+fn parse_port(text: Text): Int raises ParseError
+fn fetch(url: Text): Text raises FetchError | Timeout
 ```
 
 `ParseError` is in the prelude (§15.1); it is the error type of `Text.to_int()`,
-which returns `Int | ParseError` (and of `Text.to_float()`, which returns
-`Float | ParseError`).
+which returns `Int raises ParseError` (and of `Text.to_float()`, which returns
+`Float raises ParseError`).
 
-The body returns either a `T` (success) or an error value. A value of the error
+The body returns either a `T` (success) or an error value. A value of an error
 type returned as the last expression, or with `return`, is the failure:
 
 ```verse
-fn divide(a: Float, b: Float): Float | Error
+fn divide(a: Float, b: Float): Float raises Error
     if b == 0.0
         return error("division by zero")
     a / b
 ```
+
+**The clause is checked both ways.** Every error the body can raise, by
+`return` or by `?` (§8.3), must be in the clause; one that is not is an error
+that names it. A member of the clause that nothing in the body can raise is a
+warning:
+
+```verse
+fn load(): Report raises FetchError | Timeout | ParseError
+    page = fetch(u)?                 # keeps FetchError | Timeout
+    parse(page)?                     # adds ParseError; the clause lists it
+
+fn quiet(): Report raises Timeout
+    parse(fetch(u)?)?                # error: `fetch` can raise `FetchError`, which `quiet` does not declare
+
+fn careful(): Report raises Timeout | ParseError
+    parse(cached)?                   # warning: `Timeout` is declared, but nothing in `careful` raises it
+```
+
+A function whose return type is written and has no clause cannot fail. A
+function whose return type is left to inference also has its raise set
+inferred: the errors its body can raise (§4.2).
 
 #### The `Error` trait
 
@@ -165,8 +188,9 @@ trait Error: Show
         none
 ```
 
-`T | Error` (with the trait name itself) accepts *any* error type — the most
-common choice for application code. Libraries often define specific error
+`raises Error` (with the trait name itself) accepts *any* error type, the most
+common choice for application code. The `error(…)` function below makes an
+`Error`, so a function that uses it raises the open set. Libraries often define specific error
 types:
 
 ```verse
@@ -192,7 +216,7 @@ the current function; otherwise give me the value."**
 import json
 import read_text from fs
 
-fn load_settings(path: Text): Settings | Error
+fn load_settings(path: Text): Settings raises Error
     text = read_text(path)?
     data = json.parse(text)?
     Settings.from_json(data)
@@ -202,20 +226,20 @@ Rules for `expr?`:
 
 | `expr` has type | enclosing function returns | effect |
 |-----------------|----------------------------|--------|
-| `T \| E` | `U \| E` | on error, return that error; otherwise yields `T` |
-| `T \| E` | `U \| Error` | on error, return it as `Error`; otherwise yields `T` |
-| `T \| E` | `U?` | compile-time error — an error cannot become `none`; handle it, or change the return type to `U? \| Error` |
-| `T \| E1` | `U \| E2` (unrelated `E2`) | compile-time error — convert with `.context("…")` (gives `Error`) or `match` |
+| `T raises E` | `U raises C`, where `C` contains every member of `E` | on error, return that error, keeping its type; otherwise yields `T` |
+| `T raises E` | `U raises Error` | on error, return it; otherwise yields `T` |
+| `T raises E` | `U?` (no clause) | compile-time error: an error cannot become `none`; handle it, or add `raises E` |
+| `T raises E` | `U raises C`, where `C` lacks a member of `E` | compile-time error that names the member: add it to the clause, convert with `.context("…")` (gives `Error`), or `match` |
 | `T?` | `U?` | on `none`, return `none`; otherwise yields `T` |
-| `T?` | `U \| E` | compile-time error — say why with `.or_error("…")` |
-| `Error` (widened) | `U \| FetchError` | compile-time error — `?` never narrows `Error` back to a specific type (§4.6) |
+| `T?` | `U raises C` | compile-time error: say why with `.or_error("…")` |
+| `T raises Error` | `U raises FetchError` | compile-time error: the open set is not a member of a specific one |
 
 **Layers are peeled from the outside, in written order.** For a type with
 several layers, `?` and `otherwise` act on the *outermost* layer only. In
-`Text? | Error`, the outermost layer is the error side:
+`Text? raises Error`, the outermost layer is the error side:
 
 ```verse
-fn nickname(id: Int): Text? | Error
+fn nickname(id: Int): Text? raises Error
     ...
 
 a = nickname(7)?                             # Text?  (errors propagated)
@@ -272,14 +296,16 @@ config_text = read_text(path).context("loading {path}")?
 _ = fs.remove("cache.tmp")
 ```
 
-`.context(msg)` wraps the error in a new error whose `cause()` is the original.
+`.context(msg)` wraps the error in a new error whose `cause()` is the original,
+so its result raises the open set: `T raises E` becomes `T raises Error`.
+`.or_error(msg)` turns a `T?` into a `T raises Error` in the same way.
 
 #### Fallible results cannot be dropped
 
 **Discarding a fallible value is a compile-time error.** A call whose result
-is `T | E` cannot stand alone as a statement, and neither can a value that
-*contains* fallible results — a `List<T | Error>` from `wait_all`, a
-`Map<K, V | E>`, a tuple with a fallible part. Either handle it (`?`,
+is `T raises E` cannot stand alone as a statement, and neither can a value
+that *contains* fallible results: a `List<T raises Error>` from `wait_all`, a
+`Map<K, V raises E>`, a tuple with a fallible part. Either handle it (`?`,
 `otherwise`, `match`, a loop over the results) or discard it visibly with
 `_ = …`:
 

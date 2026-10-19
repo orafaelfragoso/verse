@@ -29,7 +29,7 @@ later.
 A resource is an ordinary value. `File`'s write methods (`write_line`,
 `write`, `flush`) take `mut self`, so a file you write to is bound with
 `mut`: `mut target = create("out.txt")?`. Acquiring a resource can fail, and
-the failure is handled like any other: `open` returns `File | Error`, so it
+the failure is handled like any other: `open` returns `File raises Error`, so it
 needs `?`, `otherwise` or `match` (§8).
 
 ### 13.2 Order of release
@@ -67,7 +67,7 @@ writer.finish()?                        # the fallible close: `writer` is consum
 
 | Operation | Signature | Meaning |
 |-----------|-----------|---------|
-| `file.finish()` | `finish(take self): Nothing \| Error` | write what is buffered and close the file; consumes it |
+| `file.finish()` | `finish(take self): Nothing raises Error` | write what is buffered and close the file; consumes it |
 
 When a task of the same program reads the other end of the file, as with a
 pipe, call `finish()` before the last use. The write in a drop is a system
@@ -110,12 +110,12 @@ type TempDir
 impl Unique for TempDir                    # one owner: no `.copy()`, so `remove` runs once
 
 impl TempDir
-    fn create()                            # inferred: TempDir | Error
+    fn create()                            # inferred: TempDir raises Error
         path = "/tmp/verse-{random.int(0..1_000_000)}"
         fs.make_dir(path)?
         TempDir(path:)
 
-    fn remove(take self)                   # inferred: Nothing | Error
+    fn remove(take self)                   # inferred: Nothing raises Error
         fs.remove_all(self.path)
 
 dir = TempDir.create()?

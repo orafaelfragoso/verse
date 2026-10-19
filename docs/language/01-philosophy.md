@@ -28,7 +28,7 @@ lists every use honestly:
 | `{ }`  | "contents": map literals (`{"a": 1}`, empty `{:}`), set literals (`set{…}`), and — inside text — interpolation (`"{name}"`) |
 | `< >`  | "type parameter": generics |
 | `->`   | "produces": lambdas and match arms (nothing else) |
-| `\|`   | "one of": variants, union and error types (`Int \| Error`), pattern alternatives |
+| `\|`   | "one of": variants, unions, raise sets (`raises FetchError \| Timeout`), pattern alternatives |
 | `?`    | "maybe missing or failed": `T?` (a type that may be missing), postfix `expr?` (stop early on error or missing), and the pattern `x?` (match a present value) |
 | `:`    | "has type" or "is named": type annotations, return types, record fields, named arguments, map entries, supertraits and generic constraints (`T: Order`), typed patterns (`n: Int`), field patterns (`age: 18`), loop labels (`outer:`), and interpolation format specifiers (`{price:.2}`) |
 
@@ -37,7 +37,7 @@ lists every use honestly:
 - There is **no null**. A value that might be absent has an optional type `T?`,
   and the compiler makes you handle the absence.
 - Errors are **values in the type**: a function that can fail says so in its
-  signature (`Int | Error`), and failure must be handled or explicitly
+  signature (`Int raises Error`), and failure must be handled or explicitly
   propagated with `?`. Silently discarding a fallible result is a compile-time
   error; `_ = …` is the visible way to ignore one on purpose.
 - Types are **static but visually optional**: the compiler infers them —

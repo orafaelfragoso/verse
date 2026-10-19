@@ -142,7 +142,7 @@ scalar, or a constant), a text, or a word.
 | record `P<T>` | named fields | fields by name |
 | enum `P<T>` | variant type; cases numbered in declaration order | boxed recursion is explicit in the field type |
 | `T?` | enum with case `#0` = none, `#1` = present | niche packed by `layout` |
-| `A \| B \| E` | fallible or union type, cases in normalized written order (§4.6) | `?` and `match` read the case with `discriminant` |
+| `A \| B \| E` | union type, and the MIR form of the fallible type `A \| B raises E` (spec §4.6): success cases first, then the raise set, each in normalized written order; the raise set stays exact | `?` and `match` read the case with `discriminant` |
 | `Task<T>`, `Sender<T>`, `Receiver<T>`, `Shared<T>`, `Guarded<T>` | runtime handles | none is `Copy`; `Sender`, `Shared` and `Guarded` are `Copyable` (spec §10.4) |
 | `dyn Trait` | `(data ptr, vtable ptr)` (03 §3.5) | only callee form is `dyn #slot` |
 | `&T`, `&mut T` | shared and exclusive borrow | **MIR only**, second-class, see V7 |

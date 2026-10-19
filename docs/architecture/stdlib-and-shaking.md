@@ -66,7 +66,7 @@ in the prelude).
 import read_text from fs
 import parse, Json from json
 
-fn load_config(path: Text): Json | Error
+fn load_config(path: Text): Json raises Error
     text = read_text(path)?
     parse(text)
 
@@ -291,7 +291,7 @@ illustration.
 ```verse
 import serve, Request, Response from http
 
-fn handle(request: Request): Response | Error
+fn handle(request: Request): Response raises Error
     match request.path
         "/" -> Response(status: 200, headers: {:}, body: b"hello")
         _ -> Response(status: 404, headers: {:}, body: b"not found")
@@ -447,7 +447,7 @@ Using such a package, with assumed names:
 import Decimal from math
 import Money from finance
 
-fn total(prices: List<Money>): Money | Error
+fn total(prices: List<Money>): Money raises Error
     mut sum = Money(amount: Decimal.zero(), currency: "EUR")
     for price in prices
         sum = sum.add(price)?

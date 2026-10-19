@@ -19,7 +19,7 @@ type Options
     files: List<Text> = []
 
 ## Reads command-line arguments into Options.
-fn parse_args(raw: List<Text>)                   # returns Options | Error (inferred)
+fn parse_args(raw: List<Text>)                   # returns Options raises Error (inferred)
     mut options = Options()
     mut i = 0
     while i < raw.len()
@@ -117,7 +117,7 @@ type Report
 
 ## Fetches one page. Runs as an ordinary function; `spawn` makes it concurrent.
 ## Takes `url` because the report keeps it.
-fn fetch(take url): Report | Error
+fn fetch(take url): Report raises Error
     started = time.now()
     response = get(url, timeout: 10.seconds()).context("fetching {url}")?
     Report(
@@ -219,7 +219,7 @@ impl Measurable for Shape
 
 impl Triangle
     ## Builds a triangle, rejecting side lengths that cannot close.
-    fn new(a: Float, b: Float, c: Float): Triangle | Error
+    fn new(a: Float, b: Float, c: Float): Triangle raises Error
         if a + b <= c or a + c <= b or b + c <= a
             return error("sides {a}, {b}, {c} cannot form a triangle")
         Triangle(a:, b:, c:)

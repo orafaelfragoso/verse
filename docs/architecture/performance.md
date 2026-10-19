@@ -75,7 +75,7 @@ Rules:
 5. **Static dispatch by default.** Only trait types (`Speaker` used as a type)
    dispatch dynamically, and `devirtualize` removes those when the concrete
    type is known.
-6. **Niche and layout optimization** shrink `T?`, `T | Error` and variants.
+6. **Niche and layout optimization** shrink `T?`, `T raises Error` and variants.
 7. **Non-atomic reference counts** when the program provably never spawns.
 8. **Cheap tasks** via lazily committed stacks or state machines.
 9. **Compile-time work moved off the critical path**: incremental queries,
@@ -97,7 +97,7 @@ mitigation that **does not change semantics**.
 | P7 | Every task can unwind, dropping what it owns | §11.5 | unwind tables cost no run time on the success path; status-code mode costs a branch per call that can unwind; panics clean up on every target |
 | P8 | `Set` is "unordered": implementation freedom helps speed but breaks replay and reproducibility | §9.4 | `Set` keeps **insertion order**; same compact layout as `Map`, one index array, about 4 bytes per element more than an unordered table (assumption to measure in M1) |
 | P9 | `spawn` gives the task its own arguments, so large values are copied at spawn | §11.1 | a copy is a count on the shared storage, and a move at the last use is pointer-sized; the storage is duplicated only when one side writes |
-| P10 | Fallible results cannot be dropped and `T \| Error` is a tagged value | §8 | niche packing and a pointer-sized error for the common case |
+| P10 | Fallible results cannot be dropped and `T raises Error` is a tagged value | §8 | niche packing and a pointer-sized error for the common case |
 
 ## 9.5 Compile-time budget discipline
 

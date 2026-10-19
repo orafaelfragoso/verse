@@ -171,7 +171,7 @@ impl Database
     export fn close(take self)
         _ = sqlite3_close(self.handle)    # fails only while statements are open
 
-export fn open(path: Text): Database | Error
+export fn open(path: Text): Database raises Error
     mut db: Pointer? = none
     status = sqlite3_open(path.bytes(), mut db)
     handle = db otherwise return error("cannot open {path}: out of memory")
@@ -183,7 +183,7 @@ export fn open(path: Text): Database | Error
 ```
 
 Errors stay values: a C function returns a status code, and a Verse
-function turns it into `T | Error` (§8). The binding file declares the C
+function turns it into `T raises Error` (§8). The binding file declares the C
 functions as they are; the wrapper module is where errors and closing live.
 
 Other rules at the boundary:

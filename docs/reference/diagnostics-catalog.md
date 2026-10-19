@@ -161,15 +161,20 @@ gives every rule an identifier.
 | V0408 | error | `{T}` cannot be compared with `{U}` | `==` needs two values of one type | convert one side | §9.6 |
 | V0409 | error | `{x}` does not fit in `{T}` | the largest `{T}` is {max} | use a larger type | §4.1 |
 | V0410 | error | `Int` and `Float` are not mixed implicitly | | write `{x}.to_float()` or `{y}.round().to_int()` | §4.1 |
-| V0411 | error | a fallible value cannot be ignored | `{f}` returns `{T} \| Error` | handle it with `?`, `otherwise` or `match`, or discard it with `_ = …` | §8.4 |
+| V0411 | error | a fallible value cannot be ignored | `{f}` can raise `{E}` | handle it with `?`, `otherwise` or `match`, or discard it with `_ = …` | §8.4 |
 | V0412 | error | `{name}` might be missing | this is `{T}?`, not `{T}` | provide a fallback: `… otherwise {default}`; stop early: `…?`; branch: `if … is {name}?` | §8.1 |
-| V0413 | error | `?` can only be used in a function that returns an optional or `Error` | `{f}` returns `{T}` | change the return type to `{T}?` or `{T} \| Error` | §8.3 |
+| V0413 | error | `?` can only be used in a function that returns an optional or raises | `{f}` returns `{T}` | change the return type to `{T}?`, or add `raises {E}` | §8.3 |
 | V0414 | error | `otherwise` needs an optional or fallible value on its left | this is `{T}`, which is always there | remove `otherwise` | §3.8.2 |
 | V0415 | error | `{x}` is `{T}?` and cannot be used as `{T}` here | the dot looks through an optional only when the chain ends in `otherwise`, `?`, `is`, `match`, or an optional-typed position | add one of those at the end of the chain | §8.1 |
 | V0416 | error | the `Error` of `{f}` is not handled here | `{f}` can return `{E}` | add `?`, `otherwise` or a `match` arm for `{E}` | §8.4 |
 | V0417 | error | `{x}` is not a `Text`, so it cannot be indexed by character | | use `.bytes()` for the UTF-8 bytes | §4.1 |
 | V0418 | error | missing type for a public item | `export` items need types in `verse.api` | annotate the parameters and the result | §16.4 |
 | V0419 | error | `{f}` needs a new copy for every depth of this call | `{f}` calls itself with `{T}` wrapped in `{W}` | annotate the parameter with one concrete type | §4.2 rule 1 |
+| V0420 | error | `{f}` can raise `{E}`, which `{g}` does not declare | `{g}` declares `raises {set}` | add `{E}` to the `raises` clause of `{g}`, or handle it here | §8.2 |
+| V0421 | warning | `{E}` is declared, but nothing in `{f}` raises it | | remove `{E}` from the `raises` clause | §8.2 |
+| V0422 | error | `otherwise return` throws away the error of `{f}` | `{g}` could pass on `{E}` | pass it on with `?`, add context with `.context("…")?`, or return a value | §3.8.2 |
+| V0423 | error | `Error` already includes `{E}` | a raise set that names `Error` names nothing else | write `raises Error`, or list only specific errors | §4.6 |
+| V0424 | error | `{E}` is an error type, so it goes after `raises` | an error type is not a member of a union | write `{T} raises {E}` | §4.6 |
 
 ### V05xx Ownership
 

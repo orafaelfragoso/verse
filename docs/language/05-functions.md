@@ -295,7 +295,7 @@ so the lambda's own return type becomes fallible
 (see [§8.3](08-errors.md#83-propagation-with-)):
 
 ```verse
-doubled = inputs.map(text -> text.trim().to_int()? * 2)       # List<Int | ParseError>
+doubled = inputs.map(text -> text.trim().to_int()? * 2)       # List<Int raises ParseError>
 ```
 
 ### 5.5 Generic functions

@@ -47,7 +47,8 @@ silent precision loss, so conversions are written out.
 **Decision:** Boolean operators are the words `and`, `or`, `not`, used only
 with `Bool` operands (no `&&`, `||`, `!`, and no truthiness). The fallback
 operator is a separate word, `otherwise`, which applies only to optional and
-fallible values. Error and union types are written with `|`.
+fallible values. Unions and raise sets are written with `|`, and a fallible
+type with `raises`.
 
 **Why:** One `or` for both "boolean or" and "fallback", resolved by the type
 of the left operand, would be unambiguous to the compiler but not always to a
@@ -55,8 +56,9 @@ reader: in `a or b` you would have to know the type of `a` to know which
 operation you were looking at. Giving each idea its own word removes the
 guesswork: `or` is always logic, `otherwise` is always a fallback, and
 `find_user(id).email otherwise "no email"` reads as a sentence. Using `|`
-for fallible types (`Int | Error`) frees `or` from type position too and
-matches the existing `|` in variant declarations — both say "one of these".
+in unions and raise sets (`Int raises FetchError | Timeout`) frees `or` from
+type position too and matches the existing `|` in variant declarations: all
+say "one of these".
 `otherwise` binds loosest of all binary operators because a fallback normally
 applies to the whole expression to its left. Its right operand is restricted
 to a literal, call, postfix expression, parenthesized expression or another
@@ -225,11 +227,15 @@ results) never mentions ownership at all.
   `Map<Text, Int?>`, "key missing" and "present but `none`" must stay
   distinguishable.
 - **Layers in written order.** `?` and `otherwise` act on the outermost layer:
-  for `Text? | Error` the error side first, then a second `otherwise` (or `?`)
+  for `Text? raises Error` the error side first, then a second `otherwise` (or `?`)
   handles `none`.
-- **Union normalization.** A specific error type in a union with `Error` is
-  absorbed by `Error`, and `?` never narrows `Error` back; `match` with a typed
-  pattern recovers the specific type.
+- **Exact raise sets.** The errors a function can raise are a `raises`
+  clause on its signature, kept exact through `?`, tasks and function types,
+  and checked both ways: an undeclared raise is an error (V0420) and a
+  declared one that nothing raises is a warning (V0421). `raises Error` is the
+  open set for application code; only there does `match` with a typed pattern
+  recover a specific type
+  ([ADR-0016](../decisions/0016-raises-clause.md)).
 - **Patterns.** `match` on a union uses typed patterns (`n: Int`,
   `err: Error`) at the top level only; inside parentheses `name: pattern` is
   always a field. `p?` matches a present optional. There is no `if let`,
@@ -249,8 +255,8 @@ results) never mentions ownership at all.
   languages would take `a?.b` for safe access; "propagate, then access" is
   written `(a?).b`.
 - `?` returns from the innermost function-like body: a lambda, a spawned
-  function, a test, or the script. `?` on `T | E` in a function returning `U?`
-  is an error, as is `?` on an optional in a function returning an error union
+  function, a test, or the script. `?` on `T raises E` in a function returning
+  `U?` is an error, as is `?` on an optional in a function with a `raises` clause
   (`.or_error("why")` converts). *Why:* errors should carry a message, and an
   error should never silently become `none`.
 - **Discarding a fallible result is a compile-time error**, including values
@@ -278,10 +284,11 @@ is released only by its own method.
 ### 18.13 Concurrency details
 
 **Decision:** Structured task lifetimes (unwaited tasks are awaited when their
-spawning function ends), owned arguments moved into each task (borrows cannot
-cross; handles copy cheaply), communication and sharing only through
+spawning function ends), each task owning its arguments (a copy of each `Copy`
+value, a move of any other; handles are copied with `.copy()`), communication and sharing only through
 channels (`Sender`/`Receiver`), `Shared`, `Guarded` and `Weak`, cooperative cancellation, and every task outcome — success, error, or
-panic — delivered by `.wait()` as `T | Error`. A panic is always printed when
+panic — delivered by `.wait()` as `T raises E | TaskPanicked | Cancelled`, with
+the function's own set `E` kept exact. A panic is always printed when
 it happens and reaches the waiter as the named type `TaskPanicked`.
 Cancellation unwinds the cancelled task like a panic (dropping what it owns)
 and cannot be caught inside it; the waiter sees `Cancelled`. An unwaited task

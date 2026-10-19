@@ -124,9 +124,9 @@ A single `_` is a wildcard: it discards a value in patterns and bindings.
 alias      and        as         assert     break      continue   else
 export     extern     false      fn         for        from       if
 impl       import     in         is         let        match      mut
-none       not        or         otherwise  pass       return     self
-Self       set        spawn      take       test       then       trait
-true       type       while      with
+none       not        or         otherwise  pass       raises     return
+self       Self       set        spawn      take       test       then
+trait      true       type       while      with
 ```
 
 `let` is reserved but not used: Verse has no `let` (bindings are written
@@ -362,14 +362,14 @@ valid = not name.is_empty() and age >= 18
 | Left operand type | Fallback happens when… | Result type |
 |-------------------|------------------------|-------------|
 | `T?` | it is `none` | `T` if right is `T`; `T?` if right is `T?` |
-| `T \| E` (`E` an error) | it is an error | `T` if right is `T`; `T \| E` if right is `T \| E` |
+| `T raises E` | it is an error | `T` if right is `T`; `T raises E` if right is `T raises E` |
 
 ```verse
 name = nickname otherwise "friend"                        # Text? → Text
 timeout = settings["timeout"] otherwise 30                # Int? → Int
-text = read_text(path) otherwise "default"                # Text | Error → Text
+text = read_text(path) otherwise "default"                # Text raises Error → Text
 email = find_user(id).email otherwise "no email"          # User? → Text
-source = read_text(primary) otherwise read_text(backup)       # still Text | Error
+source = read_text(primary) otherwise read_text(backup)       # still Text raises Error
 ```
 
 The right side is evaluated only when needed. Using `otherwise` on a value that
@@ -441,9 +441,11 @@ fn radius_of(shape)
 ```
 
 With a **fallible** left side, `otherwise return …` (or `break`/`continue`)
-*throws the error away* — the reason for the failure is lost. That is
-sometimes exactly right (skip a malformed line); when the reason matters,
-propagate it instead with `.context("…")?` (§8.4). There is no `guard`
+*throws the error away*: the reason for the failure is lost. That is
+sometimes exactly right (skip a malformed line). A bare `otherwise return` in
+a function whose `raises` clause could carry the error is a compile-time
+error (V0422), because `?` would pass the reason on: write `?`,
+`.context("…")?` (§8.4), or a value after `return`. There is no `guard`
 keyword: `x = … otherwise return` is the guard.
 #### 3.8.3 Comparison chaining
 
