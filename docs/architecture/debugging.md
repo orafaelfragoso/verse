@@ -197,8 +197,8 @@ attached:
 ```json
 {
   "event": "panicked",
-  "kind": "index_out_of_bounds",
-  "text": "list index 7 is out of bounds for a list of length 3",
+  "kind": "index_oob",
+  "text": "index 7 is out of range, the list has 3 items",
   "at": {"file": "scores.vs", "line": 18, "column": 14},
   "task": "main",
   "values": [{"name": "scores", "summary": "[10, 20, 30]"}, {"name": "i", "value": 7}],
@@ -220,7 +220,7 @@ In a debug session, a panic stops with `reason: "exception"`, and
 
 | `exceptionInfo` field | Content |
 |-----------------------|---------|
-| `exceptionId` | the panic `kind`, such as `index_out_of_bounds`, or `assert_failed` or `propagated` |
+| `exceptionId` | the panic `kind`, such as `index_oob`, or `assert_failed` or `propagated` |
 | `description` | the report's `text` |
 | `breakMode` | `unhandled` for a panic, `always` for a filter stop |
 | `details.stackTrace` | the report's `stack`, one call per line |
