@@ -475,8 +475,12 @@ interrupt context, so it can use the whole language (05 §5.7).
   nothing. The channel is the program's own, so its capacity is a constant at
   the creation site and its buffer is placed in static memory
   ([15 §15.3.7](target-and-abi.md#1537-handles-tasks-channels-shared-guarded)).
+  `spawn watch(rx)` is in the entry statements and not inside the `while`
+  loop, so it runs once. The compiler gives `watch` one static task slot,
+  which holds its control block, its result and its state (15 §15.3.7).
   Blinky therefore passes `--no-heap` (05 §5.7). A capacity computed at run
-  time fails that build with V0916.
+  time fails that build with V0916, and a `spawn` inside the loop fails it
+  with V0917.
 - The spec has **no fixed-capacity mutable byte buffer**: `Bytes` is
   immutable and `List<Int>` allocates. Bulk SPI and UART reads therefore need
   a new type: a fixed-capacity mutable byte buffer in the standard library,

@@ -81,7 +81,7 @@ with no pass, is an error in this table.
 | Ownership | V05xx, V07xx |
 | Optimizer, `verify`, `simplify-cfg`, `inline`, `sroa`, `const-prop`, `fold`, `move-elim`, `copy-elide`, `range-analysis`, `devirtualize`, `drop-opt`, `dce`, `layout`, `refcount-opt` | V99xx |
 | `task-lower` | V0909 |
-| Reachability and capability check | V0901 to V0905, V0908, V0910, V0916 |
+| Reachability and capability check | V0901 to V0905, V0908, V0910, V0916, V0917 |
 | Backends | V1005, V1007 to V1009, V1011, V1012 (linking foreign code, 07) |
 | `verse-pkg` | V08xx; V0906, V0907 (target variants in the manifest) |
 | `verse-cli` | V11xx; V0911 to V0915 (target files) |
@@ -264,6 +264,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0914 | error | the `[memory]` section of target `{t}` is not valid | {reason: `heap` is not allowed on this layer, or the sizes do not fit in `ram`} | change `{key}` in `{file}` | 15 §15.9.4 |
 | V0915 | error | no target is named `{t}` | looked in {list of places} | check the name, or add `targets/{t}.target` | 15 §15.9.1 |
 | V0916 | error | this channel's capacity is not a constant, and `--no-heap` is on | `{expr}` is computed when the program runs | write the capacity as a number, or turn `--no-heap` off | 15 §15.3.7 |
+| V0917 | error | this `spawn` can run without bound, and `--no-heap` is on | {reason: it is inside a loop, `{f}` calls itself, or `{f}` is called through a function value} | spawn the task once, before the loop, and send it work over a channel; or turn `--no-heap` off | 15 §15.3.7 |
 
 ### V10xx Foreign calls
 

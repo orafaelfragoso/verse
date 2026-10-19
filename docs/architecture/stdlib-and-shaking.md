@@ -394,6 +394,7 @@ After reachability, the build checks the result against the target:
 |-------|--------------------|------------------------------------------|
 | Every needed capability is provided | target file `[capabilities]` ([04 §4.3](backends-and-targets.md#43-what-a-target-is)) | "this program calls `http.get`, which `thumbv7em-none-eabihf` cannot provide" followed by the why chain |
 | No heap use under `--no-heap` | [05 §5.7](runtime.md#57-embedded-profile): no reachable allocation intrinsic | "`--no-heap`: `List.push` allocates, reached from `blink.vs:12`" |
+| Bounded spawns under `--no-heap` | [15 §15.3.7](target-and-abi.md#1537-handles-tasks-channels-shared-guarded): every reachable `spawn` runs a bounded number of times | "this `spawn` can run without bound, and `--no-heap` is on" |
 | No threads where the target has none | target `tasks` and `atomics` | spawning still works on cooperative targets; only true thread requirements fail |
 | Library availability | the package's per-target table (§6.9) | "`gui` is not available for `riscv32imc-unknown-none-elf`" |
 

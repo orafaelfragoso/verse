@@ -189,7 +189,11 @@ annotation instead of written: `(tx, rx): (Sender<Int>, Receiver<Int>) =
 Channel.new(capacity: 10)`. A program built without a heap (`--no-heap`, for
 microcontrollers) writes the capacity as a number, as in
 `Channel.new<Event>(capacity: 8)`, so the buffer can be placed in static
-memory; a capacity computed at run time is then a compile error.
+memory; a capacity computed at run time is then a compile error. Such a
+program can also `spawn`, as long as each `spawn` runs a bounded number of
+times: not in a loop, not in a recursive function, and not in a function
+called through a function value. Each task then gets a slot in static memory.
+A `spawn` that can run without bound is a compile error.
 
 ```verse
 import Channel, wait_all from task

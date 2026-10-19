@@ -302,13 +302,46 @@ operations.
 
 Reference counts are `usize`; an overflow aborts the program (a reference
 cycle of 2^32 handles on a 32-bit target is a bug, not a panic). The cell of a
-task, channel or `Shared` is allocated through the target's allocator. On a
-`--no-heap` build a task or a `Shared` cannot be reached (05 §5.7), and a channel is
-sized at build time: the `capacity` of every `Channel.new` must be an `Int`
-literal (or the default 16), and the compiler places the channel core and its
-buffer in static memory, one region per creation site. A capacity computed at
-run time is a compile error (V0916). A creation site that runs again while the
-channel it made is still alive panics with `out_of_memory` (R0007).
+task, channel or `Shared` is allocated through the target's allocator. A
+`--no-heap` build has no allocator (05 §5.7). A `Shared` cannot be reached
+there, and channels and tasks live in static memory, sized at build time.
+
+A channel's `capacity` must be an `Int` literal (or the default 16), and the
+compiler places the channel core and its buffer in static memory, one region
+per creation site. A capacity computed at run time is a compile error (V0916).
+A creation site that runs again while the channel it made is still alive
+panics with `out_of_memory` (R0007).
+
+A task is placed in static memory when its `spawn` site runs a bounded number
+of times. The reachability pass (ADR-0004) already has the call graph and each
+function's control-flow graph, and it counts how many times each reachable
+function can run in one run of the program:
+
+- The program's entry runs once.
+- A function on a cycle of the call graph (recursion) runs without bound, and
+  so does a function that can be called through a function value (a lambda, a
+  function passed as an argument) or a vtable.
+- A call or `spawn` site runs as many times as the function that holds it,
+  or without bound when it lies on a cycle of that function's control-flow
+  graph (a loop).
+- Any other function runs the sum of the counts of the sites that call or
+  spawn it.
+
+A `spawn` site that runs n times gets n static **task slots**. A site that
+runs without bound is a compile error (V0917). Slots are never reused, so a
+`spawn` never runs out of them. Inlining keeps the sums and no MIR pass
+unrolls a loop, so the counts are the same at every `opt` level.
+
+A task slot holds the task cell of the table above (state, result slot for
+`T | TaskPanicked | Cancelled`, join list), the TCB, and the task's own memory:
+
+- On a `state-machine` or `cooperative` target, the `F_State` of the spawned
+  function (15.6.2). The `layout` pass knows its size, because a waiting
+  function cannot call itself on these targets (V0909). Calls that do not wait
+  run on the one shared stack of `[memory] stack`, as with a heap.
+- On a `stackful` target, a stack of `[tasks] max_stack` bytes. A static
+  stack cannot grow and has no guard page, so the prologue check (15.6.4) is
+  its only overflow check. Overflow panics with `stack_overflow` (R0004).
 
 ### 15.3.8 Worked layout examples (64-bit)
 
@@ -1027,7 +1060,7 @@ with `K`, `M`, `G` suffixes (powers of 1024) or integers (bytes).
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `max_stack` | size | `"8M"` | the most stack one task may use; `--max-stack` overrides it (19). Stacks grow as they are used (VM segments, 14.3; pages committed on first touch on a stackful target, where this is the address space reserved per task), so the cap costs nothing until used. On a `cooperative` or `state-machine` target the tasks run on one shared stack, and the target file sets its own value, at most `[memory] stack` |
+| `max_stack` | size | `"8M"` | the most stack one task may use; `--max-stack` overrides it (19). Stacks grow as they are used (VM segments, 14.3; pages committed on first touch on a stackful target, where this is the address space reserved per task), so the cap costs nothing until used. On a `cooperative` or `state-machine` target the tasks run on one shared stack, and the target file sets its own value, at most `[memory] stack`. On a `--no-heap` build a stackful target reserves this much static memory per task slot (15.3.7) |
 | `workers` | `"cores"` \| integer | `"cores"` | stackful with `threads = true`; ignored otherwise |
 
 **`[exit]`**

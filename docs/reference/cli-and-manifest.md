@@ -156,7 +156,7 @@ with the bug report.
 | `--profile <name>` | build with `[profile.<name>]` (§19.3) |
 | `--target <name>` | build for a target file other than `[targets] default` (§19.3) |
 | `--size-report` | also list every included item with its size and why it is included; `--size-report=json` prints records ([06 §6.6](../architecture/stdlib-and-shaking.md#66-verse-build---size-report)) |
-| `--no-heap` | fail if any reachable function allocates ([05 §5.7](../architecture/runtime.md#57-embedded-profile)) |
+| `--no-heap` | fail if any reachable function allocates, or if a `spawn` can run without bound; tasks and channels then live in static memory ([05 §5.7](../architecture/runtime.md#57-embedded-profile)) |
 | `--record` | the built program logs its nondeterministic inputs, so the VM can replay the run; setting `VERSE_RECORD=file` when the program runs does the same ([08 §8.2](../architecture/debugging.md#82-architecture)) |
 | `--verify-reproducible` | build twice in clean directories and compare the bytes (for CI; [21 §21.10](../architecture/packages.md#2110-reproducible-builds-and-caching)) |
 

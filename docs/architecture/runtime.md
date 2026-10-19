@@ -196,6 +196,13 @@ heap and a 64-bit `Int`.
   the MIR (reachability plus allocation intrinsics). Records, tuples, variants,
   `Int`, `Float`, fixed ranges and borrowed `Text` literals work without a heap.
   `List`, `Map`, `Set`, `Text` building and `Shared` do not.
+- Tasks and channels work without a heap. A channel's capacity is a literal,
+  and its buffer is static. A `spawn` must run a bounded number of times: it
+  is not in a loop, not in a recursive function, and not in a function called
+  through a function value. The compiler then gives each possible task a
+  static slot for its control block, its result and its state (a fixed-size
+  stack on a stackful target). Any other `spawn` is a compile error (V0917).
+  The exact rule is [15 §15.3.7](target-and-abi.md#1537-handles-tasks-channels-shared-guarded).
 - `Int` stays 64-bit (spec §4.1). The optimizer uses range analysis to lower to
   32-bit operations where it can prove values fit, and sized types
   (`math.Int32`) are the explicit tool for hot code.
