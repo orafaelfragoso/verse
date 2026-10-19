@@ -8,8 +8,10 @@ permissions: {}
 
 jobs:
   # The title becomes the squash commit's subject, so it must follow the
-  # commit format in CONTRIBUTING.md.
-  pr-title:
+  # commit format in CONTRIBUTING.md. Pull requests are labeled like issues,
+  # so the type label must agree with the title type; the mapping is in the
+  # opening-a-pull-request skill.
+  pr-title-and-labels:
     runs-on: ubuntu-latest
     steps:
       - name: Check the title against the commit format
@@ -28,11 +30,6 @@ jobs:
             exit 1
           fi
 
-  # Pull requests are labeled like issues, so the type label must agree with
-  # the title type. The mapping is in the opening-a-pull-request skill.
-  pr-labels:
-    runs-on: ubuntu-latest
-    steps:
       - name: Check the type label against the title
         env:
           TITLE: ${{ github.event.pull_request.title }}
