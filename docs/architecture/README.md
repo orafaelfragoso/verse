@@ -24,11 +24,11 @@ Facts, assumptions and hypotheses are labelled as such.
 | [First-party packages](first-party-packages.md) | API sketches for `finance`, `ml`, `web`, `gui`, `iot` |
 | [Packages](packages.md) | What a package is, how `import` finds one, naming, versioning from `verse.api`, `verse.lock`, resolution, the registry, workspaces |
 | [Plugins](plugins.md) | Native C-ABI libraries: `[plugins]`, `extern`, the type mapping, loading in script and compiled mode, `verse bind` |
-| [Debugging and MCP](debugging-and-mcp.md) | A debugger and compiler that LLMs can drive step by step |
+| [Debugging](debugging.md) | The `verse debug` adapter over DAP, record and replay, panic reports, the debugger's wording |
 | [Performance](performance.md) | Budgets, benchmark suite, known spec-level performance risks |
 | [Testing and verification](testing-and-verification.md) | Conformance, differential testing, fuzzing, soundness checks |
 
-Reference material (CLI and `verse.toml`, diagnostics, MCP schemas, the event
+Reference material (CLI and `verse.toml`, diagnostics, the event
 vocabulary) is in [reference](../reference/). Decision records are in
 [decisions](../decisions/README.md). Milestones are in the [roadmap](../roadmap.md).
 

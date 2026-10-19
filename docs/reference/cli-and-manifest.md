@@ -15,9 +15,8 @@ Related documents: [06](../architecture/stdlib-and-shaking.md) (reachability, si
 `[library]`), [07](../architecture/plugins.md) (native plugins), [02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)
 (cache), [04 §4.3](../architecture/backends-and-targets.md#43-what-a-target-is) (target
 files), [20](../architecture/first-party-packages.md) (the first-party packages), and
-[16-diagnostics-catalog.md](diagnostics-catalog.md),
-[17-mcp-tool-schemas.md](mcp-tool-schemas.md) ([§17.8](mcp-tool-schemas.md#178-package-manager-tools)
-covers the package manager). The codes shown below are in
+[16-diagnostics-catalog.md](diagnostics-catalog.md), and
+[08](../architecture/debugging.md) (the debugger). The codes shown below are in
 16, and their long forms are read with `verse explain`
 ([16 §16.5](diagnostics-catalog.md#165-verse-explain)).
 
@@ -49,6 +48,7 @@ behaviour. Commands marked *new* are proposals (P19-1).
 | `verse generate [name]` | runs the `[generate]` entries (spec §16.6): empties `generated/<name>/` and runs the entry's tool | toml, lock, the inputs the tool reads | `generated/` | only if resolving |
 | `verse bind <header.h> --plugin <name> --out <file>` | writes an `extern` block for a C header ([07 §7.7](../architecture/plugins.md#77-verse-bind)); never overwrites a file | the header | `<file>` | no |
 | `verse api diff [ver]` *new* | the `verse.api` diff against a published version, with the required bump | `verse.api`, registry | — | yes (cached) |
+| `verse debug [app.vs] [--port n]` | the debug adapter: serves the Debug Adapter Protocol on standard input and output, or on a local port ([08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) | sources, recordings | — | no |
 | `verse app.vs`, `verse .`, `build`, `check`, `test` | read the lock; resolve only if it is missing or stale (and say so) | toml, lock | lock (only if stale) | only if resolving |
 
 Global flags, accepted by every command that may touch the network:
@@ -56,11 +56,10 @@ Global flags, accepted by every command that may touch the network:
 instead of changing `verse.lock`), `--frozen` (both). CI uses `--frozen`
 (Decision; the names follow Cargo, which users already know).
 
-Every command takes `--json` and then prints records, not prose, so an LLM
-driving `verse` and a person at a terminal see the same facts (consistent
-with [08](../architecture/debugging-and-mcp.md)). The shapes follow the rules and shared
-types of [17-mcp-tool-schemas.md](mcp-tool-schemas.md) (17.1, 17.2), and
-17 applies them to the package manager in [§17.8](mcp-tool-schemas.md#178-package-manager-tools) (P19-12, agreed).
+Every command takes `--json` and then prints records, not prose, so a script
+driving `verse` and a person at a terminal see the same facts. Positions are
+`{"file", "line", "column"}`, and errors carry their code from
+[16](diagnostics-catalog.md).
 
 ### 19.2.1 Running a file
 
@@ -101,7 +100,7 @@ Here `--deny net` is for `verse`, and `args` is `["--top", "3", "poem.txt"]`.
 |------|--------|
 | `--deny <capability>` | refuse a capability; a program that can reach it fails before it starts (spec §16) |
 | `--fast` | compile with Cranelift and run natively instead of in the VM ([04](../architecture/backends-and-targets.md)) |
-| `--debug` | compile for a debugger ([14](../architecture/bytecode-and-vm.md)) |
+| `--debug` | compile for a debugger and accept `attach` from `verse debug` ([14](../architecture/bytecode-and-vm.md), [08 §8.3](../architecture/debugging.md#83-the-debug-adapter)) |
 | `--leak-check` | report leaked `Shared` cycles at exit ([05](../architecture/runtime.md)) |
 | `--max-memory <size>` | cap the heap; running out is a panic ([05 §5.2](../architecture/runtime.md#52-memory)) |
 
@@ -329,7 +328,7 @@ The hash of the resolved target file is part of every cache key (21 §21.10).
 |-----|------|-----|---------|------|---------|
 | `backend` | `auto` \| `bytecode` \| `cranelift` \| `llvm` | `cranelift` | `llvm` | `cranelift` | tier ([04](../architecture/backends-and-targets.md)); `auto` lets the target file decide |
 | `opt` | `0`–`3`, `"size"` | `0` | `3` | `1` | optimizer level (03 §3.4) |
-| `debug` | bool | `true` | `false` | `true` | Verse debug map and DWARF ([08](../architecture/debugging-and-mcp.md)) |
+| `debug` | bool | `true` | `false` | `true` | Verse debug map and DWARF ([08](../architecture/debugging.md)) |
 | `unwind` | `target` \| `abort` | `target` | `target` | `target` | `abort` only when no `Cleanup` value is live at any panic site; otherwise the build fails |
 | `size_report` | bool | `false` | `false` | `false` | as `--size-report` |
 
@@ -395,8 +394,7 @@ The openers are fixed wording, taken from
 [`events.toml`](events.toml): `why.package` ("… is selected
 because:"), `why.item` ("… is included because:"), `why.capability` ("this
 program reaches `…` because:") and `why.file` ("… was written by …"). Each
-answer is a **chain**. The MCP tools are `why_package`, `why_item` and
-`why_capability` (17 §17.8).
+answer is a **chain**.
 
 Ambiguity is impossible by construction: package names never contain dots
 (21 §21.3), items always do, capabilities are a closed list, and paths contain
@@ -453,7 +451,6 @@ registry (V0833, 21 §21.3).
 | P19-9 | Package names are `[a-z][a-z0-9_]*` | spec §16.3 | agreed |
 | P19-10 | Minimal version selection, with lock entries as extra minimums | spec §16.3 ("a single version per major") | agreed |
 | P19-11 | Libraries commit `verse.lock` too (used for their own tests, ignored by dependents) | spec §16.3 says "committed for applications" | agreed |
-| P19-12 | MCP tools for the package manager (`lock`, `why` for packages, `api_diff`, `update` preview) with schemas in 17, and their diagnostic codes in 16 | 16, 17 | agreed; 17 §17.8 and the V08xx codes of 16 |
 
 ## 19.7 Conflicts with other documents
 

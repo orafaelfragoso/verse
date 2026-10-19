@@ -35,7 +35,7 @@ Required by the rule that script and compiled modes behave
 identically. The harness:
 
 1. Compiles each test program for every available backend.
-2. Runs them with the same input, a seeded scheduler (see [08](debugging-and-mcp.md))
+2. Runs them with the same input, a seeded scheduler (see [08](debugging.md))
    and a virtual clock.
 3. Compares standard output, standard error, exit status and, for tasks, the
    sequence of observable events.

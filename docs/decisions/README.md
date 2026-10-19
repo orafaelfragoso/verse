@@ -11,7 +11,7 @@ were accepted on 2026-10-18.
 | [0003](0003-one-mir-many-backends.md) | One mono MIR, many backends | accepted (2026-10-18) |
 | [0004](0004-whole-program-reachability.md) | Whole-program reachability for tree-shaking | accepted (2026-10-18) |
 | [0005](0005-native-c-abi-plugins.md) | Plugins are native C-ABI libraries | accepted (2026-10-18) |
-| [0006](0006-mcp-first-debugging.md) | MCP-first debugging with record and replay | accepted (2026-10-18) |
+| [0006](0006-debugging-over-dap.md) | Debugging over DAP, with record and replay | accepted (2026-10-18) |
 | [0007](0007-task-model.md) | One task semantics, three native lowerings and VM tasks | accepted (2026-10-18) |
 | [0008](0008-tiered-execution.md) | Bytecode VM first, Cranelift second, LLVM for release | accepted (2026-10-18) |
 | [0009](0009-cargo-disk-budget.md) | Cargo disk budget: pinned toolchain, trimmed profiles, size cap | accepted (2026-10-19) |

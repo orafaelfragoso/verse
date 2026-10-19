@@ -101,8 +101,8 @@ to change, the last column records the ruling.
 
 ## 9.5 Compile-time budget discipline
 
-- Every pass records time and memory with `--timings` (JSON output also
-  consumed by the MCP server).
+- Every pass records time and memory with `--timings` (JSON output for
+  tools).
 - No quadratic algorithm over module size is allowed in a stage that runs on
   every edit. Type inference and ownership are per function, so a 100k-line
   file with small functions stays linear.

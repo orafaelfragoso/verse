@@ -24,6 +24,7 @@ manager.
 | `verse add pkg` / `verse remove pkg` | manage dependencies |
 | `verse update` | update dependencies within allowed versions |
 | `verse publish` | publish a package to the registry |
+| `verse debug` | the debugger: a Debug Adapter Protocol adapter that editors and other clients start, with time travel on recorded runs |
 | `verse lsp` | language server for editors, including inline hints for inferred types |
 | `verse api update` | regenerate `verse.api`, the committed interface file of exported signatures (§16.4) |
 | `verse api check` | compare inferred exported signatures with `verse.api` (run by every build) |

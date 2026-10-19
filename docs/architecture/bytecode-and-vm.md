@@ -17,7 +17,7 @@ items at the end are **proposals**.
 2. **Script mode.** Running a file (`verse app.vs`), `verse test` and `verse repl` run here. Compile
    cost is lazy and per function ([14.6](#146-calls-and-lazy-instantiation)).
 3. **Debug target.** Every debug session runs in the VM, live or by replay of a
-   recording made by any tier ([08 §8.2](debugging-and-mcp.md#82-architecture)).
+   recording made by any tier ([08 §8.2](debugging.md#82-architecture)).
 4. **Identical behaviour.** Same output, same panics, same `Cleanup` order,
    same task events as the compiled tiers, for a given seed ([14.12](#1412-differential-testing-contract)).
 5. **Not goals.** Peak speed, a stable bytecode format for third parties, and
@@ -286,12 +286,12 @@ native-code strategies. Observable behaviour is the same as the others.)
 - **Run-time re-check.** `CALLS` tests the capability bit of the proto in
   debug builds only; a failure is a VM bug report (exit status 3), never a user panic.
 - **Debugger.** `evaluate` runs only expressions the compiler proves pure: no
-  `CALLS`, no `SPAWN` ([08 §8.9](debugging-and-mcp.md#89-safety)).
+  `CALLS`, no `SPAWN` ([08 §8.9](debugging.md#89-safety)).
 
 ## 14.10 Record and replay
 
 Design goal: a recording is proportional to nondeterministic events, and a
-recording made by **any** tier replays in the VM ([08 §8.5](debugging-and-mcp.md#85-deterministic-record-and-replay)).
+recording made by **any** tier replays in the VM ([08 §8.5](debugging.md#85-deterministic-record-and-replay)).
 
 **Recorded:** capability results with their arguments' digest; scheduler choices;
 wake-up order; the global order of synchronisation operations (`send`,
@@ -320,7 +320,7 @@ event  = kind:u8 | task:varint | seq_delta:varint | payload     (seq: global eve
 | `Out` | stream, byte count, digest | validates output; fixes cross-task print order |
 | `Sig`, `End` | signal; exit status (0, 1, 2, 3, 70, 101 or the `exit` code) | delivery point; end of run |
 
-The target of [08 §8.5](debugging-and-mcp.md#85-deterministic-record-and-replay) is under 100 bytes per event record,
+The target of [08 §8.5](debugging.md#85-deterministic-record-and-replay) is under 100 bytes per event record,
 **before** compression (zstd then shrinks it). It counts the record and its
 inline payload; a `Cap` result of more than 64 bytes lives in a blob block and
 is not counted. A **ring-buffer** mode keeps the last N events and the snapshot
@@ -344,20 +344,20 @@ from the event table. Steps exist only in the VM; the log is indexed by event
 ordinal, so a native recording needs no step counter, and every replay and
 debug session runs at level 0 so that step numbers mean the same for all.
 
-**Time travel** (08 §8.4, `debug_back`, `debug_goto`, `why_changed`):
+**Time travel** (08 §8.5, `stepBack`, `reverseContinue`, `verse/goto`, `verse/history`):
 
 - **Snapshots** copy all task stacks and call records, the VM heap arena, the
   scheduler and PRNG state, shadow bitmaps and the log cursor. The arena is
   mapped at a fixed address so pointers stay valid on restore (proposal P14-5).
   Taken every K steps (K is an assumption to tune; default ring of recent
   snapshots plus sparse older ones).
-- **`debug_goto step`**: restore the nearest earlier snapshot, run forward with
-  hooks off to the step, stop. **`debug_back`** goes to the previous step of the
-  requested mode (`line`, `into`, `over`, `out`, `task`): restore the snapshot
+- **`verse/goto` step**: restore the nearest earlier snapshot, run forward with
+  hooks off to the step, stop. **`stepBack`** goes to the previous step of the
+  requested granularity (`line`, `into`, `over`, `out`, `task`): restore the snapshot
   before the current step, run forward once while indexing marks and call and
   return events, then go to the predecessor. Cost is at most one snapshot interval of
   forward execution.
-- **`why_changed`/`history`**: replay from a snapshot with a watch ([14.11](#1411-debug-hooks)) on the
+- **`reverseContinue` to a data breakpoint, and `verse/history`**: replay from a snapshot with a watch ([14.11](#1411-debug-hooks)) on the
   place and list writes.
 - **Requirements**: `Set` insertion order, fixed hash seeds, no behaviour
   that depends on addresses, bit-identical floating point ([14.12](#1412-differential-testing-contract)).
@@ -374,9 +374,9 @@ or cleared.
 | Hook | Mechanism | Cost when disabled | Cost when armed |
 |------|-----------|--------------------|-----------------|
 | Breakpoint (line, function, condition, hit count, log point) | first word of a statement-boundary instruction replaced by `BREAK bp`; the original runs out of line, as in native debuggers; the pc comes from the span table, so it works in protos without marks; conditions use the pure evaluator | none | one trap per hit |
-| Break on event kind (`moved`, `overflowed`, `spawned`, `propagated`, ...) | the event table lists every pc of that kind; those are patched like breakpoints | none | one trap per matching pc |
+| Break on event kind (`panicked`, `propagated`, `assert_failed`) | the event table lists every pc of that kind; those are patched like breakpoints | none | one trap per matching pc |
 | Step (into, over, out, line, task) | step flag read by the instrumented loop; `line` uses `MARK` | none | one flag test per instruction |
-| `MARK` | present only in protos compiled for debugging (`debug_launch`, `verse --debug app.vs`) | **not emitted**: zero | one dispatch and one load and branch per source line |
+| `MARK` | present only in protos compiled for debugging (`launch` in `verse debug`, `verse --debug app.vs`) | **not emitted**: zero | one dispatch and one load and branch per source line |
 | Watch (a place) | the instrumented loop compares the watched bytes after each store; a watch on a call's local ends when that call returns (`watch_changed`) | none | one compare per store |
 | Event stream and trace | instrumented loop reads the event table and writes events to the **separate** trace channel | none | per event |
 
@@ -434,7 +434,7 @@ adopted into 09.
 | memory per idle VM task | under 1.25 KiB, so 1 million tasks fit in about 1.3 GB, inside 09's 2 GB budget | proposal |
 | recording overhead of a compiled program, compute bound | under 5% | proposal |
 | recording size | under 100 bytes per event record, before compression | 08 |
-| time travel: `debug_goto` on a small heap | under 250 ms | proposal |
+| time travel: `verse/goto` on a small heap | under 250 ms | proposal |
 | debug-marked protos versus unmarked | within 1.3x | proposal |
 
 ## 14.14 Open questions (proposals)

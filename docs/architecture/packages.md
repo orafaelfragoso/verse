@@ -313,8 +313,7 @@ explain: V0825 (run `verse explain V0825`)
 | Gets fixes automatically | no, only through `verse update` | yes, at the cost of surprise |
 | Fits "one version per major" | directly | needs extra constraints |
 
-The spec values reproducibility and explanation (§16.3, and requirement R7 for
-tools that an LLM can drive). MVS gives both. The usual objection, that users
+The spec values reproducibility and explanation (§16.3). MVS gives both. The usual objection, that users
 do not get bug fixes automatically, is answered by `verse update` showing
 newer releases, and by the registry marking versions with security advisories
 (P19-7).

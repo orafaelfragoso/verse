@@ -100,8 +100,8 @@ unmet written or inferred bound (§4.2 rule 9, final paragraph).
 6. **Explanations.** Every ownership error carries a structured explanation:
    the move site, the later use that kept a source alive, the rule number, and
    the suggested fix. This is a hard requirement from spec §18.10 ("error
-   messages carry the burden") and it is also what the MCP server returns
-   (see [08](debugging-and-mcp.md)).
+   messages carry the burden") and it is also what the debugger shows
+   (see [08](debugging.md)).
 
 **Why a custom pass and not a borrow checker port.** Rust's borrow checker
 solves lifetimes across stored references. Verse has none, so a full
@@ -188,10 +188,10 @@ Diagnostic {
 }
 ```
 
-The terminal renderer, the language server, `verse check --json`, and the MCP
-server all consume the same record. `verse explain V0412` prints the long
+The terminal renderer, the language server, `verse check --json`, and the debug
+adapter all consume the same record. `verse explain V0412` prints the long
 form. Machine-applicable suggestions (`otherwise ""`, `.copy()`) carry an edit
-so editors and LLMs can apply them without parsing prose.
+so editors and other tools can apply them without parsing prose.
 
 ## 2.9 Crate layout
 
@@ -213,7 +213,7 @@ verse/
     verse-pkg         verse.toml, lock, registry client, verse.api
     verse-fmt         formatter (CST based)
     verse-lsp         language server
-    verse-dbg         debugger core, record and replay, MCP server
+    verse-dbg         debugger core, record and replay, DAP adapter
     verse-cli         the `verse` binary
   std/                the standard library, in Verse
   tests/              conformance, differential, golden, fuzz corpora

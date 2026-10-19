@@ -216,7 +216,7 @@ Non-capability slices are selected by MIR facts rather than by capabilities:
 | `core` | always (allocator, panic machinery, `Text`, `List`, `Map`, `Set` primitives) |
 | `unwind` | a reachable unwind edge runs a drop (a `Cleanup` call or a heap free) *and* the target's unwind strategy needs runtime support (`native`); with `status-code` the cleanup paths are ordinary code (Assumption, see [05 §5.4](runtime.md#54-panics-and-unwinding)) |
 | `tasks` | a `Spawn` terminator or a `std.task` primitive is reachable |
-| `debug` | debug builds, running a file, or an attached debugger ([08](debugging-and-mcp.md)) |
+| `debug` | debug builds, running a file, or an attached debugger ([08](debugging.md)) |
 
 Each target file declares which capabilities it provides
 ([04 §4.3](backends-and-targets.md#43-what-a-target-is)). After
@@ -242,8 +242,7 @@ explains every item by construction.
 - An **excluded** section listing modules that were imported but contribute
   nothing, and slices that were considered and left out, with the reason.
 - `--size-report=json` emits the same data as records, and
-  `verse why <item>` (also the MCP tool `size_report`,
-  [08](debugging-and-mcp.md)) prints the full chain from a root.
+  `verse why <item>` prints the full chain from a root.
 
 Sizes are shown as `<n>` below. **No sizes have been measured.** The binary
 size targets are in [09](performance.md): hello world under 200 KB native

@@ -296,7 +296,7 @@ kinds: the runtime raises them. For an `assert`, the `switch` on the
 condition carries the `asserted` event and its failure edge is `panic assert`.
 
 **Statement to debug event** (vocabulary of
-[08 §8.7](debugging-and-mcp.md#87-vocabulary-and-wording)). The
+[08 §8.7](debugging.md#87-vocabulary-and-wording)). The
 `dbg` clause on each line names the event; the VM and record mode emit it.
 
 | MIR | Event | Value state afterwards |
@@ -422,13 +422,13 @@ before the first instruction.
   level 0** runs no pass except the read-only `verify`; debug sessions and
   replays use it, so marks stay where users expect them and steps (next bullet)
   mean the same thing in every session.
-- **Step** ([08 §8.5](debugging-and-mcp.md#85-deterministic-record-and-replay)). A step is one executed
+- **Step** ([08 §8.5](debugging.md#85-deterministic-record-and-replay)). A step is one executed
   statement or terminator of mono MIR at level 0. A `drop` terminator is one
   step; the steps of its `cleanup` call are counted on their own. Steps exist
   only in tier 0.
 - **Inlining** keeps the spans of the inlined body and adds the call site as a
   parent span, written `@f1:3:5-3:12 in 8:9-8:20`, so a user-level stack can be
-  rebuilt (the `inspect_stack` contract in 08).
+  rebuilt (the `stackTrace` contract in 08).
 - **Panics** keep one `panic` terminator per source site; the optimizer may
   merge two only when kind, operands and span are equal.
 - **Wording.** Event words come from `events.toml`. "Frame" never appears

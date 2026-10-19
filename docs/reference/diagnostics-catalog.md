@@ -12,7 +12,7 @@ and fixes its wording. It builds on 02 §2.8 (the `Diagnostic` record), 08 §8.7
    keeps its code, marked *retired*.
 2. **Codes are `V` and four digits.** The first two digits are the family
    (16.2). Errors and warnings share the number space; the record's `severity`
-   says which one it is. Debugger codes are `D0xxx` (17.2). Run-time panic codes are `R0xxx` (16.6). Lints are
+   says which one it is. Debugger codes are `D0xxx` ([`events.toml`](events.toml), 08 §8.7). Run-time panic codes are `R0xxx` (16.6). Lints are
    compiler warnings and use `V` codes in the family of their topic (spec §16.5).
 3. **The message says what is wrong, in the program's words.** It names the
    binding, the type or the rule, never an internal stage. It does not use any

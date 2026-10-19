@@ -50,7 +50,7 @@ flowchart LR
         MMIR --> OPT["Optimizer"] --> REACH["Reachability +<br/>capabilities"]
     end
 
-    REACH --> T0["Tier 0: bytecode VM<br/>verse app.vs, debugger, MCP"]
+    REACH --> T0["Tier 0: bytecode VM<br/>verse app.vs, debugger"]
     REACH --> T1["Tier 1: Cranelift<br/>x86-64, ARM64, RISC-V 64"]
     REACH --> T2["Tier 2: LLVM<br/>release, Cortex-M, ESP32"]
     REACH --> TW["Tier W: Wasm emitter<br/>WASI, browser"]
@@ -72,7 +72,7 @@ The full pipeline, with each stage's contract, is in
 | R5 | Name the implementation language | **Rust** for compiler, runtime and tooling. | [ADR-0001](../decisions/0001-implementation-language.md) |
 | R6 | Optional stdlib; only what is used is built in | Library tiers; `import` is the opt-in; whole-program reachability over mono MIR; capabilities select runtime slices; `verse build --size-report` explains every item. | [06](stdlib-and-shaking.md), [ADR-0004](../decisions/0004-whole-program-reachability.md) |
 | — | Packages and tooling (supports R3, R6) | One `verse` tool; `verse.toml`, `verse.lock` and `verse.api`; minimal version selection; the first-party packages `finance`, `ml`, `web`, `gui`, `iot`. | [19](../reference/cli-and-manifest.md), [20](first-party-packages.md), [21](packages.md) |
-| R7 | Debugging that is easy, especially for LLMs (MCP-like) | Diagnostics are structured data; a debugger and compiler exposed through an MCP server; record and replay on tier 0. | [08](debugging-and-mcp.md), [02 §2.8](compiler-architecture.md#28-diagnostics) |
+| R7 | Debugging that is easy | Diagnostics are structured data; a debugger that speaks the Debug Adapter Protocol; record and replay on tier 0. | [08](debugging.md), [02 §2.8](compiler-architecture.md#28-diagnostics) |
 
 ## Guiding principles
 
@@ -90,7 +90,7 @@ The full pipeline, with each stage's contract, is in
    costs it nothing: no code, no runtime slice, no start-up work.
 5. **Explanations are part of the product.** Every error, every included item
    in a size report and every debugger answer can say *why*, as structured
-   data that both people and LLMs can read.
+   data that both people and tools can read.
 6. **One obvious name per idea.** The library and the tools follow the
    specification's rule (spec §1.4): one module per idea, one way to opt in
    (an explicit `import`), no hidden configuration.
@@ -112,8 +112,8 @@ The full pipeline, with each stage's contract, is in
 | **Capability** | A named group of platform operations (`fs`, `net`, `clock`, `stdio`, `gpio`, …) that the standard library reaches through the `sys` interface. A target declares which ones it provides; a program's reachable code determines which ones it needs. |
 | **Reachability** | The build-time analysis over optimized mono MIR that finds every function, type, vtable, constant and capability the program can use, starting from its roots. Everything else is left out. ([ADR-0004](../decisions/0004-whole-program-reachability.md)) |
 | **Root** | A starting point for reachability: the entry file's top-level statements (Verse has no `fn main`, spec §12.5), test blocks in test builds, and exported items in library builds. |
-| **Why chain** | The path of edges from a root to an included item, printed by `verse build --size-report` and returned by the MCP server. |
+| **Why chain** | The path of edges from a root to an included item, printed by `verse build --size-report` and `verse why`. |
 | **`verse.api`** | The committed file of a package's exported signatures (spec §16.4). Other modules are checked against it, never against source. |
 | **Plugin** | A native library with a C interface, declared under `[plugins]` in `verse.toml` and called through an `extern` block. Verse cannot check the code inside it. ([07](plugins.md)) |
-| **MCP** | Model Context Protocol: an open protocol through which an LLM-based tool calls structured tools on a server. `verse mcp` exposes the compiler and debugger this way. ([08](debugging-and-mcp.md)) |
+| **DAP** | Debug Adapter Protocol: the open protocol between a debugger client, such as an editor, and a debug adapter. `verse debug` is Verse's adapter. ([08](debugging.md)) |
 | **ADR** | Architecture decision record: one file per major decision, with context, alternatives and consequences ([decisions/](../decisions/)). |

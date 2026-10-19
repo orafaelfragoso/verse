@@ -137,7 +137,7 @@ MIR has explicit unwind edges. Each backend chooses how to realize them:
 
 Panic output is a structured record first (message, task, source span, stack),
 rendered as text for humans and emitted as JSON when `VERSE_PANIC=json` or when
-a debugger is attached ([08](debugging-and-mcp.md)).
+a debugger is attached ([08](debugging.md)).
 
 ## 5.5 Strings and collections
 
@@ -181,7 +181,7 @@ Reasons:
    a plugin does not go through `sys`, so a denial does not reach it
    ([07 §7.1](plugins.md#71-what-a-plugin-is)).
 4. **Testing.** Tests substitute fake capabilities (virtual clock, in-memory
-   file system) for deterministic tests and for replay ([08](debugging-and-mcp.md)).
+   file system) for deterministic tests and for replay ([08](debugging.md)).
 
 ## 5.7 Embedded profile
 

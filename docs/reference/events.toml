@@ -131,23 +131,28 @@ text = "the program ended with status {status}"
 [stops.paused]
 text = "stopped at line {line} in `{function}`, task {task}, on request"
 
-# Debugger errors (D0xxx). Same sentence rules as diagnostics.
+# Debugger errors (D0xxx). Same sentence rules as diagnostics. A code is never
+# reused; a removed one stays here with `retired = true` (16 §16.1).
 [errors.D0101]
-text = "no program is running; start one with `debug_launch`"
+text = "no program is running; start one with a `launch` request"
 [errors.D0102]
-text = "session {session} does not exist or has ended"
+retired = true
 [errors.D0103]
-text = "`debug_back` needs a recorded session; launch with `record: true`"
+text = "`stepBack` needs a recorded session; launch with `record: true`"
 [errors.D0104]
 text = "`evaluate` accepts only pure expressions; {call} is not pure"
 [errors.D0105]
-text = "value {id} is not part of session {session}"
+text = "value {id} does not exist in this session"
 [errors.D0106]
 text = "step {step} was not recorded"
 [errors.D0107]
 text = "the file {file} is not part of this program"
 [errors.D0108]
 text = "the program does not use the `{capability}` capability, which the request names"
+[errors.D0109]
+retired = true
+[errors.D0110]
+text = "`{request}` cannot run while the program is {state}"
 
 # `verse why` answers (19 §19.4). One opener per kind of question.
 [why.package]
