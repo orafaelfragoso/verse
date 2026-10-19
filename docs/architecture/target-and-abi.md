@@ -134,7 +134,7 @@ at the fixed offsets below. The table gives the contract; bit assignments marked
 | Type | Size / align (64-bit) | Size / align (32-bit) | Words | `needs_drop` | Niches |
 |------|----------------------|----------------------|-------|--------------|--------|
 | `Text` | 24 / 8 | 12 / 4 | see below | yes | the unused values of the form byte (232 on 64-bit) |
-| `List<T>` | 24 / 8 | 12 / 4 | `ptr`, `len`, `cap` | yes (also when `T` has no glue: it frees the buffer) | `ptr` zero |
+| `List<T>` | 24 / 8 | 12 / 4 | `ptr`, `len`, `cap` | yes (also when `T` has no glue: it counts the buffer down and frees it at zero) | `ptr` zero |
 | `Bytes` | 24 / 8 | 12 / 4 | same as `List<UInt8>` | yes | `ptr` zero |
 | `Map<K,V>` | 32 / 8 | 16 / 4 | `entries`, `len`, `cap`, `indices` | yes | `entries` zero |
 | `Set<T>` | 32 / 8 | 16 / 4 | same as `Map<T, Nothing>` | yes | `entries` zero |
@@ -150,6 +150,16 @@ word is zero-extended. A bounds check compares the **unsigned** index with
 so a negative `Int` index fails the check on every width. On a 32-bit target
 a list therefore holds at most `2^32 - 1` elements and a larger length is an
 `out_of_memory` panic.
+
+**Shared storage** ([05 §5.5](runtime.md#55-strings-and-collections)). Every heap
+buffer of a `Text`, `Bytes`, `List`, `Map` or `Set` starts with one word, the
+**storage count**, before its first byte or element; `ptr` (and `entries` and
+`indices`) point past it, so `len` and element access are unchanged. A
+`counted` copy (13.3) adds one to the count of each buffer the value holds,
+and drop glue takes one away and frees the buffer at zero. The count is an
+atomic word when the program can reach a `spawn`, and a plain word otherwise.
+Storage with `cap = 0` (an empty list that never allocated, a static `Text`
+literal) has no count word and is never written in place.
 
 **`Text`** (assumption, as in 03 §3.5). A `Text` is
 UTF-8, in one of two forms told apart by the **last byte** of the header (byte

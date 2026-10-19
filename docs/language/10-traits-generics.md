@@ -74,8 +74,8 @@ Calls through a trait type are dispatched at run time.
 | `Hash` | use as map key / set element | yes, when all parts are `Hash` |
 | `Iterable<T>` | `for … in`, and all the methods of §9.5 | lists, maps, sets, ranges, text, channel receivers |
 | `Default` | `Type.default()` | when all fields have defaults |
-| `Copy` | implicit copying on assignment and passing (§4.9); every `Copy` type is also `Copyable` | yes, for scalars and for records, variants and tuples made only of `Copy` parts; cannot be implemented by hand |
-| `Copyable` | the `.copy()` method, with no arguments (a duplicate) or with field arguments on records (a duplicate with changes, §4.3) | yes, structurally, for every type whose parts are all `Copyable`; **absent** for `Task<T>`, for lock guards and platform handles such as `File` (§13.4), for types that implement `Unique`, and for anything that contains them by value (a record field, variant, tuple or collection element); cannot be implemented by hand in 0.1. The handles `Shared<T>`, `Guarded<T>`, `Sender<T>`, `Weak<Shared<T>>` and `Weak<Guarded<T>>` are always `Copyable`, whatever `T` is (including resources, as in `Guarded<File>`), because their `.copy()` copies the handle (a new reference to the same shared value) and never duplicates the value inside (§11.4); `Receiver<T>` is not `Copyable` in 0.1 (single consumer) |
+| `Copy` | implicit copying on assignment, passing, storing and returning (§4.9); every `Copy` type is also `Copyable` | yes, for scalars, `Text`, `Bytes`, and for `List`, `Map`, `Set`, optionals, unions, records, variants and tuples made only of `Copy` parts; absent for handles, `Task<T>`, `Receiver<T>`, lock guards, platform handles, `Unique` types, function values that borrow their captures (§5.4), and anything that contains them; cannot be implemented by hand |
+| `Copyable` | the `.copy()` method, with no arguments (the same value, or for a handle a second handle) or with field arguments on records (a copy with changes, §4.3) | yes, structurally, for every type whose parts are all `Copyable`; **absent** for `Task<T>`, for lock guards and platform handles such as `File` (§13.4), for types that implement `Unique`, and for anything that contains them by value (a record field, variant, tuple or collection element); cannot be implemented by hand in 0.1. The handles `Shared<T>`, `Guarded<T>`, `Sender<T>`, `Weak<Shared<T>>` and `Weak<Guarded<T>>` are always `Copyable`, whatever `T` is (including resources, as in `Guarded<File>`), because their `.copy()` copies the handle (a new reference to the same shared value) and never duplicates the value inside (§11.4); `Receiver<T>` is not `Copyable` in 0.1 (single consumer) |
 | `Unique` | no methods: a type that implements it, and anything that contains it by value, is neither `Copy` nor `Copyable` | no; written as `impl Unique for T` with an empty body, for a type that owns something the runtime does not, such as a temporary directory or a foreign handle (§13.4, §12.6) |
 | `Index<K, V>` | `x[k]` reads (§9.3) | lists, maps, text and slices; cannot be implemented by hand in 0.1 |
 | `Error` | `message(self)`, `cause(self)` | no |
@@ -113,8 +113,8 @@ v = Vector(x: 1.0, y: 2.0) + Vector(x: 0.5, y: 0.5)
 Generic parameters go in angle brackets after the name.
 
 ```verse
-fn first<T: Copyable>(items: List<T>): T?
-    items.get(0).copy()           # `get` returns a view; the caller gets a copy
+fn first<T: Copy>(items: List<T>): T?
+    items.get(0)                  # a copy of the first element, or `none`
 
 type Box<T>
     value: T
@@ -151,8 +151,8 @@ A generic parameter can require traits with `:`; several traits are joined
 with `+`.
 
 ```verse
-fn largest<T: Order + Copyable>(items: List<T>): T?
-    items.max().copy()            # `max` returns a view (§9.5); return a copy
+fn largest<T: Order + Copy>(items: List<T>): T?
+    items.max()                   # a copy of the largest element (§9.5)
 
 fn announce<T: Speaker + Show>(who: T)
     print("{who}: {who.speak()}")
@@ -163,19 +163,21 @@ impl<T: Show> Show for Box<T>
 ```
 
 Generics are checked once, at definition: inside `largest`, only operations
-promised by `Order` and `Copyable` may be used on `T`. That includes the
+promised by `Order` and `Copy` may be used on `T`. That includes the
 **ownership check**: a generic (or unannotated) parameter type is treated as
-an opaque, non-`Copy` type unless it has a `Copy` bound, so `T` values are
-never copied implicitly, and `.copy()` needs `Copyable` (§4.2, rule 9).
+an opaque, non-`Copy` type unless it has a `Copy` bound, so a `T` is copied
+only with that bound, and `.copy()` needs `Copyable` (§4.2, rule 9).
 Errors about a function's body appear at the definition. The only call-site
 errors are unmet bounds, written or inferred, and they name the bound. The
 compiler specializes generic code for speed;
 this is invisible to the programmer.
 
 `Copy` and `Copyable` are different promises: `T: Copy` means a `T` is
-duplicated implicitly (numbers, all-scalar records); `T: Copyable` means a `T`
-can be duplicated explicitly with `.copy()` (almost everything, but not a
-`Task` or an open `File`).
+copied implicitly on assignment (every value type: numbers, `Text`,
+collections, and records of them); `T: Copyable` means a `T` has `.copy()`,
+which every `Copy` type has and so do the handles `Shared<T>`, `Guarded<T>`,
+`Sender<T>` and `Weak`, whose `.copy()` is a second handle (not a `Task` or
+an open `File`).
 
 ---
 

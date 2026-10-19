@@ -161,6 +161,14 @@ a debugger is attached ([08](debugging.md)).
   except an instance that is `recursive` ([13 §13.3](mir-specification.md#133-types-and-layout-facts),
   [ADR-0012](../decisions/0012-one-call-limit-and-trace.md)). That is how
   iterator chains reach the performance of a hand-written loop.
+- **Shared storage.** The heap storage of `Text`, `Bytes`, `List`, `Map` and
+  `Set` starts with a count. A copy adds one (spec §4.9); a drop takes one
+  away and frees the storage at zero. A write into storage whose count is
+  above one first copies it (copy on write), so every owner sees its own
+  value (spec §4.10, [ADR-0014](../decisions/0014-assignment-copies.md)). The
+  count is atomic when a `spawn` is reachable and a plain word otherwise, as
+  for `Shared` (09 P5). Inline `Text`, static literals and storage that never
+  allocated have no count, and copying them copies their words.
 - Hash iteration order is insertion order for `Map` (spec §9.2). `Set` also iterates in
   insertion order (spec §9.4).
 

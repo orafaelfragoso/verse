@@ -254,9 +254,9 @@ with the same report, and `stepBack` walks to its cause.
 |-----|-----------|---------|
 | binding, `mut` binding | variable | immutable unless `mut` (§3.9) |
 | owner, owned | holder | one owner per value (§4.10) |
-| view, borrow, exclusive borrow | reference, pointer, alias | borrows are second-class (§5.3) |
+| borrow, exclusive borrow | reference, pointer, alias, view | borrows are second-class (§5.3) |
 | moved (to …) | transferred, invalidated | the spec word, and a move has a destination |
-| copied | cloned, duplicated | implicit `Copy` and explicit `.copy()` |
+| copied | cloned, duplicated | assignment copies a `Copy` value (§4.9); `.copy()` makes a second handle |
 | dropped | freed, collected | there is no collector |
 | cleaned up | closed, finalized | a drop released a runtime-owned handle (§13.4) |
 | `none`, present | null, nil, `some` | optionals have no null and no `some` (§8.1) |
@@ -297,7 +297,7 @@ panic report's `last_events`, in log points and in the recording.
 
 ### Value states
 
-`owned`, `moved` (with `moved_at`, `moved_to`), `view` (with `of`, `until`),
+`owned`, `moved` (with `moved_at`, `moved_to`),
 `borrowed` (a parameter seen by a call), `exclusive` (a `mut` parameter during
 a call), `dropped`, `not_yet_bound`. A `mut` binding adds `mutable: true` and
 `reassigned_at`. An optional adds `presence: present or none`; a fallible

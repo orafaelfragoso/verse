@@ -223,11 +223,10 @@ collection's elements into the new one: `[0, ..rest, 99]`,
 `set{..admins, "root"}`, `{..defaults, "port": 80}`. In a map literal, when the
 same key appears more than once, the **later entry wins**, so overrides go
 after the spread. A prefix `..` (nothing on its left, right after `[`, `{` or
-`,`) never clashes with the infix range operator `a..b`. Spreading **moves**
-the elements out of the source, so the source must be at its last use (a
-temporary, or a binding not used afterwards). If the source is used later, the
-spread is a compile error that suggests spreading a copy, `..xs.copy()`;
-nothing is copied silently (§9.5).
+`,`) never clashes with the infix range operator `a..b`. Spreading copies
+the elements, as any use of a value does, and moves them when the source is at
+its last use (§4.9). Spreading a collection of a type that is not `Copy`
+needs the source at its last use.
 
 Open-ended ranges — `a..` (from `a` to the end) and `..b` / `..=b` (from the
 start) — are allowed **only inside slice brackets**, such as `nums[1..]`,
@@ -380,35 +379,14 @@ binding with a refutable pattern (below): there the fallback runs when the
 pattern does not match, so the left side may be of any type
 (`Circle(r) = shape otherwise return 0.0` with a plain `Shape`).
 
-**Ownership of the result.** Either side of `otherwise` may be a view (a
-borrow, an element from `find` or `m[k]`, §9.5) or an owned value. Text and
-number literals and other static data count as views when needed, so they fit
-either way. The result is:
+**The result is a value.** `otherwise` yields a value of its own, whichever
+side it came from, like any other expression (§4.9):
+`args.first() otherwise "world"` is a `Text` that the binding owns. A text
+literal is static data, so a copy of it allocates nothing.
 
-| Left | Right | Result |
-|------|-------|--------|
-| a view | a view or a literal | a **view**: `args.first() otherwise "world"` |
-| owned | owned, or a literal | **owned**: `read_text(path) otherwise "default"` |
-| a view | an owned temporary (not static) | **owned**, so the left side must be copied: `m["k"].copy() otherwise make_default()` |
-| owned | a non-static view | **owned**, so the right side must be copied: `read_text(path) otherwise fallback_text.copy()` |
-
-Leaving out the `.copy()` in either of the last two rows is a compile-time
-error that names the side to copy. A view result follows the usual rules: it
-can be bound to a name as a local view or passed along, but storing or
-returning it needs `.copy()`.
-
-A literal in an owned position (the second row) is **materialised**: the
-compiler creates an owned value from it. This is the one implicit creation
-Verse allows, because it duplicates no user value. A lifted chain (§8.1) on an
-owned temporary yields an owned field, so in
-`find_user(id).email otherwise "no email"` (where `find_user` returns an owned
-`User?`) the left side is owned and the result is an owned `Text`.
-
-The same rule applies to every expression that chooses between branches:
+The same holds for every expression that chooses between branches:
 `if c then a else b`, a block `if`/`else` used as a value, and the arms of a
-`match`. The result is a view only if **every** branch is a view (or a
-literal); otherwise it is owned, and each branch that is a view needs
-`.copy()` — a compile-time error otherwise.
+`match`.
 
 `otherwise` binds more loosely than every other binary operator. To keep that
 from ever surprising a reader, **the right operand of `otherwise` must be** a

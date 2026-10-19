@@ -83,7 +83,8 @@ Unwind = Cleanup(Block) | Continue | None
 Notes on the shape (details and examples in [13](mir-specification.md)):
 
 - **Operands, not rvalues, carry moves and copies.** `Copy` is only the
-  implicit bitwise copy of a `Copy` type; the explicit `.copy()` is a call.
+  implicit copy of a `Copy` type, bitwise or `counted` (13.3); the explicit
+  `.copy()` is a call.
 - **Spans, not marks.** MIR has no mark statement. Every statement and
   terminator has a span and a debug name, and the stepping marks that the
   bytecode VM and debuggers need are derived from spans ([13.7](mir-specification.md#137-debug-info-and-source-spans)).
@@ -150,8 +151,8 @@ differential tester can isolate a miscompile.
 | 3 | `inline` | inline small and single-call functions; always-inline for intrinsics; never a `recursive` function | unwind and drop order; the calls the call limit counts ([15 §15.6.4](target-and-abi.md#1564-stack-bounds-and-overflow)) |
 | 4 | `sroa` | split records and tuples into scalars when they do not escape | field-level move state |
 | 5 | `const-prop` and `fold` | evaluate constants, fold branches | overflow panics (folding a checked op that overflows stays a panic, not a wrap) |
-| 6 | `move-elim` | remove copies of values at last use (spec: "a source at its last use is moved"); turn a `move` of a `Copy` type into a `copy` | the order of drops that release runtime-owned handles |
-| 7 | `copy-elide` | avoid copying immutable data when the copy is never mutated and the source outlives it | no aliasing visible to `mut` |
+| 6 | `move-elim` | turn the `copy` of a value at its last use into a `move`, which saves the count of a `counted` copy (spec §4.9: "a source at its last use is moved"); turn a `move` of a `bitwise` type into a `copy` | the order of drops that release runtime-owned handles |
+| 7 | `copy-elide` | replace a `counted` copy, or a slice, that is never written and never outlives its source with a borrow (`ref`, `slice_ref`), which saves the count | no aliasing visible to `mut`; copy on write in `verse-rt` keeps every write private |
 | 8 | `range-analysis` | prove bounds and arithmetic checks redundant | panics that can still occur |
 | 9 | `devirtualize` | turn `dyn` calls into direct calls when the concrete type is known | semantics |
 | 10 | `drop-opt` | remove drops of types with no heap data and no `cleanup` fact, merge flags | the order of drops that release runtime-owned handles |

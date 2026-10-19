@@ -54,5 +54,5 @@ flowchart LR
 | Ownership error messages are hard to make good | §18.10 requires it | M1: golden diagnostics, review by language owners |
 | Task lowering to state machines is hard and slow | Wasm and embedded depend on it | M3 prototype, M7 hardening |
 | Cranelift lacks 32-bit ARM and RISC-V | embedded needs LLVM | verify in M2; LLVM arrives in M7 |
-| Char-indexed `Text` is slow | P1 | M1 benchmark; `Text` stays char-indexed, with a byte view API |
+| Char-indexed `Text` is slow | P1 | M1 benchmark; `Text` stays char-indexed, with `.bytes()` for constant-time byte access |
 | Domain libraries expand scope without end | M9 | each library is its own package with its own owner and release |

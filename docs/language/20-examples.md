@@ -31,7 +31,7 @@ fn parse_args(raw: List<Text>)                   # returns Options | Error (infe
             flag if flag.starts_with("--") ->
                 return error("unknown option: {flag}")
             file ->
-                options.files.push(file.copy())  # `raw` is borrowed: keep a copy
+                options.files.push(file)
                 i += 1
     if options.files.is_empty()
         return error("usage: wordcount [--top N] FILE...")
@@ -43,8 +43,7 @@ fn count_words(text: Text): Map<Text, Int>
     for word in text.lower().words()
         clean = word.trim_matches(c -> not c.is_letter())
         continue if clean.is_empty()
-        # `clean` is a view of `word`; the map must own its keys.
-        counts[clean.copy()] = counts.get(clean, default: 0) + 1
+        counts[clean] = counts.get(clean, default: 0) + 1
     counts
 
 # ---- program ----
@@ -141,8 +140,8 @@ print("Fetching {urls.len()} pages…")
 started = time.now()
 
 # Start every download at once; each `spawn` returns a Task immediately.
-# `url` is borrowed from `urls`, so each task gets its own copy.
-tasks = urls.map(url -> spawn fetch(url.copy()))
+# Each task gets its own copy of its `url`.
+tasks = urls.map(url -> spawn fetch(url))
 
 mut succeeded = 0
 # `zip` can hand over the tasks only because `tasks` is at its last use here:
@@ -172,8 +171,7 @@ test "describe marks client errors as bad"
 
 Because `fetch` is an ordinary function, the same code works sequentially
 (`fetch(url)?`) or concurrently (`spawn fetch(url)`), with no `async` variant.
-In both cases `fetch` takes its `url`, so a caller that still needs the text
-passes `url.copy()`.
+In both cases `fetch` gets its own copy of `url`, so the caller keeps the text.
 The three requests overlap, so the total time is close to the slowest single
 request.
 

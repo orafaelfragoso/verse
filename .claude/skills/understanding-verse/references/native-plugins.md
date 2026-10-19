@@ -60,7 +60,7 @@ with `as`. There is no `unsafe` marker and no special block
 ([07 §7.3](../../../../docs/architecture/plugins.md#73-extern-blocks)).
 
 **Type mapping.** Only sized numbers, `Int`, `Float`, `Bool`, `Char`,
-`Pointer`, `Pointer?`, `Bytes` and byte views as parameters, `Copy` records of
+`Pointer`, `Pointer?`, `Bytes` as parameters, `Copy` records of
 these, and `Nothing` as a result cross. `Text` never crosses: write
 `.bytes()`. A length is passed explicitly. `mut` is a pointer to the caller's
 value ([07 §7.4](../../../../docs/architecture/plugins.md#74-values-across-the-boundary)).

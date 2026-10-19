@@ -47,7 +47,7 @@ targs     = tparam , { "," , tparam }          (* in a `mir generic` file *)
 tparam    = IDENT , [ ":" , bound , { "+" , bound } ] ;
 bound     = path | "has" , "." , IDENT ;       (* inferred structural bound, §4.2 *)
 decl      = "local" , local , ":" , type , "=" , ( "ret" | "param" | "binding" ) ,
-            [ "owned" | "borrowed" | "view" | "exclusive" ] , [ "mut" ] ,
+            [ "owned" | "borrowed" | "exclusive" ] , [ "mut" ] ,
             [ STRING ] , [ "@" , span ] , NL
           | "temps" , local , ":" , type , { "," , local , ":" , type } , NL
           | "flag" , FLAG , STRING , NL ;
@@ -137,13 +137,13 @@ scalar, or a constant), a text, or a word.
 | `Int8`..`UInt64`, `Float32` | sized numerics of `math` | same ops, own checked-overflow ranges |
 | `Text`, `Bytes`, `List<T>`, `Map<K,V>`, `Set<T>` | runtime types with primitives in `verse-rt` | opaque to MIR; handled by intrinsics, calls and `len` (see below) |
 | `Pointer` | an opaque foreign address (spec §12.6) | a scalar of pointer width; `Pointer?` uses null as its niche |
-| `Slice<T>` | a view of a range of a list or of bytes: `(ptr, len)` | only as `&Slice<T>`, produced by `call intrinsic slice(...)`; V7 applies |
+| `Slice<T>` | a borrowed range of a list or of bytes: `(ptr, len)` | only as `&Slice<T>`, produced by `call intrinsic slice_ref(...)` for a slice that is only read (`copy-elide`, spec §9.3); V7 applies |
 | `(A, B)` | tuple | fields by index |
 | record `P<T>` | named fields | fields by name |
 | enum `P<T>` | variant type; cases numbered in declaration order | boxed recursion is explicit in the field type |
 | `T?` | enum with case `#0` = none, `#1` = present | niche packed by `layout` |
 | `A \| B \| E` | fallible or union type, cases in normalized written order (§4.6) | `?` and `match` read the case with `discriminant` |
-| `Task<T>`, `Sender<T>`, `Receiver<T>`, `Shared<T>`, `Guarded<T>` | runtime handles | `Task` and `Receiver` are not `Copy` |
+| `Task<T>`, `Sender<T>`, `Receiver<T>`, `Shared<T>`, `Guarded<T>` | runtime handles | none is `Copy`; `Sender`, `Shared` and `Guarded` are `Copyable` (spec §10.4) |
 | `dyn Trait` | `(data ptr, vtable ptr)` (03 §3.5) | only callee form is `dyn #slot` |
 | `&T`, `&mut T` | shared and exclusive borrow | **MIR only**, second-class, see V7 |
 | `T` (parameter) | type parameter | generic MIR only |
@@ -155,14 +155,16 @@ fact. A `Text` index by character is `call intrinsic text.char_at(&p, i)`, which
 ends in its own `panic index_oob {what: text, unit: characters}`. `Map` and
 `Set` lookups are ordinary calls that return an option and cannot panic.
 A slice `a[i..j]` is `call intrinsic slice(&p, from, to)`, whose failure edge is
-`panic slice_oob`; the result is a borrow, so it can be stored only as V7
-allows, and a user function never returns one.
+`panic slice_oob`. Its result is a new owned `List`, `Bytes` or `Text` with the
+elements of the range. When the slice is only read, `copy-elide` replaces it
+with `call intrinsic slice_ref(&p, from, to)`, a `&Slice<T>` that V7 keeps
+inside the call, so reading a slice copies nothing.
 
 Facts a pass may query. "Unknown" means the pass must be conservative.
 
 | Fact | Generic MIR | Mono MIR | Used by |
 |------|-------------|----------|---------|
-| `copy` (implicit bitwise copy, spec §4.9) | only from a `Copy` bound; else false | exact | V1, `move-elim`, `copy-elide` |
+| `copy` (the implicit copy of spec §4.9: `bitwise` for a type whose copy is its bits, `counted` for a type that holds shared storage, such as `Text`, `Bytes`, the collections and records of them, whose copy also adds one to the count of each storage it holds; absent for a type that is not `Copy`) | only from a `Copy` bound, and then of unknown kind (counted); else absent | exact | V1, `move-elim`, `copy-elide`, backends |
 | `needs_drop` | unknown (true) | exact | `drop-opt`, V6 |
 | `cleanup` (drop glue releases a runtime-owned handle: a platform handle such as a file or a socket, a lock, a channel end, a `Shared`, `Guarded` or `Weak` count, a `Task` part; spec §13.4) | unknown (true) | exact | `drop-opt`; the `abort` check (V0908) uses only the platform handles |
 | `size`, `align`, field offsets, tag kind | absent | present, per target ([03 §3.5](ir-and-passes.md#35-layout-rules)) | backends, `layout` pass |
@@ -181,8 +183,13 @@ read it that way ([14.4](bytecode-and-vm.md#144-instruction-set-and-encoding)).
 ## 13.4 Statements and terminators
 
 **Statements** do not change the CFG. Operands are `move p`, `copy p` or a
-constant. `copy` is only the implicit bitwise copy of a `Copy` type; the
-explicit `.copy()` of spec §4.3 is an ordinary `call`.
+constant. `copy` is only the implicit copy of a `Copy` type: its bits, and for
+a `counted` type (13.3) one more count on each shared storage it holds, which
+lowering emits as a call into `verse-rt` or the VM's `RETAIN`
+([14.4](bytecode-and-vm.md#144-instruction-set-and-encoding)). The explicit
+`.copy()` of spec §4.3 is an ordinary `call`. A write into a `Text`, `Bytes`
+or collection goes through a `verse-rt` primitive that first copies storage
+whose count is above one, so MIR never sees copy on write.
 
 | Statement | Operands | Semantics | Invariants |
 |-----------|----------|-----------|------------|
@@ -296,7 +303,7 @@ condition carries the `asserted` event and its failure edge is `panic assert`.
 
 | MIR | Event | Value state afterwards |
 |-----|-------|------------------------|
-| first store to a user `binding` | `bound` | `owned`, or `view` when the local has mode `view` |
+| first store to a user `binding` | `bound` | `owned` |
 | store to a `mut` binding that is already live | `reassigned` | `owned` |
 | `move` of a user local | `moved` (`to` is the `->` name) | `moved` |
 | `copy` of a user local | `copied` | unchanged |
@@ -347,7 +354,7 @@ until the place, a prefix of it or a part of it is stored to, borrowed with
 | V6 | At `return` and at `resume_unwind`, every local with `needs_drop` is uninitialised (moved or dropped), except `_0`, and except an enum whose case, selected by a dominating `switch`, has no `needs_drop` payload | no leak, deterministic frees | `return` with `_1: Text` still owned |
 | V7 | Borrow values (`&T`, `&mut T`) appear only as call or `yield` operands, as the source of a store into a local of borrow type (a temporary, or a `view` binding), and as parameters; never in `aggregate` (except as an operand of `aggregate closure_ref`), in a store to a field, element or `_0`, in `spawn`, in `yield send`, or captured by `closure`. The result of `aggregate closure_ref` is a borrow value and follows the same rule: a non-escaping closure may be passed as an argument but is never stored, returned, spawned or captured by an escaping closure | second-class borrows (spec §5.3, §5.4) | `_0 = aggregate tuple(move _2)` with `_2: &Text` |
 | V8 | An exclusive borrow of `p` conflicts with any other access to `p` or an overlapping place (prefix or extension) while it is live; it starts after every other operand of its call has been evaluated; no operand pair of one call may include `ref mut p` and any use of `p` | exclusive access, args first then borrow (§5.3) | `call merge(move _3, copy _1)` with `_3 = ref mut _1` |
-| V9 | While a borrow is live its source is not moved, dropped, reassigned (shared borrow) or `storage_dead`; a borrow's live range ends at its last use | no dangling pointer, views stay valid | `_2 = ref _1` ... `drop _1` ... `call f(move _2)` |
+| V9 | While a borrow is live its source is not moved, dropped, reassigned (shared borrow) or `storage_dead`; a borrow's live range ends at its last use | no dangling pointer, borrows stay valid | `_2 = ref _1` ... `drop _1` ... `call f(move _2)` |
 | V10 | The `.1` flag of every `checked_*` and `checked_cast` result is tested by a `switch` before `.0` is read, and the failure edge reaches `panic overflow OP TYPE` (for `checked_*`, with the operands of the operation as facts) or `panic convert T` (for `checked_cast`, with `a`) | one overflow policy for all tiers (03 invariant 6) | `_5 = checked_add(...)` then `copy _5.0` with no `switch` |
 | V11 | `checked_div` and `checked_rem` need a dominating fact that the divisor is not zero: a constant, or the false edge of a `switch` on `eq(d, 0)`. `checked_pow` needs the same for the exponent: a constant that is not negative, or the true edge of `ge(e, Int(0))` whose other edge reaches `panic neg_exponent {n: e}` | division and power panics are explicit data | `checked_div(copy _1, copy _2)` with no zero test |
 | V12 | `p[i]` (on a `List<T>`, `Bytes` or `Slice<T>`) needs a dominating fact `ult(i, len(p))` on the true edge, or both `ge(i, Int(0))` and `lt(i, len(p))`; a signed `lt` alone does not qualify. The other edge reaches `panic index_oob {i, n: len(p), ...}`, or user code that decides what to do | bounds checks are explicit data and a negative index cannot pass | `copy _1[_2]` straight after a call that grew `_1`; `lt(_2, len(_1))` alone |
@@ -413,9 +420,9 @@ needs `recursive` ([14 §14.3](bytecode-and-vm.md#143-value-representation-and-c
   and calls the destination (`-> "add_item"`).
 - **Every `param` and `binding`** local has its user name, its mode word and
   its span. The mode word uses the 08 vocabulary: `owned`, `borrowed` (a plain
-  parameter seen by a call), `view` (a binding that only looks at a source that
-  is used later), `exclusive` (a `mut` parameter). Temporaries have no name.
-- **Value states** (`owned`, `moved`, `view`, `borrowed`, `exclusive`,
+  parameter seen by a call), `exclusive` (a `mut` parameter). Temporaries have
+  no name.
+- **Value states** (`owned`, `moved`, `borrowed`, `exclusive`,
   `dropped`, `not_yet_bound`) are computed by the VM from these words and the
   executed statements.
 - **Source marks.** Stepping marks are derived from spans (a new source line
@@ -670,7 +677,7 @@ ends (15 §15.7.3). The verifier rejects a second `move _1`
 
 ```verse
 fn archive_if(names: List<Text>, i: Int, keep: Bool, mut store: List<Text>)
-    mut text = names[i].copy()
+    mut text = names[i]
     if keep
         store.push(text)
     else
@@ -685,50 +692,51 @@ fn archive_if(_1, _2, _3, _4) -> Nothing @1:1-6:22 {
   local _2: &Int = param borrowed "i" @1:34-1:40
   local _3: &Bool = param borrowed "keep" @1:42-1:52
   local _4: &mut List<Text> = param exclusive mut "store" @1:54-1:75
-  temps _5: Int, _6: Int, _7: Bool, _8: &Text
-  local _9: Text = binding owned mut "text" @2:5-2:13
+  temps _5: Int, _6: Int, _7: Bool
+  local _8: Text = binding owned mut "text" @2:5-2:13
   flag d0 "text"
-  temps _10: Text, _11: &mut List<Text>, _12: Nothing, _13: Text
+  temps _9: Text, _10: &mut List<Text>, _11: Nothing, _12: Text
 bb0:
   _5 = len((*_1))                                 ; <len> @2:16-2:24
   _6 = copy (*_2)                                 ; <index> @2:22-2:23
   _7 = ult(copy _6, copy _5)                      ; <bounds> @2:16-2:24
-  switch copy _7 [true -> bb1] otherwise bb6      ; <bounds> @2:16-2:24
+  switch copy _7 [true -> bb1] otherwise bb5      ; <bounds> @2:16-2:24
 bb1:
-  _8 = ref (*_1)[_6]                              ; borrowed "names" -> "copy" @2:16-2:24
-  call Text::copy(move _8) -> _9, next bb2, unwind continue ; called "copy" @2:16-2:31
-bb2:
+  _8 = copy (*_1)[_6]                             ; copied "names" @2:16-2:24
   set_flag d0 = true                              ; bound "text" @2:5-2:13
-  switch copy (*_3) [true -> bb3] otherwise bb5   ; <if> @3:5-3:12
-bb3:
-  _10 = move _9                                   ; moved "text" -> "push" @4:20-4:24
+  switch copy (*_3) [true -> bb2] otherwise bb4   ; <if> @3:5-3:12
+bb2:
+  _9 = move _8                                    ; moved "text" -> "push" @4:20-4:24
   set_flag d0 = false                             ; <flag> @4:20-4:24
-  _11 = ref mut (*_4)                             ; "store" @4:9-4:14
-  call List<Text>::push(move _11, move _10) -> _12, next bb4, unwind continue ; called "push" @4:9-4:25
-bb4:
-  drop _9 flag d0                                 ; dropped "text" @2:5-2:13
+  _10 = ref mut (*_4)                             ; "store" @4:9-4:14
+  call List<Text>::push(move _10, move _9) -> _11, next bb3, unwind continue ; called "push" @4:9-4:25
+bb3:
+  drop _8 flag d0                                 ; dropped "text" @2:5-2:13
   _0 = Nothing                                    ; <value> @3:5-6:22
   return                                          ; returned @3:5-6:22
+bb4:
+  _12 = Text("none")                              ; <value> @6:16-6:22
+  drop _8                                         ; dropped "text" @6:9-6:13
+  _8 = move _12                                   ; reassigned "text" @6:9-6:22
+  goto bb3                                        ; <join> @3:5-6:22
 bb5:
-  _13 = Text("none")                              ; <value> @6:16-6:22
-  drop _9                                         ; dropped "text" @6:9-6:13
-  _9 = move _13                                   ; reassigned "text" @6:9-6:22
-  goto bb4                                        ; <join> @3:5-6:22
-bb6:
   panic index_oob {i: copy _6, n: copy _5, what: list, unit: items} unwind continue ; panicked <index> @2:16-2:24
 }
 ```
 
 `names[i]` is checked with `ult`, so a negative `i` fails the test (V12); the
 failure edge is `panic index_oob` with `i`, `n`, `what` and `unit` (V24, R0002).
-`i` is copied into `_6` first because an index in a place is a local. The
+`i` is copied into `_6` first because an index in a place is a local.
+`names[i]` is a `copy` of the element: `Text` has the `counted` copy fact
+(13.3), so the copy adds one to the count of the text's storage. The
 branch `keep` moves `text` away, so at the join `text` is moved on one path
-and owned on the other: `d0` records that, and `bb4` drops it under the flag
-(V5, V6). `Text` has no `cleanup` fact, so these drops only free memory. The
-`else` branch reassigns an owned `text`: the new value is built first (`_13`), the old
+and owned on the other: `d0` records that, and `bb3` drops it under the flag
+(V5, V6). `Text` has no `cleanup` fact, so these drops only count its storage
+down and free it at zero. The
+`else` branch reassigns an owned `text`: the new value is built first (`_12`), the old
 one is dropped, then the store (V5; spec §4.9). The `push` call needs no unwind
-cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
-`_11` starts after `_10` is evaluated (V8).
+cleanup: `_8` is moved and `_9` is consumed by the call. The exclusive borrow
+`_10` starts after `_9` is evaluated (V8).
 
 ## 13.9 Versioning policy
 

@@ -39,10 +39,6 @@ else
 
 `then` appears only in the one-line form; `else` appears only with `if`.
 
-When an `if` (either form) or a `match` produces a value, its result is a
-view only if every branch is a view or a literal; otherwise it is owned and
-each view branch needs `.copy()` — the same rule as `otherwise` (§3.8.2).
-
 ### 6.2 `if … is` — testing a pattern
 
 To run a block only when a value has a certain shape, test it with `is`
@@ -84,16 +80,17 @@ for (index, item) in items.enumerate()
 The loop variable is a fresh immutable binding on every iteration. Patterns may
 be used to destructure ([§7](07-pattern-matching.md#7-pattern-matching)).
 
-**Ownership in loops.** `for x in items` *borrows* each element while `items`
-is still used after the loop. When the loop is the collection's last use, the
-loop takes the collection and each `x` is owned, so it can be moved elsewhere
-without a copy:
+**Ownership in loops.** Each `x` of `for x in items` is a value of its own,
+copied from the element (§4.9), so storing it elsewhere is always allowed.
+When the loop is the collection's last use, the loop takes the collection and
+each element moves into `x`, so nothing is counted. A collection of a type
+that is not `Copy` can be iterated only at its last use:
 
 ```verse
 mut adults: List<Person> = []
-for person in people                 # last use of `people`: each person is owned
+for person in people
     if person.age >= 18
-        adults.push(person)          # moves the person; no copy needed
+        adults.push(person)          # `adults` owns its own copy
 ```
 
 ### 6.4 Ranges

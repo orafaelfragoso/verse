@@ -58,9 +58,9 @@ written explicitly (it is never inferred):
 
 | Parameter | Meaning | Call site |
 |-----------|---------|-----------|
-| `p` | **read-only borrow** (the default): the function may look, not change or keep | `f(x)` |
+| `p` | **read-only borrow** (the default): the function reads the caller's value in place and cannot change it; a value it keeps is a copy | `f(x)` |
 | `mut p` | **exclusive mutable borrow**: the function may change the caller's value in place | `f(mut x)` — `x` must be a `mut` binding |
-| `take p` | **consume**: the function becomes the owner; the caller's value moves (copy types are copied) | `f(x)` — no marker; the move is visible because `x` must not be used afterwards |
+| `take p` | **consume**: the function becomes the owner; a `Copy` value is copied, which costs nothing at its last use, and any other value moves | `f(x)`, with no marker; a moved `x` must not be used afterwards |
 
 `mut` means "can change" in every position: a `mut` binding can be reassigned
 and changed in place (§3.9, §4.9), a `mut` parameter may change the caller's
@@ -89,11 +89,13 @@ fn add_item(mut cart, take item)        # changes `cart`, keeps `item`
 
 mut cart = Cart()
 apple = Item(name: "apple", price: 0.5)
-add_item(mut cart, apple)               # `mut` at the call site; `apple` moves
+add_item(mut cart, apple)               # `mut` at the call site; `cart` gets a copy of `apple`
 print(total(cart))
-print(apple.name)                       # error: `apple` was moved and cannot be used
-                                        #   help: use `apple.copy()` before the move, or move it last
+print(apple.name)                       # fine: `apple` is unchanged
 ```
+
+`take` matters for a value that is not `Copy`, such as a `Task` or a `File`
+(§4.9): the caller's value moves, and using it afterwards is an error.
 
 The `mut` marker is written at the call site of a *plain function*, so a
 reader can see which arguments may change. Method calls (`cart.add(item)`) do
@@ -114,24 +116,18 @@ history.push(history.len())                                   # fine
 
 #### Borrows are second-class
 
-A borrowed parameter is a view of the caller's value for the duration of the
-call. It **cannot be stored** in a field or collection, **cannot be returned**,
-and **cannot be sent to another task**. In particular, a function cannot return
-a reference into its argument — it returns a copy, an owned value, or an
-optional:
+A borrowed parameter is read in place for the duration of the call, so
+passing a large value costs nothing. Whatever the function does with it keeps
+the caller's value intact: a value it stores in a field or a collection,
+returns or sends to another task is a copy, which costs a count (§4.9). So a
+function can return part of its argument directly:
 
 ```verse
 fn first_name(person: Person)
-    person.name                  # error: a view cannot be returned
-                                 #   (`person.name` is a view of `person`)
-                                 #   help: return `person.name.copy()`, or take
-                                 #   the parameter with `take`
-
-fn first_name(person: Person)
-    person.name.copy()           # fine: the caller owns the result
+    person.name                  # a copy of the name; the caller's `person` is unchanged
 
 fn age_of(person)
-    person.age                   # fine: a copy, with an inferred `Copy` bound
+    person.age                   # a copy, with an inferred `Copy` bound
 ```
 
 An unannotated getter such as `age_of` compiles with an inferred `Copy` bound
@@ -139,13 +135,11 @@ on the returned field (§4.2, rule 9). Errors about a function's body appear at
 the definition. The only call-site errors are unmet bounds, written or
 inferred, and they name the bound.
 
-This is the price of having no lifetimes: there is no lifetime syntax and no
-elision rules to learn, because a borrow can never outlive the call that
-created it. The cost, stated plainly: accessor-style functions copy, and code
-that would return a view into a large structure in Rust or C++ is written
-differently in Verse — it changes the structure in place through `mut`, takes
-ownership with `take`, returns an index, or shares the data through
-`Shared<T>` (§11.4).
+A borrow can never outlive the call that created it, so there is no lifetime
+syntax and no elision rules to learn. A value that is not `Copy`, such as a
+`File` or a `Task`, cannot be copied out of a borrowed parameter: the function
+takes it with `take`, changes the structure in place through `mut`, or shares
+it through `Shared<T>` (§11.4).
 
 #### Default values and named arguments
 
@@ -234,7 +228,7 @@ operator — is a one-parameter lambda that reads from its argument:
 
 ```verse
 ages = users.map(.age)                      # same as u -> u.age
-names = users.map(.name.copy())             # u -> u.name.copy()  (owned results, §9.5)
+names = users.map(.name)                    # u -> u.name
 loud = users.map(.name.upper())             # u -> u.name.upper()
 firsts = pairs.map(.0)                      # p -> p.0
 by_age = users.sort_by(.age)
@@ -255,22 +249,22 @@ what happens to the lambda:
   (`map`, `filter`, `sort_by`, `any`, `each`, …) *borrows* its captures
   read-only. So `items.map(x -> x + offset)` does not consume `offset`, and
   `people.filter(p -> p.city == city)` leaves `city` usable. A function-typed
-  parameter is non-escaping in this sense unless it is declared `take`. Like
-  any borrow (§5.3), a non-escaping function value can be passed on to another
-  call, but it cannot be stored, returned, sent to a task or captured by an
-  escaping lambda. To keep it, declare the parameter `take`.
-- An **escaping** lambda — returned, stored in a field or collection, passed to
-  a `take` parameter, or used in `spawn` — *moves* its captures (copy types
-  are copied). Using a captured value after the lambda escaped is the usual
-  use-after-move error, with a `.copy()` suggestion.
+  parameter is non-escaping in this sense unless it is declared `take`. A
+  non-escaping function value holds borrows of its captures, so it is not
+  `Copy`: it can be passed on to another call, but it cannot be stored,
+  returned, sent to a task or captured by an escaping lambda. To keep it,
+  declare the parameter `take`.
+- An **escaping** lambda (returned, stored in a field or collection, passed to
+  a `take` parameter, or used in `spawn`) keeps its own copy of each captured
+  `Copy` value and *moves* every other capture. Using a moved capture after
+  the lambda escaped is the usual use-after-move error.
 
 A lambda cannot reassign a captured `mut` variable; use a fold, a loop, or
 a returned value instead.
 
 ```verse
 fn make_greeter(greeting)                   # returns an escaping lambda
-    words = greeting.copy()                 # the lambda needs its own copy
-    name -> "{words}, {name}!"
+    name -> "{greeting}, {name}!"           # the lambda keeps its own copy of `greeting`
 
 hello = make_greeter("Hello")
 print(hello("Ana"))
@@ -310,14 +304,14 @@ Every unannotated parameter is already an implicit generic (§4.2). Explicit
 generic parameters name the type so it can be used in several places:
 
 ```verse
-fn first<T: Copyable>(items: List<T>): T?
-    items.get(0).copy()           # `.copy()` on the optional: an owned `T?`
+fn first<T: Copy>(items: List<T>): T?
+    items.get(0)                  # a copy of the first element, or `none`
 ```
 
-The `Copyable` bound is what allows `.copy()` on a `T` (§10.4): the ownership
-check runs once, at the definition, and treats `T` as an opaque, non-`Copy`
-type unless a bound says otherwise (§4.2, rule 9). Without the bound,
-`items.get(0).copy()` is a compile error that suggests adding `T: Copyable`.
+The `Copy` bound is what allows a `T` to be copied out of `items` (§10.4): the
+ownership check runs once, at the definition, and treats `T` as an opaque,
+non-`Copy` type unless a bound says otherwise (§4.2, rule 9). Without the
+bound, `items.get(0)` is a compile error that suggests adding `T: Copy`.
 
 See [§10](10-traits-generics.md#10-traits-and-generics).
 

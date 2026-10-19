@@ -198,9 +198,10 @@ loop, the `pattern = … otherwise return/break/continue` form (§3.8.2):
 [head, ..tail] = items otherwise return none
 ```
 
-**Ownership of bindings.** Names bound by a pattern borrow from the matched
-value. If the matched value is owned and this is its last use, the bindings
-take ownership of the parts instead, so they can be moved on without copies.
+**Ownership of bindings.** Names bound by a pattern hold their own values,
+copied from the parts of the matched value (§4.9). If this is the matched
+value's last use, the parts move into the bindings instead. A part of a type
+that is not `Copy` can be bound only at the matched value's last use.
 
 ### 7.8 `match` without a subject
 
