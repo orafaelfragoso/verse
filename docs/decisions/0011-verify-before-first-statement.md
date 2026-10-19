@@ -34,7 +34,7 @@ which leaves out V21 (generic only, checked after MIR build) and adds V22.
    optimizer pass and builds no bytecode. Each verified instance is cached
    under a transitive verified-instance key. It hashes the instance's own generic MIR,
    type arguments, compiler version, flags and target together with the keys
-   of the instances it calls, the impl each trait call resolves to and the
+   of the instances it calls (drop glue included), the impl each trait call resolves to and the
    layout of every type it uses, so a change below an instance changes its key
    ([02 §2.7](../architecture/compiler-architecture.md#27-incremental-and-parallel-compilation)).
 2. **Bytecode generation stays lazy.** The first call of an instance builds its

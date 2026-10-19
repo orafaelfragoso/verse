@@ -468,5 +468,6 @@ Verification after an optimizer pass, which runs only in debug builds of
 `verse` and in CI, is outside this rule. An instance is optimized at its first
 call, so a failure there is V9902 at a first call
 ([13 §13.5](../architecture/mir-specification.md#135-verifier-rules)).
-After a passing check, status 3 means a bug in code generation (V9901 from a backend) or a trap inside the runtime
+After a passing check, status 3 means a bug in code generation (V9901 from a backend), a trap inside the runtime,
+or, in debug builds of `verse` and in CI, V9902 from verification after an optimizer pass
 ([ADR-0011](../decisions/0011-verify-before-first-statement.md)).
