@@ -91,8 +91,8 @@ mut cart = Cart()
 apple = Item(name: "apple", price: 0.5)
 add_item(mut cart, apple)               # `mut` at the call site; `apple` moves
 print(total(cart))
-print(apple.name)                       # error: `apple` was moved into `add_item`
-                                        #   help: add_item(mut cart, apple.copy())
+print(apple.name)                       # error: `apple` was moved and cannot be used
+                                        #   help: use `apple.copy()` before the move, or move it last
 ```
 
 The `mut` marker is written at the call site of a *plain function*, so a
@@ -122,9 +122,10 @@ optional:
 
 ```verse
 fn first_name(person: Person)
-    person.name                  # error: cannot return a borrow of `person`
-                                 #   (`name` is `Text`, not Copy)
-                                 #   help: return a copy: person.name.copy()
+    person.name                  # error: a view cannot be returned
+                                 #   (`person.name` is a view of `person`)
+                                 #   help: return `person.name.copy()`, or take
+                                 #   the parameter with `take`
 
 fn first_name(person: Person)
     person.name.copy()           # fine: the caller owns the result

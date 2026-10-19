@@ -141,6 +141,7 @@ gives every rule an identifier.
 | V0310 | error | modules `{a}` and `{b}` import each other at startup | the constants initialise in a cycle | move the shared constant to a third module | §12.2 |
 | V0311 | error | `{case}` is a case of `{Type}` | cases are not imported with the type | write `{Type}.{case}(…)`, or add `import {case} from {module}` | §12.2, §4.4 |
 | V0312 | error | a renamed type needs a capitalised name | `{x}` is a value name | write `as {X}` | §3.5 |
+| V0313 | warning | new binding `{name}` looks like the `mut` binding `{near}` | this creates a new binding | did you mean to reassign `{near}`? `{near} = {value}` | §3.9 |
 
 ### V04xx Types
 
@@ -156,7 +157,7 @@ gives every rule an identifier.
 | V0408 | error | `{T}` cannot be compared with `{U}` | `==` needs two values of one type | convert one side | §9.6 |
 | V0409 | error | `{x}` does not fit in `{T}` | the largest `{T}` is {max} | use a larger type | §4.1 |
 | V0410 | error | `Int` and `Float` are not mixed implicitly | | write `{x}.to_float()` or `{y}.round().to_int()` | §4.1 |
-| V0411 | error | a fallible value cannot be ignored | `{f}` returns `{T} \| Error` | handle it with `?`, `otherwise` or `match` | §8.4 |
+| V0411 | error | a fallible value cannot be ignored | `{f}` returns `{T} \| Error` | handle it with `?`, `otherwise` or `match`, or discard it with `_ = …` | §8.4 |
 | V0412 | error | `{name}` might be missing | this is `{T}?`, not `{T}` | provide a fallback: `… otherwise {default}`; stop early: `…?`; branch: `if … is {name}?` | §8.1 |
 | V0413 | error | `?` can only be used in a function that returns an optional or `Error` | `{f}` returns `{T}` | change the return type to `{T}?` or `{T} \| Error` | §8.3 |
 | V0414 | error | `otherwise` needs an optional or fallible value on its left | this is `{T}`, which is always there | remove `otherwise` | §3.8.2 |
@@ -195,7 +196,7 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
 | V0601 | error | this `match` does not cover {missing} | add an arm for {missing} | add `{pattern} -> …` or a final `_ -> …` | §7.2 |
-| V0602 | warning | this arm can never match | an earlier arm already matches everything it matches | delete it | §7.1 |
+| V0602 | error | this arm can never match | an earlier arm already matches everything it matches | delete it; did you mean the case `{Name}`? (shown when the earlier arm's name is a case of the matched type in lowercase) | §7.2 |
 | V0603 | warning | `{name}` looks like the case `{Name}` | in the last arm a lowercase name binds anything | write `{Name}` if you meant the case | §7.2 |
 | V0604 | error | `{pattern}` is not a case of `{T}` | the cases are {list} | | §7 |
 | V0605 | error | a typed pattern is only allowed at the top of an arm | `{x}: {T}` is inside parentheses | write `field: {x}: {T}` | §7.3 |
@@ -206,11 +207,11 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
-| V0701 | error | `{x}` must be cleaned up | `{T}` is a resource and is not used with `with` | write `with {expr} as {x}` | §13 |
 | V0702 | error | `{expr}` is `{T} \| Error`, which cannot be cleaned up | `with` needs the resource itself | add `?` to propagate the error | §13 |
 | V0703 | error | a task cannot use `{name}` | it is a view | send a copy with `.copy()`, or move it in | §11.1 |
 | V0705 | error | a `Receiver` has one owner | `{name}` was moved at {position} | give the receiver to one task | §11.4 |
 | V0707 | error | `{name}` is locked here and cannot be used outside `with` | `Guarded` values are read inside the block | read it as `with {g}.lock() as {value}` | §11.4 |
+| V0708 | error | `spawn` cannot pass `{name}` as `mut` | a task cannot give an exclusive borrow back to the spawner | move `{name}` in and get it back from `wait()`, or share it through a `Guarded` | §11.1 |
 
 ### V08xx Packages and API
 
@@ -350,9 +351,11 @@ Format of every long form: the four headings above, in this order, at most 25
 lines, one example that compiles. The long form is part of the catalog and has
 its own test (16.1 rule 9).
 
-Codes V0704 and V0706 are intentionally unassigned: the spec has no `Sendable`
-rule (sharing uses `Shared` and `Guarded`, §11.4), and an unwaited task is
-waited for automatically (§11.3), so neither needs a diagnostic.
+Codes V0701, V0704 and V0706 are intentionally unassigned: a resource not
+used with `with` is cleaned up when its owner's scope ends (§13.1), the spec
+has no `Sendable` rule (sharing uses `Shared` and `Guarded`, §11.4), and an
+unwaited task is waited for automatically (§11.3), so none needs a
+diagnostic.
 
 ## 16.6 Run-time panics
 

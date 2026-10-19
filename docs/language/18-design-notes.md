@@ -185,8 +185,8 @@ functions, building results) never mentions ownership at all.
   pattern bindings and chain results are views when the source is used later
   and owners when it is the last use, so adding a line below can turn working
   code into an error. Every such error must name the later use that kept the
-  source alive ("`people` is used again on line 12, so `person` is only a
-  view; write `person.copy()` or move the later use"), §4.9.
+  source alive ("`person` is a view and cannot be stored", labelled "it is
+  a view of `people`, which is used again on line 12"), §4.9.
 - **Generic code is checked once.** Unannotated and generic parameter types
   are treated as opaque, non-`Copy` types during the ownership check, so a
   generic body sometimes needs a `Copy` or `Copyable` bound (or `.copy()`)

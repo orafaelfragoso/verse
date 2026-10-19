@@ -129,9 +129,9 @@ and leave the rest to the compiler.
    fn first_name(person)
        person.name            # fine here too: inferred bound "`person.name` is Copy"
 
-   first_name(ana)            # error at the call site: `first_name` returns
-                              #   `person.name` by value, so the field must be
-                              #   Copy, and `Person.name` is `Text`
+   first_name(ana)            # error at the call site: `first_name` needs
+                              #   `Text` to be `Copyable`, because it returns
+                              #   `person.name`
                               #   help: return `person.name.copy()`, or take
                               #   the parameter with `take`
    ```
@@ -396,15 +396,16 @@ print(note)
 ```
 
 ```
-error: `note` is used after it was moved
+error: `note` was moved and cannot be used
   --> notes.vs:4:7
    |
  3 | inbox.push(note)
-   |            ---- `note` moved into `inbox` here
+   |            ---- moved here
  4 | print(note)
-   |       ^^^^ used here after the move
+   |       ^^^^ moved to `inbox` at line 3
    |
-help: to keep using `note`, store a copy:   inbox.push(note.copy())
+help: use `note.copy()` before the move, or move it last
+explain: V0501 (run `verse explain V0501`)
 ```
 
 **Errors name the later use.** Whether `b = a`, a `for` loop variable
@@ -414,18 +415,17 @@ below can turn working code into an error. Every error caused by such a flip
 must name the later use that kept the source alive:
 
 ```
-error: `person` is only a view, so it cannot be stored in `adults`
-  --> people.vs:8:16
+error: `person` is a view and cannot be stored
+  --> people.vs:8:17
    |
- 7 | for person in people
-   |     ------ `person` is a view because `people` is used again on line 12
  8 |     adults.push(person)
-   |                 ^^^^^^ stored here
+   |                 ^^^^^^ it is a view of `people`, which is used again on line 12
 ...
 12 | print(people.len())
    |       ------ the later use that keeps `people` alive
    |
-help: write `person.copy()`, or move the use on line 12 above the loop
+help: store `person.copy()`
+explain: V0502 (run `verse explain V0502`)
 ```
 
 Inside a loop, the error points at both the move and the later use — which is
@@ -435,9 +435,9 @@ the same line, one iteration later:
 greeting = "hi"
 mut all: List<Text> = []
 for name in names
-    all.push(greeting)        # error: `greeting` moved here in one iteration
-                              #   and used again here in the next
-                              #   help: all.push(greeting.copy())
+    all.push(greeting)        # error: `greeting` was moved and cannot be used
+                              #   (moved here in one iteration, used here in the next)
+                              #   help: use `greeting.copy()` before the move, or move it last
 ```
 
 **Mutability** is a property of the **binding**, and it is deep. `mut` means

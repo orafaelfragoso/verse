@@ -32,11 +32,14 @@ The compiler checks that every possible value is handled. Forgetting a variant
 is a compile-time error that names the missing case:
 
 ```
-error: match is not exhaustive
+error: this `match` does not cover `Triangle(_, _, _)`
   --> shapes.vs:4:5
    |
  4 |     match s
-   |     ^^^^^^^ missing case: Triangle(_, _, _)
+   |     ^^^^^^^ add an arm for `Triangle(_, _, _)`
+   |
+help: add `Triangle(_, _, _) -> …` or a final `_ -> …`
+explain: V0601 (run `verse explain V0601`)
 ```
 
 Use `_` to explicitly handle "everything else".
@@ -45,18 +48,20 @@ Use `_` to explicitly handle "everything else".
 with no guard matches everything. If such an arm is **not the last arm**, every
 arm after it is reported as an *unreachable arm* error. This catches a common
 slip — writing `north ->` instead of `North ->`, which would otherwise bind a
-new variable and swallow every case:
+new name and swallow every case:
 
 ```
-error: unreachable arm
+error: this arm can never match
   --> compass.vs:5:9
    |
  4 |         north -> "up"
-   |         ----- this arm matches every value (`north` is a new variable)
+   |         ----- this arm matches every value (`north` is a new binding)
  5 |         South -> "down"
-   |         ^^^^^ so this arm can never run
+   |         ^^^^^ an earlier arm already matches everything it matches
    |
-help: did you mean the variant `North`?
+help: delete it
+help: did you mean the case `North`?
+explain: V0602 (run `verse explain V0602`)
 ```
 
 Even in the **last** position, where a catch-all is legal, a binding whose
@@ -218,8 +223,8 @@ fee = match
 
 A subject-less `match` is an expression, uses the ordinary arm syntax
 (including blocks after `->`), and **must end with a `_ ->` arm**; without it
-the compiler reports "match is not exhaustive", because no set of conditions
-can be proved to cover every case. It replaces long `if … else if … else`
+the `match` is not exhaustive (§7.2), because no set of conditions can be
+proved to cover every case. It replaces long `if … else if … else`
 chains that choose a value.
 
 ---

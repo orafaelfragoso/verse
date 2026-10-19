@@ -63,8 +63,9 @@ error: `email` might be missing
    |           ^^^^^^^^^^ this is `Text?`, not `Text`
    |
 help: provide a fallback:   user.email.lower() otherwise ""
-help: or stop early:        print(user.email.lower()?)
-help: or branch:            if user.email is email?  …
+help: stop early:           print(user.email.lower()?)
+help: branch:               if user.email is email?  …
+explain: V0412 (run `verse explain V0412`)
 ```
 
 ### 16.3 Packages

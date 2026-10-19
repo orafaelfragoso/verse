@@ -131,7 +131,8 @@ true       type       while      with
 
 `let` is reserved but not used: Verse has no `let` (bindings are written
 `x = …` and `mut x = …`, §3.9), and the compiler answers a `let` with the
-error "`let` is not used in Verse; write `x = …`".
+error "`let` is not part of Verse" and the help "write `x = …`; use
+`mut x = …` if it changes".
 
 ### 3.7 Literals
 
@@ -301,9 +302,8 @@ Notes on level 1:
 - A second postfix `?` needs brackets: `(x?)?`.
 - `a.b` on an optional `a` follows the lifted-chain rule (§8.1).
 - Postfix `?` is an ordinary postfix operator. A `?` immediately followed by
-  `.` (`a?.b`) is a compile-time error: "`?.` is not Verse; write `(a?).b` to
-  propagate then read, or `a.b otherwise …` / `a.b?` to look through the
-  optional". `(find_user(id)?).email` is valid: propagate a missing user out
+  `.` (`a?.b`) is a compile-time error: "`a?.b` is not part of Verse", with
+  the help "write `(a?).b`, or `a.b otherwise …`". `(find_user(id)?).email` is valid: propagate a missing user out
   of the function, then read the field.
 
 Three constructs are deliberately **not** operators in this table:
@@ -513,7 +513,7 @@ The rule for `name = expr` depends only on what is already visible:
 |------------|---------------------|
 | not yet bound in this function | a **new immutable binding** |
 | a visible `mut` binding | **reassignment** |
-| a visible immutable binding or immutable parameter | a compile-time error: "`total` is immutable; write `mut total = …` where it is declared, or pick a new name" |
+| a visible immutable binding or immutable parameter | a compile-time error: "`total` is not `mut`, so it cannot be reassigned", with the help "write `mut total = …` at the first binding" |
 
 `mut name = expr` always declares a new mutable binding. In a pattern, a name
 starting with an uppercase letter is a constructor or variant and a lowercase
@@ -524,8 +524,8 @@ error.
 
 **Destructuring always creates new bindings.** Every lowercase name in a
 pattern on the left of `=` is a new binding, so a name that already exists is
-an error ("`x` already exists; a pattern always binds new names — to change
-`x`, declare it `mut` and assign it on its own"). The one exception is a
+an error ("`x` already exists in this scope"). To change `x`, declare it
+`mut` and assign it on its own. The one exception is a
 **parallel assignment**: a tuple made *only* of visible `mut` names assigns
 them all at once, with the right side fully evaluated first, so
 `(a, b) = (b, a)` swaps. Mixing new and existing names in one tuple is an
@@ -569,7 +569,7 @@ name** silently (`input = lines[0]`, `error = e.message()`) and may hide a
 module constant or an imported name (`time = elapsed.seconds()` after
 `import time`). Hiding an imported name
 **warns** only when the same function also uses that import — an actual
-collision ("`fs` hides the import `fs`, which this function also uses").
+collision ("`fs` hides the import `fs`").
 The same holds one level up: a file-level import hides a prelude name of the
 same spelling, so after `import info, error from log` the name `error`
 means `log`'s function in that file, and the prelude `error` is not
@@ -603,15 +603,16 @@ Two warnings catch the usual slips:
   warns, because it is probably a typo for an assignment:
 
 ```
-warning: new binding `totl` looks like the mutable `total`
+warning: new binding `totl` looks like the `mut` binding `total`
   --> sum.vs:6:5
    |
  2 |     mut total = 0
-   |         ----- `total` is declared here
+   |         ----- `total` is bound here
  6 |     totl = total + n
-   |     ^^^^ this creates a new name
+   |     ^^^^ this creates a new binding
    |
-help: did you mean to reassign `total`?   total = total + n
+help: did you mean to reassign `total`? `total = total + n`
+explain: V0313 (run `verse explain V0313`)
 ```
 
 ---

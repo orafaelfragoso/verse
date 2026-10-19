@@ -58,23 +58,25 @@ them) may look *through* an optional, but only where the chain is
 | (c) an `is` pattern or a `match` subject | `if order.customer.address is a?` |
 | (d) a position whose expected type is optional | `city: Text? = order.customer.address.city`; `return user.email` in a function returning `Text?`; an argument to a `Text?` parameter |
 
-Anywhere else, a dot on a `T?` is a compile-time error that suggests the
-four ways out — a fallback with `otherwise`, propagation with `?`, a branch
-with `is`, and, for an unannotated binding, annotating the optional type:
+Anywhere else, a dot on a `T?` is a compile-time error that names the
+consumers a chain may end in:
 
 ```
-error: `order.customer` may be missing, so `.address` cannot be read here
-  --> orders.vs:3:23
+error: `order.customer` is `Customer?` and cannot be used as `Customer` here
+  --> orders.vs:3:8
    |
  3 | city = order.customer.address.city
-   |        ^^^^^^^^^^^^^^ this is a `Customer?`
+   |        ^^^^^^^^^^^^^^ the dot looks through an optional only when the chain ends in `otherwise`, `?`, `is`, `match`, or an optional-typed position
    |
-help: say what happens when it is missing:
-        city = order.customer.address.city otherwise "unknown"
-        city = order.customer.address.city?           (return none)
-        if order.customer is c?  …                     (branch)
-      or keep it optional:   city: Text? = order.customer.address.city
+help: add one of those at the end of the chain
+explain: V0415 (run `verse explain V0415`)
 ```
+
+The four ways out are a fallback with `otherwise`
+(`city = order.customer.address.city otherwise "unknown"`), propagation with
+`?` (`city = order.customer.address.city?`), a branch with `is`
+(`if order.customer is c?`), and, for an unannotated binding, annotating the
+optional type (`city: Text? = order.customer.address.city`).
 
 The rules of a lifted chain:
 
@@ -99,8 +101,8 @@ The rules of a lifted chain:
 Postfix `?` is an ordinary postfix operator, applied left to right like a
 call or a field access (§3.8). A `?` **immediately followed by `.`** is a
 compile-time error, because other languages read `?.` as safe access:
-"`?.` is not Verse; write `(a?).b` to propagate then read, or `a.b otherwise …`
-/ `a.b?` to look through the optional". The parenthesised
+"`a?.b` is not part of Verse", with the help "write `(a?).b`, or
+`a.b otherwise …`". The parenthesised
 `(find_user(id)?).email` is valid: it propagates a missing user out of the
 function and then reads `.email` from the `User`. `find_user(id).email?`
 reads through the optional and propagates if anything along the chain is
@@ -219,7 +221,7 @@ fn nickname(id: Int): Text? | Error
 
 a = nickname(7)?                             # Text?  (errors propagated)
 b = nickname(7) otherwise none               # Text?  (errors replaced by none)
-c = nickname(7) otherwise "anonymous"        # error: right side must be `Text?`
+c = nickname(7) otherwise "anonymous"        # error: expected `Text?`, found `Text`
 d = nickname(7)? otherwise "anonymous"       # Text   (error propagated, then none handled)
 e = nickname(7) otherwise none otherwise "anonymous"       # Text
 ```
@@ -301,8 +303,8 @@ is `T | E` cannot stand alone as a statement, and neither can a value that
 `_ = …`:
 
 ```verse
-fs.remove("cache.tmp")                 # error: result `Nothing | Error` is ignored
-                                       #   help: add `?`, handle it, or write `_ = …`
+fs.remove("cache.tmp")                 # error: a fallible value cannot be ignored
+                                       #   help: handle it with `?`, `otherwise` or `match`, or discard it with `_ = …`
 fs.remove("cache.tmp")?                # propagate
 _ = fs.remove("cache.tmp")             # deliberately ignored
 ```

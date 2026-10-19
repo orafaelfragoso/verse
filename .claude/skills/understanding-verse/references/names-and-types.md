@@ -171,17 +171,4 @@ the unit for resolution
    `compiler` ([CONTRIBUTING](../../../../CONTRIBUTING.md#commit-format)).
 6. If you changed docs, run `tools/docs/check.sh`.
 
-## Where the docs are silent or disagree
-
-- Spec wording differs from the catalog for the same errors. §3.9 writes
-  "`total` is immutable; write `mut total = …`", the catalog V0303 writes
-  "`{name}` is not `mut`, so it cannot be reassigned". §3.6 writes "`let` is
-  not used in Verse", V0204 writes "`let` is not part of Verse".
-- [§7.2](../../../../docs/language/07-pattern-matching.md#72-exhaustiveness)
-  calls an arm after a catch-all an error; the catalog V0602 makes it a
-  warning.
-- The typo warning for a new binding one edit away from a `mut` binding
-  ([§3.9](../../../../docs/language/03-lexical.md#bindings-and-assignment))
-  has no catalog code.
-
 If the code and the docs disagree, the docs win until a `spec` pull request changes them.

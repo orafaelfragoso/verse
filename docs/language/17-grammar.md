@@ -108,7 +108,7 @@ binding       = [ "mut" ] pattern [ ":" type ] "=" expr NEWLINE
                    is an error.
                    Constructor patterns start with an uppercase name (§3.5), so
                    `Circle(r) = …` is a pattern and `f(r) = …` is not valid.
-                   `let` is reserved: "`let` is not used in Verse; write `x = …`" *)
+                   `let` is reserved: "`let` is not part of Verse" *)
 assign_stmt   = place assign_op expr NEWLINE ;
 assign_op     = "=" | "+=" | "-=" | "*=" | "/=" | "%=" ;
 place         = ( IDENT | "self" ) { "." IDENT | "[" expr "]" } ;
@@ -198,7 +198,7 @@ postfix_op    = call | index | "." ( IDENT | INT | TYPE_IDENT ) | "?" ;
                    `(tx, rx): (Sender<Int>, Receiver<Int>) = Channel.new(capacity: 10)` *)
                 (* (semantic) postfix "?" is an ordinary postfix operator applied
                    left to right, but a "?" immediately followed by "." is an
-                   error ("`?.` is not Verse"): write `(f(x)?).email` to
+                   error ("`a?.b` is not part of Verse"): write `(f(x)?).email` to
                    propagate then read *)
                 (* (semantic) no two postfix "?" in a row: write (x?)? *)
                 (* x.f(y) may call a free function f(x, y) (uniform call syntax);

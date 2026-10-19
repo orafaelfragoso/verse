@@ -63,7 +63,7 @@ import open from fs
 with open("log.txt")? as file          # `?` propagates a failed open
     ...
 
-with open("log.txt") as file           # error: `File | Error` does not implement Cleanup
+with open("log.txt") as file           # error: `open("log.txt")` is `File | Error`, which cannot be cleaned up
     ...                                #   help: add `?` to propagate the error
 ```
 

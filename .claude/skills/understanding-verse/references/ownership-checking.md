@@ -96,7 +96,8 @@ The analysis is linear-time per function and parallel across functions.
 - A non-escaping lambda borrows its captures; an escaping one moves them. A
   function-typed parameter is non-escaping unless declared `take`
   ([§5.4](../../../../docs/language/05-functions.md#captures-borrowed-or-moved)).
-- `spawn f(x)` moves `x`; views and `mut` arguments cannot cross into a task
+- `spawn f(x)` moves `x`; views (V0504, V0703) and `mut` arguments (V0708)
+  cannot cross into a task
   ([§11.1](../../../../docs/language/11-concurrency.md#ownership-across-tasks)).
 - Inside generic or unannotated code, a parameter type is opaque and non-`Copy`
   unless a `Copy` bound says otherwise
@@ -169,18 +170,5 @@ The analysis is linear-time per function and parallel across functions.
    conformance test in the same commit. Code changes use scope `compiler`
    ([CONTRIBUTING](../../../../CONTRIBUTING.md#commit-format)).
 5. If you changed docs, run `tools/docs/check.sh`.
-
-## Where the docs are silent or disagree
-
-- [§13.1](../../../../docs/language/13-resources.md#131-with-blocks) says
-  cleanup runs automatically when a resource's owner ends, and `with` is the
-  explicit form. The catalog V0701 says a resource "must be cleaned up" and
-  is "not used with `with`". The docs do not say when V0701 fires.
-- `spawn f(mut x)` is a compile error
-  ([§11.1](../../../../docs/language/11-concurrency.md#ownership-across-tasks)),
-  but no catalog code names it.
-- Spec examples word errors differently from the catalog. §4.9 writes
-  "`note` is used after it was moved", V0501 writes "`{name}` was moved and
-  cannot be used".
 
 If the code and the docs disagree, the docs win until a `spec` pull request changes them.

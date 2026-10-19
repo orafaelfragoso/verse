@@ -59,9 +59,9 @@ block of work, give it a name with `fn` and spawn the call.
   ```verse
   config = load_config()
   for url in urls
-      spawn crawl(url.copy(), config)   # error: `config` moved into the task in
-                                        #   one iteration, used again in the next
-                                        #   help: spawn crawl(url.copy(), config.copy())
+      spawn crawl(url.copy(), config)   # error: `config` was moved and cannot be used
+                                        #   (moved into the task in one iteration, used in the next)
+                                        #   help: use `config.copy()` before the move, or move it last
   ```
 
 - **Handles are copied explicitly, and cheaply.** `Sender<T>`, `Shared<T>`,

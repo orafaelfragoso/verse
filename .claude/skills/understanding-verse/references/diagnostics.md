@@ -66,7 +66,7 @@ and warnings share the number space. Debugger codes are `D0xxx`, panic codes
 Source: [16 §16.2](../../../../docs/reference/diagnostics-catalog.md#162-families).
 A new code goes in the family of the pass that finds the problem
 ([16 §16.2.1](../../../../docs/reference/diagnostics-catalog.md#1621-families-by-pass)).
-V0704 and V0706 are intentionally unassigned
+V0701, V0704 and V0706 are intentionally unassigned
 ([16 §16.5](../../../../docs/reference/diagnostics-catalog.md#165-verse-explain)).
 
 **Wording.** The message is one sentence of at most 15 words, in the form
@@ -170,11 +170,6 @@ Verse; 70 a deadlock (R0008); 101 a panic
 
 ## Where the docs are silent or disagree
 
-- Spec prose often words a message differently from its catalog entry, for
-  example §4.9 against V0501 and §3.9 against V0303. The docs do not say
-  which one wins.
-- [§7.2](../../../../docs/language/07-pattern-matching.md#72-exhaustiveness)
-  calls an arm after a catch-all an error; V0602 is a warning.
 - The [roadmap](../../../../docs/roadmap.md#11-roadmap) lists structured
   diagnostics JSON under M6, while its sequencing principle 5 says
   diagnostics JSON exists from M1.

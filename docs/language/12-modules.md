@@ -90,8 +90,8 @@ unit = Shape.Circle(1.0)                  # building: qualified, or `import Circ
 ```
 
 A bare `Circle(1.0)` without the import is an error that names both fixes:
-"`Circle` is a case of `Shape`; write `Shape.Circle(…)` or add
-`import Circle from shapes`".
+"`Circle` is a case of `Shape`", with the help "write `Shape.Circle(…)`, or
+add `import Circle from shapes`".
 
 ### 12.3 Visibility with `export`
 
