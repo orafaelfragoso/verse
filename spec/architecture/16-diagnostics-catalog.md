@@ -353,7 +353,7 @@ the same facts are one record (05 §5.4); the message is the same.
 | R0005 | `{x}` is none, and the program expected a value | `{msg}` | spec §8.5 |
 | R0006 | assertion failed: `{expr}` | this expression is false | spec §8.5 |
 | R0007 | the program ran out of memory | {size} requested here | 05 §5.2 |
-| R0008 | every task is waiting and none can continue | {task}: waiting for {what} (one label per task) | spec §11, 12 Q17 |
+| R0008 | every task is waiting and none can continue | {task}: waiting for {what} (one label per task); a task blocked inside a `Cleanup` says "waiting inside the cleanup of {cleanup_of}", where the fact `cleanup_of` is the type name and replaces `what` for that task | spec §11, 12 Q14 and Q17 |
 | R0009 | the cleanup of `{x}` panicked while the task was stopping | the first panic was {first} | 12 Q13 |
 | R0010 | the range {from}..{to} is out of range, the {what} has {n} {unit} | this range | spec §9.3 |
 | R0011 | the exponent {n} is negative, and an `Int` power needs 0 or more | this exponent | spec §3.8 |

@@ -45,6 +45,11 @@ fail (a buffered writer that must flush) also offer an explicit, fallible
 method — `file.finish()?` — to call when the error matters; `cleanup` is the
 quiet fallback.
 
+`cleanup` may block, like any other code (a buffered `File` flushes when it is
+closed), and nothing limits how long. A task blocked inside a `cleanup` still
+counts as blocked when the program looks for a deadlock (§12.5); only `exit`
+ignores a blocked cleanup. Cancellation is masked while a cleanup runs (§11.5).
+
 ### 13.2 Acquisition failure
 
 Acquiring a resource can fail: `open` returns `File | Error`. **`with` never

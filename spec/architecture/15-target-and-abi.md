@@ -16,9 +16,9 @@ Status: **draft 1**. Labels follow the [README](README.md): *decision*,
 question already says. Nothing here is implemented and no number is measured.
 Where this document changes or extends 03, 04, 05, 13 or 14, the change is a
 **proposal** and is listed in [15.13](#1513-conflicts-with-other-documents) or
-[15.14](#1514-open-items). Questions that are still `open` in
-[12](12-open-questions.md) (Q13, Q17) are followed here as *recommended*, and
-every such place says so.
+[15.14](#1514-open-items). The questions of [12](12-open-questions.md) that
+this document depends on (Q13 to Q19) are all **accepted** (2026-10-18) and are
+rules here.
 
 ## 15.1 Purpose and scope
 
@@ -106,7 +106,7 @@ order, so layout never leaks into what a user sees (L6).
 | Type | Size / align (64-bit) | Size / align (32-bit) | Representation | Niches |
 |------|----------------------|----------------------|----------------|--------|
 | `Int` | 8 / 8 | 8 / 8 | two's complement `i64` | none |
-| `Float` | 8 / 8 | 8 / 8 | IEEE 754 binary64 | none (NaN payloads are observable through arithmetic, Q18, so no pattern is reserved) |
+| `Float` | 8 / 8 | 8 / 8 | IEEE 754 binary64 | none (NaN payloads are observable through arithmetic, so no pattern is reserved; Q18 canonicalises a NaN only where its bits are observed) |
 | `Bool` | 1 / 1 | 1 / 1 | byte `0` or `1`; any other value is invalid | 254 values (`2..=255`) |
 | `Char` | 4 / 4 | 4 / 4 | `u32`, a Unicode scalar value | all values above `0x10FFFF` (`0xFFFFFFFF - 0x10FFFF`); the surrogate gap is not used |
 | `Nothing` | 0 / 1 | 0 / 1 | ZST | none |
@@ -122,6 +122,13 @@ register width by its producer** according to its own signedness (`Bool` and
 `Char` zero-extended); consumers may rely on it (Decision; it is the Apple
 AArch64 and RISC-V rule, and Verse-cc adopts it on every target so the callee
 never re-extends).
+
+**Float bits (Q18, accepted).** Arithmetic is untouched. `to_bits`, hashing,
+byte serialization and `Show` turn every NaN into `0x7FF8000000000000`. A hash of a
+float, where one exists, treats `-0.0` as `0.0`, because they compare equal;
+`Float` itself is not `Hash` (spec §9.4), so this binds only internal hashing and
+a library wrapper such as `OrderedFloat`. `to_bits` keeps the sign of
+zero; `Show` prints `NaN` for every NaN and `-0.0` for negative zero.
 
 ### 15.3.3 Runtime-owned types: `Text`, `Bytes`, `List`, `Map`, `Set`
 
@@ -249,21 +256,24 @@ it**: the trait adds no field. What it adds is the `cleanup` fact in its
 - **Symbol and signature.** `drop<T>(p: ptr)`: one pointer to the value, no
   result, `nounwind` as seen by callers (MIR calls it with `unwind none` from
   `cleanup` blocks, V15). It runs `cleanup(mut self)` if the type has it, then
-  drops the fields in declaration order (Q15 recommends: fields and tuple
-  elements in declaration order, list elements by index, map and set entries in
-  insertion order; open), then frees the storage if the value owns heap
+  drops the parts (Q15, accepted: fields and tuple elements in declaration
+  order, list elements by index, map and set entries in insertion order; locals
+  drop in reverse because a later local may borrow an earlier one, which the
+  fields of one value cannot do), then frees the storage if the value owns heap
   memory.
 - **`cleanup` is a catch point.** The glue calls the user's `cleanup` inside
   a runtime catch (15.7.5). A panic that escapes `cleanup` is recorded and does
   not leave the glue. This is what keeps cleanup blocks `nounwind` for the
   verifier (V15, Q13).
-- **Blocking.** Q14 recommends that `cleanup` may block and that cancellation
-  is **masked** while it runs. If that is ruled, the TCB carries a mask depth
-  counter (`cancel_mask`), `drop` of a `Cleanup` type becomes a MIR terminator
+- **Blocking.** Q14 (accepted C): `cleanup` may block, and cancellation is
+  **masked** while it runs; a cancel request that arrives then takes effect at
+  the first blocking point after the cleanup finishes. The TCB carries a mask
+  depth counter (`cancel_mask`), `drop` of a `Cleanup` type is a MIR terminator
   with edges ([13.10](13-mir-specification.md#1310-changes-against-03-and-open-items)
   M7), and the glue of such a type is a *may-yield* function, which on
   state-machine targets uses the resumable convention ([15.6.2](#1562-resumable-functions-state-machine-and-cooperative-targets)).
-  Until Q14 is ruled the ABI treats `cleanup` as non-blocking.
+  A task blocked inside a cleanup counts as blocked for deadlock detection
+  (15.8.1); only `exit(code)` ignores it.
 - **Platform handles.** `File`, `Socket`, `Process`, and so on are
   records in `std` whose first field is a handle `Int`: a file descriptor on
   Unix, a `HANDLE` widened to 64 bits on Windows, a WASI `fd` widened, an index
@@ -618,7 +628,7 @@ the strategies need from the ABI. The scheduler policy is 14 §14.7.
   undefined.
 - The TCB holds the stack bounds (`stack_lo`, `stack_limit`), the unwind state
   ([15.7.1](#1571-the-panic-record-and-the-unwind-state)), `cancel_requested`,
-  and (if Q14 is ruled as recommended) `cancel_mask`.
+  and `cancel_mask` (Q14).
 
 ### 15.6.2 Resumable functions: state-machine and cooperative targets
 
@@ -703,8 +713,8 @@ Spec §8.5 and §11.5: a panic or a cancellation stops the task and runs
 `Cleanup` for the owners in scope, in reverse declaration order. MIR already
 holds every edge (13.4, V14, V15); this section fixes how a target realizes
 them. It follows the ruling of Q5 (panics clean up on every target; `abort`
-only when no `Cleanup` value is live at a panic site) and the **recommendations** of Q13 and
-Q17, which are still `open` (marked below).
+only when no `Cleanup` value is live at a panic site) and the rulings of Q13
+and Q17, both accepted (2026-10-18).
 
 ### 15.7.1 The panic record and the unwind state
 
@@ -778,15 +788,19 @@ Details that each backend must follow:
 `intrinsic task.abandon(move t)` ([13.4](13-mir-specification.md#134-statements-and-terminators),
 M4) requests cancellation of the child `t` and **hands its join to the
 runtime**: the runtime finishes the child (it unwinds with its own `Cleanup`)
-before the parent's own unwinding completes. This is the behaviour of Q16's
-recommendation B (open). Failures of the child are reported on standard error
-and count for the exit status as spec §11.3 says.
+before the parent's own unwinding completes. This is the behaviour of Q16
+(accepted B). Only a child cancelled by an unwinding parent prints
+nothing for that cancellation (spec §11.3); an explicit `cancel()` keeps the
+§11.3 behaviour (an unwaited task that failed, including by cancellation, is
+reported and makes the exit non-zero). A child that fails with its own panic or
+error while unwinding is still reported on standard error and counts for the
+exit status.
 
-### 15.7.4 A panic inside `Cleanup` (Q13, recommended answer C)
+### 15.7.4 A panic inside `Cleanup` (Q13, accepted answer C)
 
-**Recommendation of Q13, followed here; `open` until ruled.** 13.10 M9 and
-[14.8](14-bytecode-and-vm.md#148-unwinding-and-cleanup) currently say "print both panics, abort with 101"; they follow Q13 once it is ruled, and
-this section is what they change to. The rule is **task-level**: a panic
+**Ruling of Q13 (accepted 2026-10-18, all three owners).** 13.10 M9 and
+[14.8](14-bytecode-and-vm.md#148-unwinding-and-cleanup) already follow it, and
+this section is the target mechanism. The rule is **task-level**: a panic
 inside a `Cleanup` never takes the process down by itself.
 
 1. The user's `cleanup(mut self)` runs inside the drop glue's catch point
@@ -804,13 +818,13 @@ inside a `Cleanup` never takes the process down by itself.
    main task this is exit status 101 (15.8).
 5. A panic in a `Cleanup` that runs **during cancellation** is handled the same
    way: the task ends as panicked, not cancelled, with that panic primary
-   (assumption: Q13 says "reported the same way").
+   (Q13: "reported the same way").
 6. A panic in a `Cleanup` on the **normal path** (no unwind in progress): the
    glue stores the record as the task's panic and returns; the caller then
    starts unwinding. In MIR this needs the `drop` of a `Cleanup` type to have
-   an unwind edge after the call, which is 13.10 M7; until M7 is adopted such a
-   panic is recorded and the unwinding starts at the next `call`, `yield` or
-   `return` (P15-1).
+   an unwind edge after the call, which is 13.10 M7 (accepted with Q14): the
+   `drop` terminator's `unwind` edge starts the unwinding at once (P15-1,
+   closed).
 
 The MIR verifier is unchanged: the cleanup blocks stay `nounwind` (V15).
 
@@ -862,8 +876,8 @@ the host on each platform layer. It agrees with spec §12.5 and §15.1,
 | `1` | a top-level `?` failed (the error is printed to standard error), or an unwaited task failed with an error | spec §12.5, §11.3 | fact |
 | `2` | errors in the source, or a capability the target does not offer or the manifest does not grant (V0901, V0902, a `--deny`), found by the build-time check in `check`, `build` or `run`: the program did not start | [16 §16.6.1](16-diagnostics-catalog.md#1661-exit-statuses), [14.9](14-bytecode-and-vm.md#149-sys-capability-calls-and-the-capability-check) | fact |
 | `3` | a bug in Verse: a compiler bug (V9901, V9902) found before the program started, in `run` as in `build`; or a trap the runtime itself caused (`unreachable`, an internal runtime error, a VM `TRAP`); or a capability re-check that fails at run time, because the build-time check should have caught it (15.7.6) | 16 §16.6.1, 14.4, 14.9 | fact |
-| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the R0004 text (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 | fact / Q13 recommended |
-| `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](08-debugging-and-mcp.md#87-vocabulary-and-wording-owned-by-michelangelo), stop reason `deadlocked`) | **Q17 recommendation C** (still open in 12); 14.7, 14.12 and 16 §16.6.1 already say `70` | proposal |
+| `101` | a panic in the main task, or in an unwaited task (an `out_of_memory` and a `stack_overflow` are panics); a panic in a `Cleanup` is task-level and ends the main task with this status, with the first panic primary (15.7.4); also the `abort` profile (15.7.6) and a guard-page fault, which prints the R0004 text (15.6.4); also `exit` with a code outside 0 to 255 (R0013) | spec §8.5, 05 §5.4, 14.7, 16 §16.6 | fact / Q13 closed |
+| `70` | **deadlock** (R0008): no runnable task, no pending completion, no armed timer or interrupt source, and blocked tasks exist. The report lists each blocked task and what it waits for ([08 §8.7](08-debugging-and-mcp.md#87-vocabulary-and-wording-owned-by-michelangelo), stop reason `deadlocked`) | Q17 (closed: accepted C); 14.7, 14.12 and 16 §16.6.1 say `70` | fact |
 | `code` | `exit(code)`, `code` in 0 to 255; see below | spec §12.5, 16 §16.6 (R0013) | fact |
 | host-defined | a host trap or signal that Verse does not control (an engine's call-stack limit, a kill signal), and a foreign unwind: the host reports it | 15.7.6 | assumption |
 
@@ -880,7 +894,10 @@ with a failed `?`. A cleanup-aware exit is a 0.2 candidate (P15-25).
 the scheduler of the platform layer: *no runnable task, no pending I/O
 completion, no timer, no interrupt source armed for a waiting task*.
 A program that waits on stdin, a socket, a timer or a pin is **not**
-deadlocked (Q17). On `std-web` the host event loop may still wake the program, so
+deadlocked (Q17). A task blocked inside a `Cleanup` counts as blocked (Q14); its
+line in the R0008 report reads "waiting inside the cleanup of {type}" (fact
+`cleanup_of`), and the debugger stop is `deadlocked` with the same fact. Only
+`exit(code)` ignores a blocked cleanup. On `std-web` the host event loop may still wake the program, so
 "no pending completion" includes outstanding host callbacks registered through
 the glue; with none outstanding the report is printed to the console and the
 exit status `70` is delivered to the glue.
@@ -1424,11 +1441,11 @@ All **proposals**; they extend the plan of [10](10-testing-and-verification.md).
 ## 15.13 Conflicts with other documents
 
 1. **[14 §14.7 and P14-7](14-bytecode-and-vm.md#147-tasks-scheduler-and-seed)**
-   now say deadlock exits with status `70`, as 15.8.1 does; both follow Q17's
-   recommendation, which is still open in 12.
+   say deadlock exits with status `70`, as 15.8.1 does, following Q17
+   (accepted).
 2. **[13.10 M9 and 14 §14.8](14-bytecode-and-vm.md#148-unwinding-and-cleanup)**
-   now follow Q13's recommendation C, as 15.7.4 does: task-level, both panics
-   printed, the first primary. Q13 is still open in 12.
+   follow Q13 (accepted C), as 15.7.4 does: task-level, both panics
+   printed, the first primary.
 3. **[04 §4.5](04-backends-and-targets.md#45-calling-convention-and-abi)** says
    "borrowed arguments by pointer". 15.4.1 passes a shared borrow of a small
    `Copy` value by value, which 13.6 allows ("a later ABI step may pass small
@@ -1441,8 +1458,6 @@ All **proposals**; they extend the plan of [10](10-testing-and-verification.md).
 5. **[04 §4.1](04-backends-and-targets.md#41-tiers)** now uses the shipped
    names `wasm32-wasip1`, `wasm32-wasip2` and `wasm32-unknown-unknown`, as this
    document does (it used `wasm32-unknown` and `wasip2`).
-   **[19 §19.3](19-cli-and-manifest.md#193-versetoml)** uses `wasm32-wasi` in
-   the `check` example and should follow.
 6. **[05 §5.3](05-runtime.md#53-tasks-and-scheduling)** now agrees with 15.6.4: an
    explicit prologue check raises the panic, and the guard page is an aborting
    backstop that prints the same R0004 text, because cleanup cannot run from a
@@ -1463,8 +1478,8 @@ this document's.
 
 | # | Question or proposal | Touches | Recommendation |
 |---|----------------------|---------|----------------|
-| P15-1 | A panic in `Cleanup` (Q13) is open, and its normal-path case needs `drop` of a `Cleanup` type to have an unwind edge | Q13, 13.10 M7 and M9, 14.8 | Rule Q13 as C; adopt M7; then rewrite M9 and 14.8 to 15.7.4. Until M7, the panic is raised at the next call, yield or return |
-| P15-2 | Deadlock status `70` (Q17) is open; 14.7 says `1` | Q17, 14.7, P14-7, 08 §8.7 | Rule Q17 as C (`70`); 14 follows |
+| P15-1 | A panic in `Cleanup` (Q13, accepted C): its normal-path case needs `drop` of a `Cleanup` type to have an unwind edge | Q13, 13.10 M7 and M9, 14.8 | **Closed**: Q13 and Q14 are accepted; M7 makes `drop` of a `Cleanup` type a terminator with an unwind edge, and M9 and 14.8 follow 15.7.4 |
+| P15-2 | Deadlock status `70` (Q17) | Q17, 14.7, P14-7, 08 §8.7 | **Closed**: Q17 accepted as C (R0008, status 70); 14 follows |
 | P15-3 | Status-code unwinding uses a TCB word tested after each call, swapped on task switch (15.7.2) | 05 §5.4, M7 | Keep for 0.1; measure in M7 against a second result register on Cortex-M |
 | P15-4 | The `abort` profile loses `TaskPanicked` (Q5 does not say) | Q5, 05 §5.4, V0908, V0910 | **Closed** (ruling, Michelangelo): an `abort` build fails with V0910 when a `spawn` is reachable |
 | P15-5 | Wasm default (`status-code`) and the mixing of status-code between resumable functions with `wasm-eh` elsewhere | 04 §4.1, 05 §5.4 | `status-code` for all shipped Wasm targets; decide after M3 measurements; `-eh` variants opt in |

@@ -488,7 +488,11 @@ Verse has **no garbage collector** and no manual memory management:
    like any other value and freed with their owner.
 4. **Cleanup is deterministic.** A type that implements `Cleanup` has its
    `cleanup(mut self)` run automatically when its owner's scope ends — also
-   during a panic (§13).
+   during a panic (§13). Locals are freed in reverse order of declaration,
+   because a later local may borrow an earlier one. The parts of one value
+   cannot borrow each other, so they are freed in the order they were written:
+   fields and tuple elements in declaration order, list elements by index, and
+   `Map` and `Set` entries in insertion order.
 5. **Sharing is opt-in.** The only ways for two owners to share one value are
    the handle types `Shared<T>` (shared read-only), `Guarded<T>` (shared,
    mutable behind a lock), `Weak<Shared<T>>` / `Weak<Guarded<T>>` (non-owning),

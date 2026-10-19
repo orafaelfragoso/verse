@@ -134,6 +134,13 @@ started it, results are never silently lost, and a program ends only after all
 of its work is done. To deliberately run something in the background beyond the
 current function, return its `Task` or pass it to someone who will wait on it.
 
+When the function does not finish normally — it panics, or it is cancelled and
+unwinds (§11.5) — it first **cancels** its unwaited tasks and then waits for
+them, so a panicking parent never blocks behind a long child. A child that ends
+only because that cancellation reached it is not an error and prints nothing; a
+child that fails with its own panic or error while unwinding is reported on
+standard error and counts for the exit status, as above.
+
 ### 11.4 Sharing data safely
 
 A task owns what it was given (§11.1), so two tasks can never touch the same
@@ -275,6 +282,10 @@ nothing — not `otherwise`, not `match`, not `?` — can intercept it. So
 panic, a cancellation prints nothing. The *waiter* sees the outcome as a
 `Cancelled` error (from `std.task`) returned by `.wait()`, which it may handle
 normally.
+
+Cancellation is **masked while a `cleanup` runs** (§13.1): a cancel request that
+arrives during a cleanup takes effect at the first blocking point after the
+cleanup finishes, so a cleanup always runs to completion.
 
 Because cancellation never appears as a value inside the task, blocking
 operations keep simple signatures:

@@ -31,3 +31,19 @@ I checked what a user can see: messages, exit statuses, the target file and its 
 
 
 Confirmed (Bob's item): a VM `TRAP` or a failed run-time capability re-check is a bug in Verse and exits 3 (16 §16.6.1).
+
+## Final check of 15 (Michelangelo)
+
+15, 05 and 04 pass my check. `exit`, statuses 2 and 3, R0004, R0013 and V0910 to V0915 agree with 16 §16.6.1, spec §12.5 and §15.1.
+
+**Rulings, final:**
+
+- **Q13 is C.** A panic in a `Cleanup` is reported as R0009. The first panic stays primary, the remaining `Cleanup` calls of that task still run, and the task ends with status 101 as in 15.8.1.
+- **Q17 is C, status 70.** A deadlock is R0008 and exits 70. Precedence is the one in P15-24.
+
+**Follow-ups, none of them blocking:**
+
+- 12 marks Q13 and Q17 as closed (Picasso).
+- 15: the `70` row of 15.8.1 changes its Label from *proposal* to *fact*. The `Q13 recommended` and `Q17 ... still open` cells change to "closed". The P15-2 row is closed.
+- 15 (the item at about line 1444) says 19 §19.3 uses `wasm32-wasi`. 19 now uses `wasm32-wasip1`, so the note is deleted.
+- 12 carries the cleanup-aware exit as a 0.2 candidate (P15-25).

@@ -780,6 +780,10 @@ comparison.</p>
   remainder. Dividing an <code>Int</code> by zero stops the program. <code>a.checked_div(b)</code>
   returns <code>Int?</code>.</li>
 <li><code>/</code> on <code>Float</code>s follows IEEE 754.</li>
+<li>Wherever a program can observe the bits of a <code>Float</code> (reading them as an
+  integer, serialization, <code>Show</code>), every <code>NaN</code> is the same quiet <code>NaN</code>, whatever
+  the hardware produced, and <code>Show</code> prints it as <code>NaN</code>. The sign of zero is kept
+  (<code>Show</code> prints <code>-0.0</code>); arithmetic itself is untouched.</li>
 <li>There are no implicit numeric conversions: write <code>n.to_float()</code> or
   <code>x.round().to_int()</code>.</li>
 <li><code>a ** b</code> raises <code>a</code> to the power <code>b</code>. It is right-associative
@@ -1377,7 +1381,11 @@ left to right among themselves; everything else is evaluated left to right:</p>
    like any other value and freed with their owner.</li>
 <li><strong>Cleanup is deterministic.</strong> A type that implements <code>Cleanup</code> has its
    <code>cleanup(mut self)</code> run automatically when its owner's scope ends — also
-   during a panic (§13).</li>
+   during a panic (§13). Locals are freed in reverse order of declaration,
+   because a later local may borrow an earlier one. The parts of one value
+   cannot borrow each other, so they are freed in the order they were written:
+   fields and tuple elements in declaration order, list elements by index, and
+   <code>Map</code> and <code>Set</code> entries in insertion order.</li>
 <li><strong>Sharing is opt-in.</strong> The only ways for two owners to share one value are
    the handle types <code>Shared&lt;T&gt;</code> (shared read-only), <code>Guarded&lt;T&gt;</code> (shared,
    mutable behind a lock), <code>Weak&lt;Shared&lt;T&gt;&gt;</code> / <code>Weak&lt;Guarded&lt;T&gt;&gt;</code> (non-owning),
@@ -3300,6 +3308,12 @@ lost. A task therefore never outlives the code that
 started it, results are never silently lost, and a program ends only after all
 of its work is done. To deliberately run something in the background beyond the
 current function, return its <code>Task</code> or pass it to someone who will wait on it.</p>
+<p>When the function does not finish normally — it panics, or it is cancelled and
+unwinds (§11.5) — it first <strong>cancels</strong> its unwaited tasks and then waits for
+them, so a panicking parent never blocks behind a long child. A child that ends
+only because that cancellation reached it is not an error and prints nothing; a
+child that fails with its own panic or error while unwinding is reported on
+standard error and counts for the exit status, as above.</p>
 <h3 id="114-sharing-data-safely">11.4 Sharing data safely</h3>
 <p>A task owns what it was given (§11.1), so two tasks can never touch the same
 value by accident, and data races are impossible. Sharing is <strong>opt-in</strong> and
@@ -3479,6 +3493,9 @@ nothing — not <code>otherwise</code>, not <code>match</code>, not <code>?</cod
 panic, a cancellation prints nothing. The <em>waiter</em> sees the outcome as a
 <code>Cancelled</code> error (from <code>std.task</code>) returned by <code>.wait()</code>, which it may handle
 normally.</p>
+<p>Cancellation is <strong>masked while a <code>cleanup</code> runs</strong> (§13.1): a cancel request that
+arrives during a cleanup takes effect at the first blocking point after the
+cleanup finishes, so a cleanup always runs to completion.</p>
 <p>Because cancellation never appears as a value inside the task, blocking
 operations keep simple signatures:</p>
 <table>
@@ -3780,6 +3797,10 @@ during a panic or while another error is propagating. Types whose closing can
 fail (a buffered writer that must flush) also offer an explicit, fallible
 method — <code>file.finish()?</code> — to call when the error matters; <code>cleanup</code> is the
 quiet fallback.</p>
+<p><code>cleanup</code> may block, like any other code (a buffered <code>File</code> flushes when it is
+closed), and nothing limits how long. A task blocked inside a <code>cleanup</code> still
+counts as blocked when the program looks for a deadlock (§12.5); only <code>exit</code>
+ignores a blocked cleanup. Cancellation is masked while a cleanup runs (§11.5).</p>
 <h3 id="132-acquisition-failure">13.2 Acquisition failure</h3>
 <p>Acquiring a resource can fail: <code>open</code> returns <code>File | Error</code>. <strong><code>with</code> never
 propagates anything by itself.</strong> Its resource expression must be a value whose
@@ -6880,6 +6901,52 @@ in words.</p>
 <td><code>exit(code)</code></td>
 <td>The code is 0 to 255; any other value panics with "the exit code {n} is outside 0 to 255" on every platform, so <code>exit(256)</code> never reports success. <code>exit</code> may be called from any task and ends the program immediately: it flushes standard output and standard error, runs <strong>no <code>Cleanup</code></strong> and does not wait for or cancel the other tasks. A program whose cleanups must run finishes the entry file or ends with a failed <code>?</code>. Ruling tie-broken by Bob, agreed by Picasso and Michelangelo (P15-13, <code>reviews/review-12-michelangelo-on-15.md</code>); Picasso's earlier proposal that <code>exit</code> run <code>Cleanup</code> and Michelangelo's interim amendment are withdrawn. A cleanup-aware exit is a 0.2 candidate (architecture 12).</td>
 <td>§12.5, §15.1</td>
+</tr>
+</tbody>
+</table>
+<h3 id="round-10-accepted-rulings-cleanup-drop-order-unwinding-nan">Round 10 (accepted rulings: cleanup, drop order, unwinding, NaN)</h3>
+<p>Rulings carried over from architecture 12 (Q14, Q15, Q16, Q18) and Michelangelo's
+<code>reviews/review-13-michelangelo-on-12.md</code>. Q19 (the debugger step) is
+architecture-only and changes no spec text. No section is reopened.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Item</th>
+<th>Resolved decision</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R10-1</td>
+<td>A <code>cleanup</code> may block</td>
+<td><code>cleanup</code> may block, like any other code, and nothing limits how long. A task blocked inside a cleanup still counts as blocked for deadlock detection; only <code>exit</code> ignores a blocked cleanup. Before this round the spec said only that <code>cleanup</code> must not fail.</td>
+<td>§13.1</td>
+</tr>
+<tr>
+<td>R10-2</td>
+<td>Cancellation masked during a cleanup</td>
+<td>A cancel request that arrives while a cleanup runs takes effect at the first blocking point after the cleanup finishes, so a cleanup always runs to completion. Before this round §11.5 did not say what cancellation does to a running cleanup.</td>
+<td>§11.5</td>
+</tr>
+<tr>
+<td>R10-3</td>
+<td>Drop order</td>
+<td>At the end of a scope, locals are freed in reverse order of declaration because a later local may borrow an earlier one; the parts of one value cannot borrow each other, so they are freed in declaration order (fields, tuple elements), by index (list elements) and in insertion order (<code>Map</code>, <code>Set</code>). Before this round §4.10 gave no order.</td>
+<td>§4.10</td>
+</tr>
+<tr>
+<td>R10-4</td>
+<td>A parent that unwinds</td>
+<td>A function that panics or is cancelled cancels its unwaited tasks and then waits for them. A child that ends only because of that cancellation is not an error and prints nothing; a child that fails with its own panic or error while unwinding is reported on standard error and counts for the exit status. The normal-return rule of §11.3 is unchanged: a child cancelled by an explicit <code>cancel()</code> and left unwaited is still reported, as before.</td>
+<td>§11.3</td>
+</tr>
+<tr>
+<td>R10-5</td>
+<td><code>NaN</code> and the sign of zero</td>
+<td>Wherever the bits of a <code>Float</code> can be observed (reading them as an integer, serialization, <code>Show</code>) every <code>NaN</code> is the same quiet <code>NaN</code>, and <code>Show</code> prints it as <code>NaN</code>; the sign of zero is kept (<code>Show</code> prints <code>-0.0</code>); arithmetic is untouched. Hashing <code>-0.0</code> like <code>0.0</code> needs no wording: §9.4 already says <code>Float</code> is not <code>Hash</code> and cannot be a map key or set element (<code>OrderedFloat</code> is the escape), so the spec has no <code>Float</code> hash to define.</td>
+<td>§3.8.4</td>
 </tr>
 </tbody>
 </table></body></html>

@@ -5,11 +5,11 @@ the register-based bytecode and the virtual machine that runs it. It consumes
 mono MIR ([13](13-mir-specification.md)); it contains no ownership logic, no
 generics and no trait resolution.
 
-Status: **draft 2** (after review 10). Labels follow the [README](README.md).
+Status: **draft 3**. Labels follow the [README](README.md).
 Every number is a **target** or **assumption**; nothing has been measured. Open
-items at the end are **proposals**. Where a rule follows an answer proposed in
-[12](12-open-questions.md) (Q13 to Q19), it says so and is final only when that
-question is ruled.
+items at the end are **proposals**. Where a rule follows a question of
+[12](12-open-questions.md) (Q13 to Q19), it names the question; all of them are
+**accepted** (2026-10-18), so those rules are final.
 
 ## 14.1 Role
 
@@ -216,11 +216,12 @@ native-code strategies. Observable behaviour is the same as the others.)
   waited (spec §11.3) by the compiler-emitted `JOIN`s of
   [13.4](13-mir-specification.md#134-statements-and-terminators); unwaited
   failures set the exit status (1, or 101 for a panic).
-- **Deadlock** (Q17, proposed). No runnable task, no pending I/O completion, no
+- **Deadlock** (Q17, accepted). No runnable task, no pending I/O completion, no
   timer (a virtual clock jumps to the next timer instead), and blocked tasks
-  exist: raise R0008 ([16 §16.6](16-diagnostics-catalog.md#166-run-time-panics)), stop with reason `deadlocked` (08 §8.7), list what each
-  task waits for, and exit with status **70**. A program that waits for a socket,
-  stdin or a timer is not deadlocked.
+  exist (a task blocked inside a `Cleanup` counts as blocked, Q14): raise R0008 ([16 §16.6](16-diagnostics-catalog.md#166-run-time-panics)), stop with reason `deadlocked` (08 §8.7), list what each
+  task waits for (a task inside a cleanup reads "waiting inside the cleanup of
+  {type}", fact `cleanup_of`), and exit with status **70**. A program that waits
+  for a socket, stdin or a timer is not deadlocked.
 
 ## 14.8 Unwinding and Cleanup
 
@@ -234,10 +235,12 @@ native-code strategies. Observable behaviour is the same as the others.)
   mask at 0 (including one it is parked in) the VM sets the state to `cancel`
   and takes the instruction's unwind edge. Nothing is printed for cancellation
   (spec §11.5).
-- **Cancel mask** (Q14, proposed). The mask depth rises while a `DROPC` or any
+- **Cancel mask** (Q14, accepted). The mask depth rises while a `DROPC` or any
   cleanup block runs, so a cancel request that arrives then only sets
   `cancel_requested` and takes effect at the first `yield` executed afterwards
-  with mask 0. A cleanup always runs to completion, even if it blocks.
+  with mask 0. A cleanup always runs to completion, even if it blocks; only
+  `exit(code)`, which ends the process at once and runs no `Cleanup`, ignores a
+  blocked cleanup.
 - **Walk.** For the current call, look up its pc in the exception table. Found:
   jump to `cleanup_pc`; the cleanup block runs as ordinary code (`DROP`,
   `DROPC`, flag writes, `JF`/`SWITCH` on flags, `ABANDON`, and blocking
@@ -247,12 +250,16 @@ native-code strategies. Observable behaviour is the same as the others.)
   never see the unwind state; only the task boundary turns it into a value
   (`TaskPanicked`, `Cancelled`) for `.wait()`. At the main task: panic gives
   exit 101.
-- **Children** (Q16, proposed). `ABANDON t`, and the unwind edge of `WAIT` and
+- **Children** (Q16, accepted). `ABANDON t`, and the unwind edge of `WAIT` and
   `JOIN` (taken when the waiter is cancelled or panics), request cancellation of
   the child and hand its join to the scheduler, which finishes it before the
-  unwinding task's own join completes. A child's failure is reported on
-  standard error and counts for the exit status as in spec §11.3.
-- **Panic inside `Cleanup`** (Q13, proposed). The panic prints at once and is
+  unwinding task's own join completes. Only a child cancelled by an
+  unwinding parent prints nothing for that cancellation (spec §11.3); an
+  explicit `cancel()` keeps the §11.3 behaviour (an unwaited task that failed,
+  including by cancellation, is reported and makes the exit non-zero). A child
+  that fails with its own panic or error while unwinding is still reported on
+  standard error and counts for the exit status.
+- **Panic inside `Cleanup`** (Q13, accepted). The panic prints at once and is
   appended to the task's list. It unwinds the `cleanup` call as usual, up to the
   `DROPC` that started it; the glue then still drops the parts of that value and
   the outer unwinding goes on with the next cleanup, so no resource is skipped.
@@ -332,7 +339,7 @@ write is checked against `Out`. A mismatch stops with a *divergence* report
 the same event kinds from its `debug` slice, taking `Sync` order from one atomic
 counter that exists only in record mode (Q7: no change to behaviour).
 
-**Steps** (Q19, proposed; 08 §8.5). A *step* is one executed MIR statement or
+**Steps** (Q19, accepted; 08 §8.5). A *step* is one executed MIR statement or
 terminator of the mono MIR at optimisation level 0, which runs no pass except
 the read-only `verify` ([13.7](13-mir-specification.md#137-debug-info-and-source-spans)). A fused instruction counts the items it fuses,
 from the event table. Steps exist only in the VM; the log is indexed by event
@@ -398,7 +405,7 @@ capability fakes:
 | order of `Cleanup` and drops | including on panic and cancellation |
 | task events | `spawned`, `finished`, `waited`, `sent`, `received`, `closed` in the same sequence for a given seed; without a seed, only the order each task and each object sees |
 | capability calls | capability, operation and arguments, in order |
-| `Float` results | bit for bit: IEEE 754 binary64, no fast-math, no implicit fused multiply-add; every NaN is the canonical quiet NaN `0x7FF8000000000000` wherever bits can be seen (`to_bits`, hashing, byte serialization, `Show`), Q18 proposed |
+| `Float` results | bit for bit: IEEE 754 binary64, no fast-math, no implicit fused multiply-add; every NaN is the canonical quiet NaN `0x7FF8000000000000` wherever bits can be seen (`to_bits`, hashing, byte serialization, `Show`), Q18 accepted. A hash of a float, where one exists, treats `-0.0` as `0.0` (they compare equal); this binds only internal hashing and a library wrapper such as `OrderedFloat`, because `Float` is not `Hash` (spec §9.4); `to_bits` keeps the sign of zero; `Show` prints `NaN` for every NaN and `-0.0` for negative zero |
 | collection order | `Map` and `Set` iteration is insertion order (Q4); `Text` indexing by characters |
 
 **May differ**: timing; addresses; memory use; the depth at which
@@ -439,8 +446,8 @@ adopted into 09.
 | P14-1 | VM on one worker thread in 0.1? | Yes. Parallel tier-0 tasks add nothing the native tiers lack and break determinism. Revisit with M4 results |
 | P14-2 | A task that spins on `is_done()` never yields and starves the others | `is_done` and similar non-blocking polls act as `pause` once every N calls, logged as a `Pick`; no instruction-count preemption |
 | P14-3 | Capability check needs exact reachability (P6-5) but 02 §2.6 says script mode instantiates lazily | **Resolved** by the decision in [02 §2.6](02-compiler-architecture.md#26-monomorphization): `verse run` does a cheap reachability pre-pass (no code generation, no optimization), then the capability check, then lazy instantiation |
-| P14-4 | NaN payload and sign are hardware dependent, but 10 §10.3 says floats are bit-identical | **Follows Q18** (proposed in 12): canonicalise every NaN where bits can be observed; arithmetic is untouched |
+| P14-4 | NaN payload and sign are hardware dependent, but 10 §10.3 says floats are bit-identical | **Closed** by Q18 (accepted C): canonicalise every NaN where bits can be observed (`to_bits`, hashing, byte serialization, `Show`); arithmetic is untouched |
 | P14-5 | Snapshots: fixed-address arena, or `fork()` where it exists | Fixed-address arena in the VM (works on Wasm hosts and under tests); `fork()` stays an optional accelerator |
-| P14-6 | Should the VM treat `DROPC` of a `Cleanup` type as a possible switch point? | **Follows Q14** (proposed): yes, with the cancel mask of 14.8; 13.10 M7 |
-| P14-7 | Exit status and message for a deadlock | **Follows Q17** (proposed): R0008 and exit 70. A panic inside `Cleanup` follows Q13: R0009, task-level, no process abort |
+| P14-6 | Should the VM treat `DROPC` of a `Cleanup` type as a possible switch point? | **Closed** by Q14 (accepted C): yes, with the cancel mask of 14.8; 13.10 M7 |
+| P14-7 | Exit status and message for a deadlock | **Closed** by Q17 (accepted C): R0008 and exit 70. A panic inside `Cleanup` is closed by Q13 (accepted C): R0009, task-level, no process abort |
 | P14-8 | `.vsb` portability across pointer widths | Not portable in 0.1; a bundle is per host pointer width |

@@ -6,12 +6,12 @@ the verifier rules, and the debug-info contract. [03](03-ir-and-passes.md)
 introduces MIR and lists the passes; this document is the detail. The
 bytecode VM that executes mono MIR is specified in [14](14-bytecode-and-vm.md).
 
-Status: **draft 2** (after review 10). Labels follow the [README](README.md):
+Status: **draft 3**. Labels follow the [README](README.md):
 *decision*, *target*, *assumption*, *proposal*. The changes this document made
 to 03 §3.3 (M1 to M9) are **applied** in 03; [13.10](#1310-changes-against-03-and-open-items)
-lists them for the record and keeps the rows that still wait for a ruling.
-Where a rule follows a proposed answer in [12](12-open-questions.md) (Q13 to
-Q19), it says so; it is final only when that question is ruled.
+lists them for the record and keeps the rows that are still proposals. Where a
+rule follows a question of [12](12-open-questions.md) (Q13 to Q19), it names the
+question; all of them are **accepted** (2026-10-18), so those rules are final.
 
 ## 13.1 Purpose and relation to 03
 
@@ -215,7 +215,7 @@ unwind).
 | `switch op [c -> bb, ...] otherwise bb` | scalar, `Bool`, flag or discriminant | multi-way branch; `otherwise` is mandatory; a case is a literal | V2 V10 V11 V12 V13 |
 | `return [propagated]` | none | return `_0`; `propagated` marks a `?` exit (event `propagated`) | V2 V6 |
 | `panic KIND {facts} unwind u` | kind and facts ([table](#panic-kinds)) | stop the task, record a panic, start unwinding | V10 V14 V24 |
-| `drop p [flag d], next bb, unwind u` | place | **terminator form**, when the `cleanup` fact is true or unknown (always, for a value of type `T` in generic MIR): if the flag is false go to `next`; else call `cleanup` (it may block and may panic, Q13 and Q14), drop the parts, free, go to `next`. `u` cleans up the *other* locals; the parts of `p` are still dropped by the glue. Cancellation is masked while it runs | V5 V6 V14 V15 V18 |
+| `drop p [flag d], next bb, unwind u` | place | **terminator form**, when the `cleanup` fact is true or unknown (always, for a value of type `T` in generic MIR): if the flag is false go to `next`; else call `cleanup` (it may block and may panic, Q13 and Q14), drop the parts, free, go to `next`. `u` cleans up the *other* locals; the parts of `p` are still dropped by the glue. Cancellation is masked while it runs; a task blocked in it counts as blocked for deadlock detection (Q14, Q17) | V5 V6 V14 V15 V18 |
 | `call f(ops) -> p, next bb, unwind u` | callee, operands | call, store result, continue; borrow operands end at the call | V1 V7 V8 V14 V19 V23 |
 | `spawn f(ops) -> p, next bb, unwind u` | callee, owned operands | evaluate arguments, move them into a new task, store `Task<T>`; the task starts after the move (spec §11.1) | V16 V17 |
 | `yield send/recv/wait/join/sleep/lock/sys/pause(ops) -> p, resume bb, unwind u` | operands | a point where the scheduler may switch tasks; may block; **cancellation is delivered here** (not in a `cleanup` block, Q14) and takes the unwind edge | V14 V16 V17 V18 V19 |
@@ -245,7 +245,12 @@ branch, the task local has a drop flag: `set_flag dN = true` after the `spawn`,
 cancelled or panics while waiting. The runtime then cancels the awaited task
 and hands its join to the scheduler (the rule of Q16, the same as `intrinsic
 task.abandon`), so the `Task` operand is consumed on the normal edge and on the
-unwind edge alike (V17). Failures of such a child are reported as in §11.3.
+unwind edge alike (V17). Only a child cancelled by an unwinding parent prints
+nothing for that cancellation (spec §11.3); an explicit `cancel()` keeps the
+§11.3 behaviour (an unwaited task that failed, including by cancellation, is
+reported and makes the exit non-zero). A child that fails with its own panic or
+error while unwinding is still reported on standard error and counts for the
+exit status (Q16, accepted).
 
 <a id="drop-order"></a>**Which `drop` form and in which order.** The form
 follows the `cleanup` fact: terminator when it is true or unknown, statement
@@ -256,8 +261,10 @@ cleanup-free type to the statement form, or deletes it, and `simplify-cfg`
 merges the blocks. Locals drop in reverse declaration order (V14). The parts of
 one value drop in declaration order for record fields, tuple elements and enum
 payload fields, index order for list elements, and insertion order for map and
-set entries (Q15, proposed; spec §4.10 is silent). A `Cleanup` type runs its
-`cleanup` first and then drops its parts.
+set entries (Q15, accepted; spec §4.10 is silent). Locals drop in reverse
+because a later local may borrow an earlier one; the fields of one value cannot
+borrow each other, so declaration order is safe and plain. A `Cleanup` type runs
+its `cleanup` first and then drops its parts.
 
 <a id="panic-kinds"></a>**Panic kinds.** The kind words and the facts come from
 [16 §16.6](16-diagnostics-catalog.md#166-run-time-panics); the fact names below are the placeholder names
@@ -409,7 +416,7 @@ before the first instruction.
   level 0** runs no pass except the read-only `verify`; debug sessions and
   replays use it, so marks stay where users expect them and steps (next bullet)
   mean the same thing in every session.
-- **Step** (Q19, proposed; [08 §8.5](08-debugging-and-mcp.md#85-deterministic-record-and-replay)). A step is one executed
+- **Step** (Q19, accepted; [08 §8.5](08-debugging-and-mcp.md#85-deterministic-record-and-replay)). A step is one executed
   statement or terminator of mono MIR at level 0. A `drop` terminator is one
   step; the steps of its `cleanup` call are counted on their own. Steps exist
   only in tier 0.
@@ -746,8 +753,8 @@ cleanup: `_9` is moved and `_10` is consumed by the call. The exclusive borrow
 ## 13.10 Changes against 03 and open items
 
 Rows M1 to M6 were proposals in draft 1 and are **applied** in 03, and so are
-the `DropT` terminator of M7, the `join` kind and `CheckedCast`. Rows M7 to M9 follow the answers proposed in
-[12](12-open-questions.md); they are final when those questions are ruled.
+the `DropT` terminator of M7, the `join` kind and `CheckedCast`. Rows M7 to M9 follow Q14, Q16 and Q13 of
+[12](12-open-questions.md), all accepted (2026-10-18), so they are final.
 03's `CallDyn` is the `call dyn #n` form here.
 
 | # | Change | Why | Status |
@@ -758,8 +765,8 @@ the `DropT` terminator of M7, the `join` kind and `CheckedCast`. Rows M7 to M9 f
 | M4 | New `resume_unwind`, `set_flag`, `intrinsic task.abandon` | end of cleanup chains, drop flags, unwinding past unwaited tasks | applied |
 | M5 | `DebugMark` statement dropped; marks derive from spans | one source of truth | applied |
 | M6 | `Panic` takes structured kinds and named facts, not a message string | wording lives in the vocabulary file (Q6) and 16 §16.6 | applied |
-| M7 | `drop` of a type with `Cleanup` (or of unknown `cleanup`) is a terminator with `next` and `unwind`; the statement form stays for cleanup-free types. Cleanup may block; cancellation is masked while it runs (Q14) | `task-lower` must see that a `drop` may yield | follows Q14 (open) |
-| M8 | Unwinding past unwaited tasks: cancel the children, then the runtime joins them (`task.abandon`, the unwind edge of `wait` and `join`) | Q16 | follows Q16 (open) |
-| M9 | A panic inside `Cleanup` during unwinding is task-level: R0009, the first panic stays primary, remaining cleanups still run; cleanup blocks stay `nounwind` for the verifier | Q13 | follows Q13 (open) |
+| M7 | `drop` of a type with `Cleanup` (or of unknown `cleanup`) is a terminator with `next` and `unwind`; the statement form stays for cleanup-free types. Cleanup may block; cancellation is masked while it runs (Q14) | `task-lower` must see that a `drop` may yield | accepted (Q14 C, M7) |
+| M8 | Unwinding past unwaited tasks: cancel the children, then the runtime joins them (`task.abandon`, the unwind edge of `wait` and `join`) | Q16 | accepted (Q16 B, M8) |
+| M9 | A panic inside `Cleanup` during unwinding is task-level: R0009, the first panic stays primary, remaining cleanups still run; cleanup blocks stay `nounwind` for the verifier | Q13 | accepted (Q13 C, M9) |
 | M10 | Open: a `Task` stored in a list or record. Proposal: the drop glue of any type that contains a `Task` is a terminator `drop` that joins it, as if it had `Cleanup` | V17 covers locals only | proposal |
 | M11 | Proposal for 03 §3.4: `move-elim` also turns a `move` of a `Copy` type into a `copy`; a new `param-by-value` pass passes small `Copy` parameters by value and rewrites `copy (*_1)` to `copy _1` | 13.6 leaves both to the optimizer | proposal |

@@ -3,7 +3,8 @@
 Decisions that touch **the meaning of the language** or its standard library.
 The implementation will not decide them silently. Each has the problem,
 alternatives, and a recommendation. Status is `open` until the language owners
-rule.
+rule; a ruled question is `ruled` or `accepted` (with the date), and one put off
+to a later version is `deferred`.
 
 ## Q1. First-party domain libraries and their names
 
@@ -237,7 +238,10 @@ reported the same way. In MIR terms, cleanup blocks stay `nounwind` for the
 verifier ([13.5](13-mir-specification.md#135-verifier-rules), V15); the runtime
 handles the second panic. (13.10 M9 and 14.8 already follow this answer.)
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on C). The recommendation
+above is the ruling: a panic in a `Cleanup` is task-level and reported as R0009,
+the first panic stays primary, the other `Cleanup` calls of that task still run,
+and the task ends with status 101.
 
 ## Q14. May `Cleanup` block?
 
@@ -261,9 +265,14 @@ tiers behave identically. With C, `task-lower` treats a `drop` of a type that ha
 `Cleanup` as a possible yield (`drop` becomes a terminator with an unwind edge,
 13.10 M7), and the cancellation mask keeps "cleanup runs to completion" true.
 The cost is a mask flag per task and a blocked cleanup that cannot be cancelled;
-a timeout belongs in the resource's own API.
+a timeout belongs in the resource's own API. Two consequences: a task blocked
+inside a cleanup still counts as blocked for deadlock detection (Q17), and the
+R0008 report line for it reads "waiting inside the cleanup of {type}" (fact
+`cleanup_of`); and `exit(code)` is the only call that ignores a blocked cleanup
+(Q20).
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on C). The recommendation
+above, with its two consequences, is the ruling.
 
 ## Q15. Drop order of fields and elements
 
@@ -279,9 +288,14 @@ unspecified.
 order for lists, insertion order for maps and sets (the same order users see
 when iterating). It is the order of construction, which needs no explanation,
 and (C) would make differential testing depend on an undefined order. A type that
-needs another order implements `Cleanup` and drops its parts itself.
+needs another order implements `Cleanup` and drops its parts itself. **Why locals
+differ:** locals drop in reverse because a later local may borrow an earlier one,
+while the fields of one value cannot borrow each other, so no order is unsafe and
+declaration order is the plain one. The spec and the language guide state this
+sentence so that no reader takes the difference for a mistake.
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on A). The recommendation
+above is the ruling.
 
 ## Q16. Unwaited child tasks when the parent unwinds
 
@@ -299,9 +313,16 @@ run for minutes. Each child unwinds with `Cleanup` and is waited before the
 parent's own unwinding completes; their failures are reported on standard
 error and count for the exit status as in §11.3. This is what the MIR
 `intrinsic task.abandon` ([13.10](13-mir-specification.md#1310-changes-against-03-and-open-items) M8) does: request cancellation and hand the join to
-the runtime. (C) is rejected because it breaks structured lifetimes.
+the runtime. (C) is rejected because it breaks structured lifetimes. Only a
+child cancelled by an unwinding parent prints nothing for that cancellation
+(spec §11.3). An explicit `cancel()` keeps the §11.3 behaviour: an unwaited task
+that failed, including by cancellation, is reported and makes the exit status
+non-zero. A child that fails with its own panic or error while unwinding is still
+reported on standard error and counts for the exit status. No new diagnostic
+code is needed.
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on B). The recommendation
+above is the ruling.
 
 ## Q17. Exit status on deadlock
 
@@ -318,9 +339,11 @@ from a panic (101). The report is the debugger's `deadlocked` stop in text:
 each blocked task and what it waits for ([08 §8.7](08-debugging-and-mcp.md#87-vocabulary-and-wording-owned-by-michelangelo)). Detection is "no runnable task,
 no pending completion, no timer", which every tier's scheduler can compute.
 Programs waiting on external input (a socket, stdin, a timer) are not
-deadlocked. (14.7 and P14-7 already follow this answer.)
+deadlocked. A task blocked inside a `Cleanup` (Q14) counts as blocked. (14.7 and
+P14-7 already follow this answer.)
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on C). The recommendation
+above is the ruling: a deadlock is R0008 and exits with status 70.
 
 ## Q18. `Float` bit-identity and NaN payloads
 
@@ -337,9 +360,15 @@ canonicalize only where the bits can be observed.
 byte serialization (`json`, `fs`, `net`) and `Show`. Arithmetic is untouched, so
 speed is unchanged; all other results stay bit-identical, with no fast-math and no
 implicit fused multiply-add (10 §10.3). Equality of NaNs is already false, so
-no program can observe the difference otherwise.
+no program can observe the difference otherwise. One more case: `0.0 == -0.0` is
+true, so a hash of a float, where one exists, must treat `-0.0` as `0.0`. `Float`
+itself is not `Hash` (spec §9.4), so this rule binds only internal hashing and a
+library wrapper such as `OrderedFloat`, not `Float`. `to_bits`
+keeps the sign of zero; `Show` prints `NaN` for every NaN and `-0.0` for negative
+zero.
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on C). The recommendation
+above, with the zero case, is the ruling.
 
 ## Q19. Definition of a debugger "step"
 
@@ -356,6 +385,27 @@ coarse for `why_changed`, and an instruction (C) changes with bytecode design.
 Steps exist only in the VM. Recordings are indexed by the event ordinal, so a
 native recording needs no step counter, and a replay always runs at
 optimization level 0 so that step numbers mean the same thing for every
-recording. 08 should state this definition.
+recording. 08 §8.5 states this definition.
 
-**Status:** open.
+**Status:** accepted (2026-10-18, all three owners ruled on B). The recommendation
+above is the ruling.
+
+## Q20. A cleanup-aware exit (0.2 candidate)
+
+**Problem.** `exit(code)` is final in 0.1: it ends the process immediately from
+any task, runs **no** `Cleanup`, does not cancel the other tasks, never raises
+R0009, and flushes standard output and error. A code outside 0 to 255 is a panic,
+R0013, on every platform ([15 §15.8.1](15-target-and-abi.md#1581-statuses)). A program that needs
+its cleanups returns from `main` or ends with a failed `?`. Two things may be
+wanted later: an exit that cancels the other tasks, runs `Cleanup` and then
+exits (a cleanup-aware exit), and an explicit immediate exit under its own name
+(`abort_now`) for the case where no `Cleanup` must run. Picasso observed that a
+blocking `Cleanup` also hangs a `main` that returns, so neither path today
+promises a quick stop.
+**Options.** (A) nothing: `exit` stays as it is; (B) add a cleanup-aware exit,
+with `exit` unchanged; (C) add a cleanup-aware exit and an `abort_now`, and
+document `exit` as the middle case.
+**Recommendation: decide with 0.2**, together with a bound on how long a cleanup
+may block (Q14 lets it block without limit). Nothing here changes 0.1.
+Tracked as P15-25 in [15 §15.14](15-target-and-abi.md#1514-open-items).
+**Status:** deferred (0.2 candidate).

@@ -467,6 +467,10 @@ comparison.
   remainder. Dividing an `Int` by zero stops the program. `a.checked_div(b)`
   returns `Int?`.
 - `/` on `Float`s follows IEEE 754.
+- Wherever a program can observe the bits of a `Float` (reading them as an
+  integer, serialization, `Show`), every `NaN` is the same quiet `NaN`, whatever
+  the hardware produced, and `Show` prints it as `NaN`. The sign of zero is kept
+  (`Show` prints `-0.0`); arithmetic itself is untouched.
 - There are no implicit numeric conversions: write `n.to_float()` or
   `x.round().to_int()`.
 - `a ** b` raises `a` to the power `b`. It is right-associative
