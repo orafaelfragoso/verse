@@ -1,4 +1,4 @@
-"""Check every relative Markdown link in docs/, README.md and .claude/skills/*/SKILL.md.
+"""Check every relative Markdown link in docs/, README.md and .claude/skills/**/*.md.
 Verifies the target file exists and, for .md targets, that the #anchor matches a
 GitHub-style heading slug. Prints one line per broken link and a summary."""
 import os, re, sys
@@ -17,7 +17,7 @@ def anchors(path):
         for a in re.findall(r'<a (?:name|id)="([^"]+)"', line): out.add(a)
     return out
 files = ['README.md'] + sorted(os.path.join(d, f) for d, _, fs in os.walk('docs') for f in fs if f.endswith('.md'))
-files += sorted(os.path.join(d, f) for d, _, fs in os.walk('.claude/skills') for f in fs if f == 'SKILL.md')
+files += sorted(os.path.join(d, f) for d, _, fs in os.walk('.claude/skills') for f in fs if f.endswith('.md'))
 LINK = re.compile(r'\]\(([^)\s]*)\)')
 broken = total = 0
 cache = {}
