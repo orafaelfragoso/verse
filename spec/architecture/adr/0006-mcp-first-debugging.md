@@ -1,6 +1,6 @@
 # ADR-0006: MCP-first debugging with record and replay
 
-Status: proposed.
+Status: accepted (2026-10-18, all three owners).
 
 ## Context
 

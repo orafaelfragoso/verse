@@ -13,7 +13,7 @@ are reserved, not active.
    keeps its code, marked *retired*.
 2. **Codes are `V` and four digits.** The first two digits are the family
    (16.2). Errors and warnings share the number space; the record's `severity`
-   says which one it is. Debugger codes are `D0xxx` (17.2). Plugin codes are
+   says which one it is. Debugger codes are `D0xxx` (17.2). Run-time panic codes are `R0xxx` (16.6). Plugin codes are
    `plugin/rule` and never start with `V` (07 §7.6).
 3. **The message says what is wrong, in the program's words.** It names the
    binding, the type or the rule, never an internal stage. It does not use any
@@ -35,6 +35,13 @@ are reserved, not active.
    test that the `help:` edit applies and the program then compiles (when the
    fix is machine-applicable), and a test that `verse explain` has text.
 
+10. **A placeholder is a fact key.** Every `{name}` in a message, label or help is
+    exactly a key of the diagnostic's `facts` (02 §2.8). Facts are text, a
+    position, or a whole number; a count is always a number, never text. A test
+    fails if a placeholder has no fact or a fact has no placeholder (the
+    positions that only a label uses are the exception and are listed with
+    the entry).
+
 ## 16.2 Families
 
 | Family | Range | About |
@@ -49,6 +56,7 @@ are reserved, not active.
 | Packages and API | V08xx | `verse.toml`, `verse.lock`, `verse.api`, versions |
 | Capabilities and targets | V09xx | grants, targets, `--no-heap`, reachability |
 | Foreign calls (0.2) | V10xx | `extern` and `bindgen` |
+| Run time (panics) | R0xxx | overflow, bounds, division by zero, stack, memory (16.6) |
 | Internal | V99xx | a compiler bug; the message asks for a report |
 
 `V0412` (the optional-used-as-plain example in spec §16.2 and 02 §2.8) keeps
@@ -72,6 +80,7 @@ lines, rule. `{…}` is filled by the compiler. Examples show the label and the
 | V0106 | error | this interpolation is nested too deeply | text inside `{…}` inside `{…}` | bind the inner text to a name first | §3.7 |
 | V0107 | error | `{text}` is not a number | cannot read this as {Int or Float} | write digits, with `_` between groups | §3.7 |
 | V0108 | error | the number {text} does not fit in `Int` | the largest `Int` is 9,223,372,036,854,775,807 | use a `Float`, or a sized type from `std.num` | §4.1 |
+| V0109 | error | this file is not valid UTF-8 | the first bad byte is here | save the file as UTF-8 | §3.1 |
 
 ### V02xx Syntax
 
@@ -109,11 +118,11 @@ lines, rule. `{…}` is filled by the compiler. Examples show the label and the
 |------|-----|---------|-------|------|------|
 | V0401 | error | expected `{T}`, found `{U}` | this is `{U}` | convert it with `{conversion}` (shown when one exists) | §4.2 |
 | V0402 | error | cannot tell the type of `{name}` | nothing here decides it | annotate it: `{name}: {guess}` (shown when one candidate exists) | §4.2 rule 4 |
-| V0403 | error | `{f}` needs an annotation because it calls itself | recursion hides the return type | write `fn {f}(…): {T}` | §4.2 rule 3 |
+| V0403 | error | `{f}` needs an annotation because it calls itself (second form: "calls itself through `{g}`"; the label marks every call in the cycle) | recursion hides the return type | write `fn {f}(…): {T}` | §4.2 rule 3 |
 | V0404 | error | `{f}` was called with {n} arguments, but takes {m} | | the parameters are `{signature}` | §5.3 |
 | V0405 | error | `{f}` has no parameter called `{p}` | the parameters are {list} | | §5.3 |
-| V0406 | error | `{T}` has no field or method `{name}` | | did you mean `{near}`? | §4.3 |
-| V0407 | error | `{T}` does not implement `{Trait}` | needed by `{f}` here | add `impl {Trait} for {T}` (shown for traits that cannot be derived) | §10.1 |
+| V0406 | error | `{T}` has no field or method `{name}` | in a generic call: "needed by `{f}`, called here", with a second label on the line inside `{f}` | did you mean `{near}`? | §4.3 |
+| V0407 | error | `{T}` does not implement `{Trait}` | needed by `{f}`, called here; second label on the line inside `{f}` | add `impl {Trait} for {T}` (shown for traits that cannot be derived) | §10.1 |
 | V0408 | error | `{T}` cannot be compared with `{U}` | `==` needs two values of one type | convert one side | §9.6 |
 | V0409 | error | `{x}` does not fit in `{T}` | the largest `{T}` is {max} | use a larger type | §4.1 |
 | V0410 | error | `Int` and `Float` are not mixed implicitly | | write `{x}.to_float()` or `{y}.round().to_int()` | §4.1 |
@@ -125,6 +134,7 @@ lines, rule. `{…}` is filled by the compiler. Examples show the label and the
 | V0416 | error | the `Error` of `{f}` is not handled here | `{f}` can return `{E}` | add `?`, `otherwise` or a `match` arm for `{E}` | §8.4 |
 | V0417 | error | `{x}` is not a `Text`, so it cannot be indexed by character | | use `.bytes()` for a byte view | §4.1 |
 | V0418 | error | missing type for a public item | `export` items need types in `verse.api` | annotate the parameters and the result | §16.4 |
+| V0419 | error | `{f}` needs a new copy for every depth of this call | `{f}` calls itself with `{T}` wrapped in `{W}` | annotate the parameter with one concrete type | §4.2 rule 1 |
 
 ### V05xx Ownership
 
@@ -173,6 +183,8 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 
 ### V08xx Packages and API
 
+The plugin host entries V0819 to V0821 are a `warning` for a `lint` and an `error` for a `generator`, `bindgen` or `tool`, because the files or the output the build then needs would be missing. A stop from the clock is V0822, an `error` for every kind and never cached (18 §18.10).
+
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
 | V0801 | error | `{key}` is not a key of `[{section}]` | unknown keys are errors | did you mean `{near}`? | 19 §19.3 |
@@ -192,6 +204,22 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0815 | error | plugin `{name}` asks for more than verse.toml grants | it asks to {ask}; the grant is {grant} | grant it in `[plugins]`, or do not use this plugin | 07 §7.5 |
 | V0816 | warning | plugin `{name}` reported a code that is not its own | `{code}` was dropped | tell the plugin's author | 18 §18.7 |
 | V0817 | error | plugin `{name}` needs plugin interface {n}, and this compiler supports {m} | | update the compiler or use an older plugin | 18 §18.9 |
+| V0818 | error | `{pkg}` uses {feature}, which Verse cannot build in | first used in `{export}` | use a version of `{pkg}` without it | 07 §7.4 |
+| V0819 | warning or error | plugin `{name}` stopped with an error and wrote nothing | it failed in `{call}` | update the plugin, or remove it from `[plugins]` | 18 §18.10 |
+| V0820 | warning or error | plugin `{name}` ran out of {limit} and wrote nothing | the limit is {value} | simplify its inputs; `[limits]` can only go down | 18 §18.10 |
+| V0821 | warning or error | plugin `{name}` wrote a file the compiler cannot accept | `{path}`: {reason} | tell the plugin's author | 18 §18.8 |
+| V0822 | error | plugin `{name}` ran out of time on this machine | the limit is {seconds} seconds, and time depends on the machine | raise `time` in `[plugins]`, or lower the work it does | 18 §18.10 |
+| V0823 | warning | this lock was made with {old}, and you run {new} | the toolchain differs | run `verse lock` to record {new}; the build continues and does not reuse old caches | 19 §19.6 |
+| V0824 | error | `{pkg}` {ver} has a different API from the one in your lock | the lock says `{a}`, the package says `{b}` | `verse lock --refetch {pkg}`; if it persists, the version was republished | 19 §19.6, §19.12 |
+| V0825 | error | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | two major versions of `{pkg}` are in this build | update `{other}`, or pin one version of `{pkg}` | 19 §19.7 |
+| V0826 | warning | `{pkg}` {ver}, in your lock, was yanked: {reason} | | `verse update {pkg}` to move to {near} | 19 §19.8 |
+| V0827 | warning | updating `{pkg}` adds the `{cap}` capability | {ver_old} did not reach `{cap}`; {ver_new} does | grant it in `[capabilities]`, or stay on {ver_old} | 19 §19.6 |
+| V0828 | error | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | | run `verse vendor` while connected, or remove `--offline` | 19 §19.9 |
+| V0829 | error | `{file}` in `vendor/` was edited | it does not match the lock's checksum for `{pkg}` | `verse vendor --restore {pkg}`, or copy the package into your own source | 19 §19.9 |
+| V0830 | error | `branch` is not accepted | a branch changes without a new version | use `tag = "…"` or `rev = "…"` | 19 §19.3 |
+| V0831 | error | `{req}` has no upper bound | any new major version would be accepted | write `"{near}"`, which means {range} | 19 §19.3 |
+| V0832 | error | two clean builds of this project differ | `{file}` has different bytes | run `verse why {file}`; the usual cause is a plugin that is not deterministic | 19 §19.13 |
+| V0833 | error | the package name `{name}` is not available | {reason: taken, reserved, too close to `{near}`, or used before by another owner} | choose another name | 19 §19.4 |
 
 ### V09xx Capabilities and targets
 
@@ -204,6 +232,8 @@ V0511 is a `note`, not an error (its severity is `note`, per 02 §2.8).
 | V0905 | error | this package uses {n} KB, but its size budget is {m} KB | the biggest part is `{item}` | see `verse build --size-report` | 06 |
 | V0906 | error | `{module}` has different public items on `{target}` | the target variant exports `{item}` only here | make every variant match `verse.api` | 06 P6-7 |
 | V0907 | error | the file `{f}` for target `{t}` does not exist | listed in `[targets.{t}.files]` | create it or remove the line | 19 §19.3 |
+| V0908 | error | this panic would skip the cleanup of `{x}` | `{x}` is alive here | turn the `abort` profile off, or move the panic site after the cleanup | 05 §5.4 |
+| V0909 | error | `{f}` waits and calls itself, which `{target}` cannot run | the wait is here | build for a native target, or make the recursive part not wait | 03 pass 14 (`task-lower`), 04 §4.2 |
 
 ### V10xx Foreign calls (0.2, reserved)
 
@@ -228,6 +258,33 @@ A plugin writes its own codes as `plugin/rule` (for example `style/prefer-map`).
 The tool adds `source: "plugin"` and the plugin name. A plugin diagnostic is a
 warning unless the root `verse.toml` promotes it with `promote = […]`. It
 cannot reuse a `V` code, suppress a compiler diagnostic, or lower one.
+
+### 16.4.1 How a code is shown
+
+The first line is the message exactly as spec §16.2 shows it, with no code in
+it. The code goes on the last line of the block, which also says how to read
+more, so the line a person scans first stays plain and the code is easy to copy.
+
+```
+error: `email` might be missing
+  --> users.vs:12:11
+   |
+12 |     print(user.email.lower())
+   |           ^^^^^^^^^^ this is `Text?`, not `Text`
+   |
+help: provide a fallback:   user.email.lower() otherwise ""
+explain: V0412 (run `verse explain V0412`)
+```
+
+- The `explain:` line is always last, after every `help:` line. A `note` and a
+  `warning` use it the same way. A plugin diagnostic prints its own code, for
+  example `explain: style/prefer-map (run `verse explain style/prefer-map`)`.
+- JSON output carries the code as `code`, a separate field (02 §2.8). A tool that reads
+  the text can match `^explain: (\S+)` for the code.
+- A run-time panic (16.6) uses the same last line with its `R` code.
+- Documents show a message block with a bold label above it only when the
+  block is not copied from real output. A block copied from real output
+  includes its `explain:` line and needs no label.
 
 ## 16.5 `verse explain`
 
@@ -259,7 +316,52 @@ Codes V0704 and V0706 are intentionally unassigned: the spec has no `Sendable`
 rule (sharing uses `Shared` and `Guarded`, §11.4), and an unwaited task is
 waited for automatically (§11.3), so neither needs a diagnostic.
 
-## 16.6 Open points
+## 16.6 Run-time panics
+
+A panic is not a compiler diagnostic, but it is the same voice. Its text is
+fixed here, so the bytecode VM and every compiled tier print identical words;
+the differential tests ([10](10-testing-and-verification.md)) compare them.
+Codes are `R` and four digits and follow rules 1 and 2 of 16.1. `verse explain R0002` works like it does for a `V` code. A panic is
+printed at the moment it happens, to standard error, and the main program
+then exits with status 101 (spec §8.5).
+
+```
+panic: index 7 is out of range, the list has 3 items
+  --> src/main.vs:12:11
+12 |     print(nums[7])
+   |           ^^^^^^^ this index
+  in main
+explain: R0002 (run `verse explain R0002`)
+```
+
+The first line is the message; the rest is the position, the label, and the
+stack, one function per line. With `VERSE_PANIC=json` or a debugger attached
+the same facts are one record (05 §5.4); the message is the same.
+
+| Code | Message | Label | Spec |
+|------|---------|-------|------|
+| R0001 | `{a} {op} {b}` overflows `{T}` | the result does not fit | spec §3.8 |
+| R0002 | index {i} is out of range, the list has {n} items | this index | spec §9 |
+| R0003 | cannot divide {a} by zero | this divisor is 0 | spec §8.5 |
+| R0004 | recursion is too deep in task {n} | this call made the stack full | 05 §5.3 |
+| R0005 | `{x}` is none, and the program expected a value | `{msg}` | spec §8.5 |
+| R0006 | assertion failed: `{expr}` | this expression is false | spec §8.5 |
+| R0007 | the program ran out of memory | {size} requested here | 05 §5.2 |
+
+Rules for panic wording:
+
+1. The first line is one sentence of at most 15 words, with no word from the
+   "don't say" table (08 §8.7).
+2. A panic never shows an address, a stage name or a tier. It shows the same
+   text on the VM, the native tiers, Wasm and a microcontroller.
+3. `R0005` shows the program's own message when `.expect(msg)` gave one, and
+   the default text otherwise.
+4. A panic in a spawned task prints as above, and its waiter then sees
+   `TaskPanicked` (spec §11.2); the waiter prints nothing more by itself.
+5. A text that holds a value (`{i}`, `{n}`, `{a}`) writes the number as the
+   program would print it.
+
+## 16.7 Open points
 
 1. **Exact spec section numbers** in the "Rule" column marked with a section
    only (for example `§7`) are the section, not a numbered rule. They are

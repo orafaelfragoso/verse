@@ -17,7 +17,7 @@ flowchart LR
     MONO --> MMIR["Mono MIR"]
     WLIB["Wasm-implemented package<br/>(07 §7.4)"] --> WFE["Wasm frontend<br/>translates to mono MIR"] --> MMIR
     MMIR --> OPT["MIR optimizer"]
-    OPT --> SHAKE["Reachability and<br/>capability analysis"]
+    OPT --> SHAKE["Reachability and<br/>capability check"]
     SHAKE --> BC["Bytecode<br/>script tier"]
     SHAKE --> CL["Cranelift<br/>JIT / fast AOT"]
     SHAKE --> LL["LLVM<br/>release AOT"]
@@ -48,8 +48,8 @@ verifier pass that runs in debug builds and in CI (`verse-verify`).
 | MIR build | THIR plus ownership facts | CFG of basic blocks; locals typed; explicit `Move`, `Copy`, `Drop`, unwind edges | none |
 | Monomorphization | generic MIR | no type parameters, no structural constraints, no `Show` or `Eq` left abstract; trait calls resolved except calls through a trait name used as a type | none |
 | Optimizer | mono MIR | semantics preserved; verifier passes after every pass in debug builds | none |
-| Reachability | optimized mono MIR | the set of functions, types, vtables, constants and platform capabilities actually used | none |
-| Backends | reachable mono MIR | an artifact for the selected target | target limits (for example "no threads on this target") |
+| Reachability and capability check | optimized mono MIR (in script mode, the pre-pass of 2.6) | the set of functions, types, vtables, constants and platform capabilities actually used, from the program's entry points; every used capability is granted and provided by the target, or the build or run stops before any code runs | capability errors (V09xx): a reachable capability that is not granted, that the target cannot provide, or that a package does not declare; the `--no-heap` allocation check |
+| Backends | reachable mono MIR | an artifact for the selected target | target limits that are not capabilities (for example "no threads on this target", a recursive wait on a state-machine target) |
 
 ## 2.3 Data structures
 
@@ -147,8 +147,17 @@ Spec §4.2 requires "specialized code for each concrete type used".
   merged by the linker (identical code folding). A trait name used as a type
   (spec §10.3) is the user-visible escape hatch for compile-time-sensitive
   code: it is one shared body instead of one copy per type.
-- **Script mode** instantiates lazily at first call so that startup cost scales
-  with what runs, not with what is reachable.
+- **Script mode** instantiates **code** lazily at first call, so bytecode
+  generation and optimization scale with what runs. **Decision:** before tier 0
+  starts, `verse run` performs a cheap whole-program **reachability pre-pass**
+  from the entry statements: it walks the generic MIR with type arguments
+  substituted (resolving trait calls and vtable slots), builds no bytecode and
+  runs no optimizer pass, and caches its result per module. The **capability
+  check** runs right after it, exactly as it runs after full reachability in a
+  compiled build, so a missing or denied capability fails with the same V09xx
+  diagnostic in every tier before the first instruction. Only the cost of the
+  pre-pass scales with what is reachable; instances are still compiled lazily
+  ([14 §14.6](14-bytecode-and-vm.md#146-calls-and-lazy-instantiation)).
 
 ## 2.7 Incremental and parallel compilation
 

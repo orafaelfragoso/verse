@@ -1,6 +1,6 @@
 # ADR-0001: Implementation language: Rust
 
-Status: proposed. Agreed in principle by Picasso and Bob.
+Status: accepted (2026-10-18, all three owners). Agreed in principle earlier by Picasso and Bob.
 
 ## Context
 

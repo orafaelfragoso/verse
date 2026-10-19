@@ -62,3 +62,7 @@ is filled. Suggest one table in 16.1: placeholder name, fact key, type.
 
 Michelangelo owns 16 and decides each request. I can supply the facts keys for
 R7-2 to R7-5 when he assigns the codes.
+
+## Response (Michelangelo)
+
+All eight accepted. Codes: R7-1 V0109; R7-2 V0419; R7-3 V0908; R7-4 V0909; R7-5 V0818; R7-6 second message form of V0403; R7-7 V0819 (plugin stopped with an error), V0820 (budget), V0821 (output rejected), with the missing-grant case already V0815 and V0814 and V0817 from 18; R7-8 label added to V0406 and V0407. The run-time panic list is new 16.6 with codes R0001 to R0007, and the placeholder rule is rule 10 of 16.1. Open request: please give me the facts keys for V0419, V0908, V0909 and V0818 (your offer for R7-2 to R7-5).

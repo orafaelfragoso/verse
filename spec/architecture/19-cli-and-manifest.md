@@ -12,13 +12,15 @@ Nothing here changes what a Verse program means. The spec (§12, §16.3, §16.4)
 wins wherever this document disagrees with it.
 
 Related documents: [06](06-stdlib-and-shaking.md) (reachability, size report,
-`[library]`), [07](07-plugins.md) (plugins, grants), [02 §2.7](02-compiler-architecture.md#27-incremental-and-parallel-compilation)
+`[library]`), [07](07-plugins.md) (plugins, trust), [18](18-plugin-interface.md)
+(the plugin interface: manifest, grants, limits), [02 §2.7](02-compiler-architecture.md#27-incremental-and-parallel-compilation)
 (cache), [04 §4.3](04-backends-and-targets.md#43-what-a-target-is) (target
 files), [20](20-first-party-packages.md) (the first-party packages), and
 [16-diagnostics-catalog.md](16-diagnostics-catalog.md),
 [17-mcp-tool-schemas.md](17-mcp-tool-schemas.md) ([§17.8](17-mcp-tool-schemas.md#178-package-manager-tools)
-covers the package manager), and the plugin interface, which is in
-[07](07-plugins.md) until `18-plugin-interface.md` lands; all Michelangelo's.
+covers the package manager), all Michelangelo's. The codes shown below are in
+16, and their long forms are read with `verse explain`
+([16 §16.5](16-diagnostics-catalog.md#165-verse-explain)).
 
 ## 19.1 Summary
 
@@ -107,8 +109,33 @@ term = { version = "0.3", registry = "corp" }    # a named alternative registry 
 | `{ git = …, tag \| rev = … }` | git source; `branch` is not accepted, because a branch is not reproducible (Decision) |
 | `{ path = … }` | local source; not allowed in a published package |
 
+A `branch` key is refused:
+
+```
+error: `branch` is not accepted
+  --> verse.toml:9:60
+   |
+ 9 | http_extra = { git = "https://example.com/http_extra.git", branch = "main" }
+   |                                                            ^^^^^^ a branch changes without a new version
+   |
+help: use `tag = "…"` or `rev = "…"`
+explain: V0830 (run `verse explain V0830`)
+```
+
 There is no `>=`-only form and no `*`: every requirement has an upper bound
 at the next major (Decision: one version per major, spec §16.3).
+A requirement without an upper bound is refused:
+
+```
+error: `>= 1.2` has no upper bound
+  --> verse.toml:7:10
+   |
+ 7 | colors = ">= 1.2"
+   |          ^^^^^^^^ any new major version would be accepted
+   |
+help: write "1.2", which means `>= 1.2.0, < 2.0.0`
+explain: V0831 (run `verse explain V0831`)
+```
 `[dev-dependencies]` are visible only to `test` blocks and doc tests (Fact:
 spec §16.3, 06 §6.7).
 
@@ -141,10 +168,36 @@ style      = { version = "0.4", kind = "lint", promote = ["style/prefer-map"] }
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
 | `version` | requirement | required | resolved like a dependency, locked with its content hash |
-| `kind` | `lint` \| `generator` \| `bindgen` \| `tool` | required | must equal the kind in the plugin's own manifest (07 §7.2) |
-| `reads`, `writes` | lists of paths | `[]` | the grant; the tool refuses to run a plugin that asks for more (07 §7.5) |
+| `kind` | `lint` \| `generator` \| `bindgen` \| `tool` | required | must equal the kind in the plugin's own manifest ([18 §18.2](18-plugin-interface.md#182-the-plugin-manifest)); a mismatch is V0814 |
+| `reads`, `writes` | lists of paths | `[]` | the grant; the tool refuses to run a plugin that asks for more ([18 §18.2](18-plugin-interface.md#182-the-plugin-manifest), [18 §18.6](18-plugin-interface.md#186-capabilities), 07 §7.5); that is V0815 |
 | `capabilities` | list | `[]` | other capabilities granted (for a `tool` plugin, for example `net`) |
-| `promote` | list of rule codes | `[]` | lint rules raised to `error` (07 §7.6) |
+| `promote` | list of rule codes | `[]` | lint rules raised to `error` (07 §7.6, [18 §18.7](18-plugin-interface.md#187-what-a-plugin-reports)) |
+
+A `kind` that differs from the plugin's own manifest stops the build:
+
+```
+error: plugin `jsonschema` is a `generator`, but verse.toml says `lint`
+  --> verse.toml:6:40
+   |
+ 6 | jsonschema = { version = "1.2", kind = "lint" }
+   |                                        ^^^^^^ the plugin's own manifest says `generator`
+   |
+help: change `kind` in verse.toml to "generator"
+explain: V0814 (run `verse explain V0814`)
+```
+
+A plugin that asks for more than the grant stops the build before it runs:
+
+```
+error: plugin `jsonschema` asks for more than verse.toml grants
+  --> verse.toml:6:53
+   |
+ 6 | jsonschema = { version = "1.2", kind = "generator", writes = ["generated/"] }
+   |                                                     ^^^^^^^^^^^^^^^^^^^^^^^ it asks to write `docs/`; the grant is `generated/`
+   |
+help: grant it in `[plugins]`, or do not use this plugin
+explain: V0815 (run `verse explain V0815`)
+```
 
 ### `[capabilities]` (applications) — Proposal P19-3
 
@@ -260,6 +313,32 @@ segment:
 
 Fact: spec §16.3 states this rule (R8-1) and its example is `word_tools`.
 
+The registry refuses a name that is taken, reserved, too close to an existing
+one, or used before by another owner (wording as in
+[16](16-diagnostics-catalog.md#v08xx-packages-and-api)):
+
+```
+error: the package name `finance` is not available
+  --> verse.toml:2:8
+   |
+ 2 | name = "finance"
+   |        ^^^^^^^^^ reserved
+   |
+help: choose another name
+explain: V0833 (run `verse explain V0833`)
+```
+
+```
+error: the package name `co1ors` is not available
+  --> verse.toml:2:8
+   |
+ 2 | name = "co1ors"
+   |        ^^^^^^^^ too close to `colors`
+   |
+help: choose another name
+explain: V0833 (run `verse explain V0833`)
+```
+
 **Module paths inside a package.** A package `colors` with `src/colors.vs`
 and `src/colors/term.vs` exports modules `colors` and `colors.term`
 (spec §12.1 applied per package). Every module path a package exports starts
@@ -307,7 +386,7 @@ other change bumps the patch), as in Cargo (Decision).
 invisible to a diff. The computed bump is a minimum; the author can always
 choose a larger one. The registry shows both "declared" and "computed".
 
-**Message** **V0803** (wording as in [16-diagnostics-catalog.md](16-diagnostics-catalog.md#v08xx-packages-and-api)):
+Message (wording as in [16-diagnostics-catalog.md](16-diagnostics-catalog.md#v08xx-packages-and-api)):
 
 ```
 error: version 1.4.0 is too small for these changes; publish as 2.0.0
@@ -319,6 +398,7 @@ error: version 1.4.0 is too small for these changes; publish as 2.0.0
    |
 help: set `version = "2.0.0"` in verse.toml
 help: or keep `paint` as it was and add a new function for the new parameter
+explain: V0803 (run `verse explain V0803`)
 ```
 
 ## 19.6 `verse.lock`
@@ -361,12 +441,39 @@ grants   = { reads = ["schema/"], writes = ["generated/"], capabilities = [] }
 
 | Field | Pinned because |
 |-------|----------------|
-| `toolchain` | the exact compiler version used; a different toolchain warns ("this lock was made with 0.1.3, you run 0.1.4") and rebuilds, since cache keys include it |
+| `toolchain` | the exact compiler version used; a different toolchain warns (V0823, below) and rebuilds, since cache keys include it |
 | `resolver` | a future resolver change cannot silently change old locks |
 | `checksum` | integrity: a mirror, a cache or a vendored copy is accepted only if its bytes hash to this |
-| `api` | dependents are checked against `verse.api` only (spec §16.4); a changed api with the same version number is an error (registry corruption or a republish) |
+| `api` | dependents are checked against `verse.api` only (spec §16.4); a changed api with the same version number is an error (V0824, below: registry corruption or a republish) |
 | `capabilities` | `verse update` shows the difference before it is accepted |
-| plugin `grants` | a plugin update that asks for more than the locked grant stops with a message instead of running (07 §7.5) |
+| plugin `grants` | a plugin update that asks for more than the locked grant stops with a message instead of running ([18 §18.6](18-plugin-interface.md#186-capabilities), 07 §7.5) |
+
+A lock made by another toolchain:
+
+```
+warning: this lock was made with 0.1.3, and you run 0.1.4
+  --> verse.lock:3:13
+   |
+ 3 | toolchain = "0.1.3"
+   |             ^^^^^^^ the toolchain differs
+   |
+help: run `verse lock` to record 0.1.4; the build continues and does not reuse old caches
+explain: V0823 (run `verse explain V0823`)
+```
+
+A package whose `api` changed for the same version:
+
+```
+error: `colors` 1.4.0 has a different API from the one in your lock
+  --> verse.lock:11:12
+   |
+11 | api      = "blake3:3d71…"
+   |            ^^^^^^^^^^^^^^ the lock says `blake3:3d71…`, the package says `blake3:b8e0…`
+   |
+help: `verse lock --refetch colors`
+help: if it persists, the version was republished
+explain: V0824 (run `verse explain V0824`)
+```
 
 ## 19.7 Resolution: minimal version selection
 
@@ -388,8 +495,18 @@ adapted to the spec's "one version of each package per major version"
 Different majors of one package may coexist in the graph (`colors 1.x` for one
 dependency and `colors 2.x` for another). Each package's `import … from colors`
 refers to the major it declared, and types from different majors are
-different types. The compiler names both versions in any type mismatch
-("`Color` from colors 1.4.0 is not `Color` from colors 2.0.1").
+different types. The compiler names both versions in any type mismatch (V0825), for example:
+
+```
+error: `Color` from `colors` 1.4.0 is not `Color` from `colors` 2.0.1
+  --> src/report.vs:31:17
+   |
+31 |     paint("hi", charts.title_color())
+   |                 ^^^^^^^^^^^^^^^^^^^^ two major versions of `colors` are in this build
+   |
+help: update `charts`, or pin one version of `colors`
+explain: V0825 (run `verse explain V0825`)
+```
 
 **Why MVS, not a SAT solver (Cargo, npm, pip) or newest-compatible.**
 
@@ -412,9 +529,11 @@ newer releases, and by the registry marking versions with security advisories
 ```
 updating colors   1.4.0 -> 1.5.1   api: compatible (minor)
 updating term     0.3.2 -> 0.3.4   api: unchanged
-warning: `colors` 1.5.1 can now reach the `net` capability (1.4.0 could not)
-   = note: reached from `colors.fetch_palette`, which your code does not call today
+warning: updating `colors` adds the `net` capability
+   = note: 1.4.0 did not reach `net`; 1.5.1 does, from `colors.fetch_palette`, which your code does not call today
+help: grant it in `[capabilities]`, or stay on 1.4.0
 help: to refuse it, keep `[capabilities] grant` without `net`, or run `verse update --exclude colors`
+explain: V0827 (run `verse explain V0827`)
 ```
 
 ## 19.8 Registry protocol
@@ -449,6 +568,19 @@ with a warning that names the reason the publisher gave. Archives are never
 deleted, so old locks stay reproducible (Decision). Deletion exists only for
 legal reasons and then breaks the affected locks loudly.
 
+The warning for a locked yanked version:
+
+```
+warning: `colors` 1.4.0, in your lock, was yanked: data loss in `save`
+  --> verse.lock:8:12
+   |
+ 8 | version  = "1.4.0"
+   |            ^^^^^^^
+   |
+help: `verse update colors` to move to 1.5.1
+explain: V0826 (run `verse explain V0826`)
+```
+
 **Alternative registries and mirrors.** User or CI configuration (not the
 project's `verse.toml`, so a cloned project cannot redirect downloads):
 
@@ -468,12 +600,32 @@ and the lock.
 (`~/.cache/verse/pkg/<blake3>/`) and `vendor/`. If something is missing, the
 error names it and the command that would fetch it.
 
+```
+error: `colors` 1.4.0 is not in the cache or in `vendor/`, and `--offline` is on
+  --> verse.lock:8:12
+   |
+ 8 | version  = "1.4.0"
+   |            ^^^^^^^
+   |
+help: run `verse vendor` while connected, or remove `--offline`
+explain: V0828 (run `verse explain V0828`)
+```
+
 **Vendoring.** `verse vendor` copies every locked package into
 `vendor/<name>-<version>/` and adds `vendored = true` to the lock entries.
 Builds prefer `vendor/` and verify each tree against the lock's `checksum`;
 an edited vendored file is an error, not a silent patch (Decision: a local
 change belongs in a `path` dependency, which the reader can see in
 `verse.toml`).
+
+```
+error: `colors-1.4.0/src/colors.vs` in `vendor/` was edited
+  --> vendor/colors-1.4.0/src/colors.vs
+   |
+   = note: it does not match the lock's checksum for `colors`
+help: `verse vendor --restore colors`, or copy the package into your own source
+explain: V0829 (run `verse explain V0829`)
+```
 
 ## 19.9 Reproducible builds and caching
 
@@ -507,6 +659,16 @@ measured in M5).
 
 `verse build --verify-reproducible` *new* builds twice in clean directories
 and compares the bytes (for CI; P19-1).
+When the bytes differ:
+
+```
+error: two clean builds of this project differ
+  --> generated/item.vs
+   |
+   = note: `generated/item.vs` has different bytes
+help: run `verse why generated/item.vs`; the usual cause is a plugin that is not deterministic
+explain: V0832 (run `verse explain V0832`)
+```
 
 ## 19.10 Workspaces
 
@@ -567,7 +729,7 @@ answer is a **chain**. The MCP tools are `why_package`, `why_item` and
 Ambiguity is impossible by construction: package names never contain dots
 (§19.4), items always do, capabilities are a closed list, and paths contain
 `/` or `.vs`. A package named like a capability (`net`) is refused by the
-registry.
+registry (V0833, §19.4).
 
 ## 19.12 Supply-chain security
 
@@ -575,7 +737,7 @@ registry.
 |--------|---------|--------|
 | code execution while building a dependency | no build scripts, no install hooks (spec §16.3); `[library.native]` is data (0.2) | Fact |
 | a dependency adds a plugin | `[plugins]` accepted only at the root (07 §7.5); a dependency manifest with `[plugins]` is rejected | Fact / Decision |
-| a plugin does more than allowed | Wasm sandbox, grants locked in `verse.lock`, budgets (07 §7.5) | Fact |
+| a plugin does more than allowed | Wasm sandbox, grants locked in `verse.lock`, budgets (07 §7.5, [18 §18.6](18-plugin-interface.md#186-capabilities), [§18.10](18-plugin-interface.md#1810-limits)) | Fact |
 | a dependency starts using the network | capabilities in the index and lock; `verse update` shows the change; `[capabilities] grant` fails the build (P19-3) | Proposal |
 | a tampered archive or mirror | blake3 checksums in the lock; signed index | Decision |
 | typosquatting | name rules of §19.4 | Decision |
@@ -588,10 +750,9 @@ safe by construction. Running its tests is not, and `verse test` runs only
 the root's tests unless `--deps` is given.
 
 **Messages.** Codes and wording are those of
-[16-diagnostics-catalog.md](16-diagnostics-catalog.md#v08xx-packages-and-api);
-each block is labelled with its code.
-
-**V0805**
+[16-diagnostics-catalog.md](16-diagnostics-catalog.md#v08xx-packages-and-api).
+Each block shows its code on the last line, as in
+[16 §16.4.1](16-diagnostics-catalog.md#1641-how-a-code-is-shown).
 
 ```
 error: `charts` lists plugins, but only the root project may
@@ -601,9 +762,8 @@ error: `charts` lists plugins, but only the root project may
    | ^^^^^^^^^ a dependency cannot run code while your project builds
    |
 help: add the plugin to your own verse.toml under [plugins]
+explain: V0805 (run `verse explain V0805`)
 ```
-
-**V0806**
 
 ```
 error: `colors` 1.5.1 does not match its checksum
@@ -614,9 +774,8 @@ error: `colors` 1.5.1 does not match its checksum
    |
 help: verse lock --refetch colors
 help: a mirror is not trusted, so the lock is still correct
+explain: V0806 (run `verse explain V0806`)
 ```
-
-**V0901**
 
 ```
 error: this program reaches the `net` capability, which verse.toml does not grant
@@ -627,9 +786,8 @@ error: this program reaches the `net` capability, which verse.toml does not gran
    |
 help: add "net" to [capabilities] grant
 help: or see the whole chain: verse why net
+explain: V0901 (run `verse explain V0901`)
 ```
-
-**V0804**
 
 ```
 error: version 2.3 of `shapes` does not exist
@@ -639,20 +797,39 @@ error: version 2.3 of `shapes` does not exist
    |          ^^^^^ the newest release is 2.1.4
    |
 help: shapes = "2.1"
+explain: V0804 (run `verse explain V0804`)
 ```
 
-**Other codes from 16 used by this document**
+**Where each code from 16 appears here**
 
 | Code | Message (16) | Where here |
 |------|--------------|------------|
 | V0801 | `{key}` is not a key of `[{section}]` | §19.3 (unknown keys are errors) |
 | V0802 | the package name `{name}` cannot be imported | §19.4 |
+| V0803 | version {have} is too small for these changes; publish as {need} | §19.5 (message) |
+| V0804 | version {req} of `{pkg}` does not exist | §19.12 (message), §19.7 |
+| V0805 | `{pkg}` lists plugins, but only the root project may | §19.12 (message), §19.3 `[plugins]` |
+| V0806 | `{pkg}` {ver} does not match its checksum | §19.12 (message), §19.6 `checksum` |
 | V0807 | `verse.lock` is out of date | §19.2 (`--locked`), §19.6 |
 | V0808 | `{pkg}` needs {T}, which `{other}` does not provide | §19.7 (two majors) |
 | V0809 | a path dependency cannot be published | §19.10 |
 | V0810, V0811 | `verse.api` changed / differs from the source | §19.5, spec §16.4 |
 | V0812 | `{name}` is not a valid license | §19.3 `license` |
 | V0813 | a yanked version cannot be chosen | §19.7 step 5, §19.8 |
+| V0814 | plugin `{name}` is a `{k1}`, but verse.toml says `{k2}` | §19.3 `[plugins]` (message) |
+| V0815 | plugin `{name}` asks for more than verse.toml grants | §19.3 `[plugins]` (message) |
+| V0823 | this lock was made with {old}, and you run {new} | §19.6 (message) |
+| V0824 | `{pkg}` {ver} has a different API from the one in your lock | §19.6 (message) |
+| V0825 | `{T}` from `{pkg}` {a} is not `{T}` from `{pkg}` {b} | §19.7 (message) |
+| V0826 | `{pkg}` {ver}, in your lock, was yanked: {reason} | §19.8 Yanking (message), §19.7 step 5 |
+| V0827 | updating `{pkg}` adds the `{cap}` capability | §19.7 (`verse update` output) |
+| V0828 | `{pkg}` {ver} is not in the cache or in `vendor/`, and `--offline` is on | §19.8 Offline mode (message) |
+| V0829 | `{file}` in `vendor/` was edited | §19.8 Vendoring (message) |
+| V0830 | `branch` is not accepted | §19.3 `[dependencies]` (message) |
+| V0831 | `{req}` has no upper bound | §19.3 `[dependencies]` (message) |
+| V0832 | two clean builds of this project differ | §19.9 (message) |
+| V0833 | the package name `{name}` is not available | §19.4 (messages) |
+| V0901 | this program reaches the `{cap}` capability, which verse.toml does not grant | §19.12 (message), §19.3 `[capabilities]` |
 | V0904 | `{pkg}` reaches `{cap}`, which it does not declare | §19.3 `[library] capabilities` |
 | V0905 | this package uses {n} KB, but its size budget is {m} KB | §19.3 `size_budget` |
 | V0906 | `{module}` has different public items on `{target}` | §19.3 `[targets.<t>.files]` |

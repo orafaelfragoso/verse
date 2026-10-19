@@ -26,10 +26,15 @@ compiler with a different last stage, so they cannot drift apart semantically.
 - **Direct-threaded dispatch** where the host supports computed goto, with a
   `match` fallback. On Rust stable we start with a `match` loop in a hot
   function and measure before adding tail-call dispatch.
-- **Debug mode** adds a `DebugMark` check per source line; release mode strips
-  marks. Breakpoints patch an instruction to `BREAK`.
-- **Cache.** Bytecode is cached per module under `.verse/cache/` so a re-run
-  of an unchanged script starts without parsing.
+- **Debug mode** adds a `MARK` instruction per source line (derived from MIR
+  spans; MIR has no mark statement); release mode emits none. Breakpoints patch
+  an instruction to `BREAK`. The full instruction set, frame layout and task
+  scheduler are in [14](14-bytecode-and-vm.md).
+- **Cache.** Bytecode is cached under `.verse/cache/` so a re-run of an
+  unchanged script starts without parsing. The cache key is per **function
+  instance** (`DefId` plus type arguments, [02 §2.6](02-compiler-architecture.md#26-monomorphization)), because generic
+  instances cross module boundaries; instances are grouped per module on disk
+  for storage, and a module's file indexes its instances.
 - **Startup target**: hello world in under 20 ms wall time, including process
   start (target; measured in M1).
 
@@ -127,7 +132,8 @@ uart = true
 
 If `[capabilities]` lacks one the program uses, the build fails with a plain
 message: "this program calls `std.net.get`, which `thumbv7em-none-eabihf`
-cannot provide".
+cannot provide" (V0902). The **capability check** that reports it runs right
+after reachability ([02 §2.2](02-compiler-architecture.md#22-stage-contracts)), and in script mode before tier 0 starts.
 
 ## 4.4 Linking and artifacts
 

@@ -1,6 +1,6 @@
-# ADR-0007: One task semantics, three lowering strategies
+# ADR-0007: One task semantics, three native lowerings and VM tasks
 
-Status: proposed.
+Status: accepted (2026-10-18, all three owners).
 
 ## Context
 
@@ -10,11 +10,16 @@ stack switching.
 
 ## Decision
 
-Define task behavior once (the conformance suite) and implement it with:
-**stackful tasks** on native targets, **compiler-generated state machines**
-for functions that may yield on Wasm and embedded targets, and a
-**cooperative executor** on single-core devices. The "may yield" set is a
-compiler-internal effect analysis that never appears in user code.
+Define task behavior once (the conformance suite) and implement it with
+**three lowerings in compiled code**: **stackful tasks** on native targets,
+**compiler-generated state machines** for functions that may yield on Wasm
+targets without stack switching, and a **cooperative executor** (the same state
+machines, no threads) on single-core devices. Tier 0 adds a **fourth
+implementation that is not a lowering**: the bytecode VM runs tasks as its own
+coroutines (a stack chain and call records per task, switched by the
+interpreter loop; [14 §14.7](../14-bytecode-and-vm.md#147-tasks-scheduler-and-seed)).
+The "may yield" set is a compiler-internal effect analysis that never appears in
+user code.
 
 ## Alternatives
 
@@ -25,6 +30,8 @@ compiler-internal effect analysis that never appears in user code.
 
 ## Consequences
 
-- The `task-lower` pass and three runtime schedulers must be tested against the
-  same suite (differential task tests with a seeded scheduler).
+- The `task-lower` pass, the three runtime schedulers and the VM's scheduler
+  must be tested against the same suite (differential task tests with a seeded
+  scheduler, whose policy is specified once in 14 §14.7 and implemented by
+  `verse-rt` in its single-worker seeded mode).
 - Functions outside the may-yield set pay nothing on any target.

@@ -50,6 +50,8 @@ holds `print` and `input`). That is a requirement of R6, and it is tested ([09](
 Spec §11.1: lightweight tasks, many cores, no `async`/`await`, no function
 coloring, blocking calls just work. The mechanism depends on the target, but
 the observable behavior is identical ([ADR-0007](adr/0007-task-model.md)).
+Compiled code has **three lowerings** (stackful, state machines, cooperative
+executor); tier 0 has its own **VM coroutine tasks**, described last.
 
 **Native targets (`stackful`)**
 
@@ -85,6 +87,18 @@ the observable behavior is identical ([ADR-0007](adr/0007-task-model.md)).
 
 - A single-core executor with a run queue, driven by interrupts and a timer.
   Same state-machine lowering. No threads, no atomics needed.
+
+**Tier 0 (bytecode VM)**
+
+- Tasks are VM coroutines, not a lowering: each task has a chain of stack
+  segments and a vector of call records, and the interpreter loop switches
+  between them. The loop never recurses, so no native stack switching is
+  needed. One worker thread in 0.1.
+- Switch points are only the MIR `yield` terminators that cannot proceed, an
+  explicit `pause`, and task exit. The scheduler policy with and without
+  `--seed` is specified in [14 §14.7](14-bytecode-and-vm.md#147-tasks-scheduler-and-seed);
+  the seeded single-worker mode of `verse-rt` implements the same policy so
+  that differential tests compare the same task events.
 
 **Semantics shared by all strategies** (checked by the conformance suite):
 

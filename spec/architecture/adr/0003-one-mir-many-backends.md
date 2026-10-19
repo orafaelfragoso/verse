@@ -1,6 +1,6 @@
 # ADR-0003: One mono MIR, many backends
 
-Status: proposed.
+Status: accepted (2026-10-18, all three owners).
 
 ## Context
 
@@ -30,5 +30,13 @@ Backends are lowerings, not interpretations of the language.
 - The VM stays small, because ownership and generics are already resolved.
 - Overflow, bounds and panic policy live in one place.
 - A target costs a lowering and a platform layer ([04](../04-backends-and-targets.md), section 4.3).
-- MIR becomes a stability-sensitive internal interface; it is versioned, and
-  plugin backends ([07](../07-plugins.md)) see a stable serialized form.
+- MIR becomes a stability-sensitive internal interface, specified in
+  [13](../13-mir-specification.md) (text format, statements, verifier rules).
+  In 0.1 its serialization is **internal and unversioned for third parties**
+  (Q11 in [12](../12-open-questions.md)): there is no backend plugin kind
+  ([07](../07-plugins.md) ships only `lint`, `generator`, `bindgen` and
+  `tool`), and nothing outside the repository may read or write MIR. An
+  internal revision number in the header guards the persistent cache only
+  ([13.9](../13-mir-specification.md#139-versioning-policy)).
+- The first backend is the bytecode VM, specified in
+  [14](../14-bytecode-and-vm.md).

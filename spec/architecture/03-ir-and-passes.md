@@ -39,23 +39,29 @@ backends that want it (Cranelift and LLVM build SSA themselves).
 
 ### Core definitions
 
+This section is the overview. The exact grammar, printed form, every
+operand and the verifier rules V1 to V23 are in
+[13](13-mir-specification.md), which is the detailed source; if the two
+differ, 13 wins and this file is corrected.
+
 ```
 Function { id, params: [Local], ret: Type, locals: [LocalDecl], blocks: [Block],
-           unwind_cleanup: [Block], attrs }
-Block     { stmts: [Stmt], term: Terminator }
+           attrs }                                 // attrs: caps, mayyield, nounwind
+Block     { stmts: [Stmt], term: Terminator, is_cleanup: bool, span }
 
-Stmt =
+Operand = Move(Place) | Copy(Place) | Const       // ownership made explicit
+
+Stmt =                                             // every Stmt has a span and a debug name
   | Assign(Place, Rvalue)
   | StorageLive(Local) | StorageDead(Local)
   | Drop(Place, flag: Option<DropFlag>)         // run Cleanup and free
+  | SetFlag(DropFlag, bool)
   | SetDiscriminant(Place, Variant)
   | Intrinsic(IntrinsicOp, [Operand])            // backend-visible primitives
-  | DebugMark(SourceMark)                        // stepping and variable names
 
 Rvalue =
   | Use(Operand)
-  | Move(Place) | Copy(Place)                     // ownership made explicit
-  | BorrowShared(Place) | BorrowMut(Place)        // only as call arguments
+  | BorrowShared(Place) | BorrowMut(Place)        // second-class, see invariant 4
   | Binary(op, Operand, Operand)                  // wrapping ops only
   | CheckedBinary(op, Operand, Operand)           // returns (value, overflowed)
   | Cast(kind, Operand, Type)
@@ -63,25 +69,51 @@ Rvalue =
 
 Terminator =
   | Goto(Block) | Switch(Operand, [(Const, Block)], Block)
-  | Call(Callee, [Operand], dest: Place, next: Block, unwind: Option<Block>)
+  | Call(Callee, [Operand], dest: Place, next: Block, unwind: Unwind)
   | CallDyn(vtable_slot, [Operand], dest, next, unwind)
-  | Return | Unreachable
-  | Panic(PanicKind, Message, unwind: Option<Block>)
-  | Yield(YieldKind)                              // scheduler point, see 05
-  | Spawn(Callee, [Operand], dest: Place)         // arguments already moved
+  | Return(propagated: bool) | Unreachable | ResumeUnwind
+  | Panic(PanicKind, [Value], unwind: Unwind)    // structured kind, not a message
+  | Yield(YieldKind, [Operand], dest: Place, resume: Block, unwind: Unwind)
+                                                  // scheduler point: send, recv, wait, sleep, lock, sys, pause
+  | Spawn(Callee, [Operand], dest: Place, next: Block, unwind: Unwind)
+                                                  // arguments already moved
+Unwind = Cleanup(Block) | Continue | None
 ```
 
+Notes on the shape (details and examples in [13](13-mir-specification.md)):
+
+- **Operands, not rvalues, carry moves and copies.** `Copy` is only the
+  implicit bitwise copy of a `Copy` type; the explicit `.copy()` is a call.
+- **Spans, not marks.** There is no `DebugMark` statement. Every statement and
+  terminator has a span and a debug name, and the stepping marks that the
+  bytecode VM and debuggers need are derived from spans ([13.7](13-mir-specification.md#137-debug-info-and-source-spans)).
+- **Spawn and Yield** carry operands, a destination, a continuation block and
+  an unwind edge. Cancellation (spec §11.5) is delivered at a `Yield` and takes
+  its unwind edge.
+- **Cleanup blocks** end in `ResumeUnwind`. `Unwind::Continue` means there is
+  nothing to clean up in this function; `Unwind::None` means the call cannot
+  unwind.
+- **Drop flags** are written with `SetFlag`.
+
 ### Invariants (checked by the verifier)
+
+The seven invariants below are the summary; [13.5](13-mir-specification.md#135-verifier-rules)
+numbers the full rule set (V1 to V23) with a rejected example for each.
 
 1. Every `Place` is typed and every operand matches the expected type.
 2. A `Move(p)` is followed on every path by no read of `p` before it is
    reassigned (the verifier re-derives this independently of the ownership
    pass as a safety net).
 3. Every `Drop` of a possibly-moved place has a drop flag.
-4. `BorrowShared` and `BorrowMut` appear only as call operands, matching the
-   second-class rule. They never reach a stored position.
-5. Every block with a `Call`, `Panic` or `Yield` that can unwind names a
-   cleanup block, and cleanup blocks drop in reverse declaration order.
+4. Borrow values (`BorrowShared`, `BorrowMut`) are second-class: they appear
+   only as call or `Yield` operands, as parameters, and as the source of a
+   store into a local of borrow type (a temporary, or a binding that only
+   looks at its source: `b = a` while `a` is used later, a `for` loop
+   variable, a lock-guard value). They never reach a stored position (a field,
+   an element, the return place, a `Spawn` operand or a captured variable).
+5. Every `Call`, `Spawn`, `Yield` or `Panic` that can unwind names a cleanup
+   block (or `Continue` when nothing needs cleanup), and cleanup blocks drop in
+   reverse declaration order and end in `ResumeUnwind`.
 6. `CheckedBinary` is followed by a `Switch` to a `Panic(Overflow)` block, so
    no backend decides overflow policy on its own.
 7. In **mono** MIR no type contains a type parameter, and every callee is a
@@ -119,7 +151,7 @@ differential tester can isolate a miscompile.
 | 9 | `devirtualize` | turn `dyn` calls into direct calls when the concrete type is known | semantics |
 | 10 | `drop-opt` | remove drops of types without `Cleanup` and with no heap, merge flags | order of `Cleanup` calls |
 | 11 | `dce` | delete unreachable blocks and unused pure computations | side effects and panics |
-| 12 | `layout` | choose field order, niche optimization (`T?` of a pointer type costs no extra byte) | none observable |
+| 12 | `layout` | choose field order, niche optimization (`T?` of a pointer type costs no extra byte) | none observable; the `(T, Bool)` result of a checked operation keeps its order (value, then flag), because the bytecode VM and backends rely on it ([13.3](13-mir-specification.md#133-types-and-layout-facts), [14.4](14-bytecode-and-vm.md#144-instruction-set-and-encoding)) |
 | 13 | `refcount-opt` | elide atomic operations on `Shared` when whole-program analysis shows the program never spawns, or elide the pair on a clone and drop in one block | counts at any observable point |
 | 14 | `task-lower` | mark may-yield functions, build state machines or insert stack-switch points depending on target | task semantics |
 

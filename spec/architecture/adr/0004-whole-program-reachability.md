@@ -1,6 +1,6 @@
 # ADR-0004: Whole-program reachability for tree-shaking
 
-Status: proposed.
+Status: accepted (2026-10-18, all three owners).
 
 ## Context
 
