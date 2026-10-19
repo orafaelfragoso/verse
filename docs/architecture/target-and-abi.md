@@ -276,15 +276,26 @@ user code (spec §13.4):
   buffer whose storage count reaches zero (15.3.3), or the data of an owned
   `dyn` value (15.3.5). It pushes that part on the task's **drop stack**
   instead, and the outermost glue runs a loop that drops the top entry's next
-  part until the stack is empty. Glue of a part stored inline is a direct
-  call, whose depth the type bounds, so a drop uses bounded native stack
-  however deep the data is. An entry holds the part's pointer, its glue and
+  part until the stack is empty. The drop stack belongs to the worker, not to
+  the task: a drop never yields (V15), so a worker runs one drop at a time,
+  and a task costs no drop-stack memory. Glue drops the parts stored inline in its
+  own body, flattened however deeply the types nest, so glue never calls
+  another glue: it calls only the release functions of the runtime and the
+  drop stack. A drop therefore uses a fixed amount of native stack, set by
+  the runtime, whatever the types and however deep the data. An entry holds the part's pointer, its glue and
   the index of its next part, so the parts drop in exactly the order above.
   When the part to drop is an entry's last one, the entry's storage is freed
   and the entry is replaced by the part's, so a chain such as a `Cons` list
   needs one entry; the stack holds one entry per level of nesting that has
-  parts after it. The first entries live in the TCB (assumption: 64, set in
-  M1); deeper drops grow the stack in chunks from the allocator. A chunk
+  parts after it. The first 64 entries are static in the worker's state, 1.5
+  KiB on a 64-bit target and 768 bytes on a 32-bit one; deeper drops grow the
+  stack in chunks from the allocator. Measured with `tools/measure/drop-depth.py`
+  on 56,603 JSON documents found on a developer machine, parsed into the type
+  `Json = Null | Bool | Num | Str(Text) | Arr(List<Json>) | Obj(Map<Text,
+  Json>)`: the most entries any document needed was 20 (median 4, 99th
+  percentile 8, 99.9th 13), for nesting up to 26 levels; a 100,000-cell
+  `Cons` list needs 1, and a tree that is deep only on its left needs one
+  per level. A chunk
   that cannot be allocated is an `out_of_memory` panic in a frame that cannot
   unwind, so the runtime prints the report and aborts the process. A
   `--no-heap` build has no part in its own allocation, so its glue never
@@ -788,12 +799,22 @@ reservation is a backstop behind it, and on some targets it fills first
   was left; its normal return gives the call back. The
   stack limit is set `headroom` above the real end of the stack so that
   cleanup blocks and the panic path run in the reserve. The headroom is
-  `[tasks] headroom` of the target file (15.9.2): 16 KiB by default, 512
-  bytes on the Cortex-M target of 15.9.3. It must hold the cold block,
-  `rt_panic` with its streaming report (15.7.1), and the glue that cleanup
-  blocks call, whose depth the types bound (15.3.6). Assumption: 512 bytes
-  holds that path on Cortex-M, measured in M7, and 16 KiB on hosted targets,
-  measured in M2. A `max_stack` under twice the headroom is refused when the
+  `[tasks] headroom` of the target file (15.9.2): 16 KiB by default, 1 KiB
+  on the Cortex-M target of 15.9.3. It must hold the cold block, `rt_panic`
+  with its streaming report (15.7.1), the unwinder on a `native` target, and
+  the glue that cleanup blocks call, which is flat (15.3.6). On Cortex-M it
+  must also hold one exception frame, because an interrupt stacks its frame
+  on the stack the task runs on. Measured on prototypes of that path in
+  `tools/measure/`: on Cortex-M4 (`thumbv7em-none-eabihf`, `opt-level =
+  "s"`), `rt_panic` uses at most 396 bytes over every panic kind and a
+  4,000-call folded trace (1,452 bytes unoptimized), the drop drain 60
+  bytes, and the exception frame with a floating-point context 108 bytes,
+  so 504 bytes of the 1 KiB are used and the rest is margin for the full
+  runtime. On x86-64 Linux, a panic that walks 35 frames and unwinds through
+  drops uses 2.1 KiB (2.7 KiB unoptimized), the same with and without the
+  walk. Resolving the walk through DWARF would use 19.5 KiB, which is why
+  the report reads only the trace map (15.7.1). The numbers are measured
+  again on `verse-rt` itself in M2 and M7. A `max_stack` under twice the headroom is refused when the
   target file loads (V0911, 15.9.4), so the limit never sits at the start of
   the stack. Cost target, measured in M2
   on x86-64 and AArch64: at most 3 instructions per call for the stack check,
@@ -1333,7 +1354,7 @@ heap  = "16K"              # a default; a project overrides it with [targets.<na
 
 [tasks]
 max_stack = "4K"           # not the hosted 8M: tasks share the one stack of [memory]
-headroom  = 512            # not the hosted 16K, which would be the whole stack
+headroom  = "1K"           # not the hosted 16K, which would be the whole stack
 
 [exit]
 on_exit = "halt"

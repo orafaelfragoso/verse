@@ -216,10 +216,18 @@ Spec §4.2 requires "specialized code for each concrete type used".
   counts when the program never spawns
   ([03 §3.4](ir-and-passes.md#34-pass-list)). The optimized body holds every
   callee body it took in and every such decision, so a changed dependency
-  body or a new `spawn` elsewhere changes the key. The optimizer reruns on
-  each verified instance and code generation is skipped on a hit
-  (assumption: optimizing costs a small part of code generation; measured
-  in M2).
+  body or a new `spawn` elsewhere changes the key.
+- **Optimized instances** are cached as well. The optimizer reads a
+  whole-program fact only through a query (the callers of a function, whether
+  a `spawn` is reachable), so the query system records every fact each
+  optimized instance read. A cached optimized instance is reused while its
+  verified-instance key and the value of every fact it read are unchanged. A
+  pass that reads one more fact reads it through a query too, so no list of
+  facts is kept by hand. Rerunning the optimizer on every build would not be
+  cheap: in rustc, as measured with `tools/measure/opt-vs-codegen/`, the
+  optimizing MIR passes cost 8% to 10% of LLVM code generation but 25% (debug)
+  to 75% (release) of Cranelift code generation, median of 5 runs each,
+  building `serde_json` and `regex`.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.

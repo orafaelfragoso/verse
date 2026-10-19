@@ -1,0 +1,15 @@
+[package]
+name = "panic-path"
+version = "0.0.0"
+edition = "2024"
+
+[[bin]]
+name = "panic-path"
+test = false
+bench = false
+
+[profile.dev]
+panic = "abort"
+[profile.release]
+panic = "abort"
+opt-level = "s"

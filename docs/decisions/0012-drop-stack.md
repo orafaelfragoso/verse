@@ -16,14 +16,18 @@ except the stack itself.
 1. Glue never calls glue for a part in its own heap allocation (a `Box`, a
    collection or text buffer whose count reaches zero, an owned `dyn`'s
    data). It pushes the part on the task's drop stack, and the outermost
-   glue drains the stack in a loop (15 §15.3.6). Inline parts keep direct
-   calls, whose depth the type bounds.
+   glue drains the stack in a loop (15 §15.3.6). Glue drops inline parts in
+   its own body, flattened, so it never calls another glue and a drop uses
+   a fixed amount of native stack, whatever the types.
 2. An entry holds the part's pointer, its glue and its next part index, so
    the drop order of spec §4.10 point 4 is unchanged.
 3. When an entry's last part is the one being dropped, the entry is replaced
    rather than kept, so a chain needs one entry and the stack holds one entry
    per level that still has parts after it.
-4. The first entries sit in the TCB; deeper drops grow the stack in chunks.
+4. The drop stack belongs to the worker, because a drop never yields; a task
+   costs no drop-stack memory. Its first 64 entries are static; the most a
+   corpus of 56,603 real JSON documents needed was 20. Deeper drops grow the
+   stack in chunks.
    A chunk that cannot be allocated aborts the process with the
    `out_of_memory` report, because glue cannot unwind.
 5. The spec states the guarantee: dropping a value of any depth cannot
