@@ -446,8 +446,8 @@ files on disk, the number of cores. Output contains no paths or timestamps
 
 **One cache, shared.** The package manager stores packages in the global
 content-addressed store; the compiler's per-project `.verse/cache/` keys
-modules and objects by `blake3(source, compiler version, flags, verse.api of
-imports)` (02 §2.7); the shaking results of 06 §6.10 are keyed by
+modules by `blake3(source, compiler version, flags, verse.api of imports)`
+and object code by the object key of each instance (02 §2.7); the shaking results of 06 §6.10 are keyed by
 `blake3(root set, edge-list hashes, target file, profile)`. All three use the
 same hash, so a package's parsed modules and per-instance edge lists can be
 reused across projects that lock the same version (Assumption: a global

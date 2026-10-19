@@ -193,9 +193,9 @@ Spec §4.2 requires "specialized code for each concrete type used".
 - **Unit of parallelism** is the function body for inference, ownership and MIR
   build; the module for parsing and resolution; the instance for
   monomorphization, verification, optimization and code generation.
-- **Persistent cache.** `.verse/cache/` stores parsed modules, signatures and
-  object code keyed by `blake3(source, compiler version, flags, verse.api of
-  imports)`. It stores each verified instance of the script-mode pre-pass
+- **Persistent cache.** `.verse/cache/` stores parsed modules and signatures
+  keyed by `blake3(source, compiler version, flags, verse.api of imports)`.
+  It stores each verified instance of the script-mode pre-pass
   (2.6) under its own **verified-instance key**, which is transitive. The key hashes
   the compiler version, flags, target, the generic MIR of the instance's
   DefId and its type arguments, together with the keys of the instances it
@@ -210,6 +210,20 @@ Spec §4.2 requires "specialized code for each concrete type used".
   `verse.api` stays the same when only that body changes, so the module key
   would return a stale instance. `verse x.vs` on an unchanged script skips
   straight to execution.
+- **Object code** is stored per instance under its **object key**:
+  `blake3(optimized mono MIR of the instance, layouts of the types it uses,
+  compiler version, backend, codegen flags, target)`. It hashes the
+  optimized body, not the verified-instance key, because the optimizer
+  writes whole-program facts into an instance: `inline` takes in a callee
+  that has one caller in the program, and `refcount-opt` drops atomic
+  counts when the program never spawns
+  ([03 §3.4](ir-and-passes.md#34-pass-list)). The optimized body holds every
+  callee body it took in and every such decision, so a changed dependency
+  body or a new `spawn` elsewhere changes the key. The optimizer reruns on
+  each verified instance and code generation is skipped on a hit
+  (assumption: optimizing costs a small part of code generation; measured
+  in M2). [ADR-0020](../decisions/0020-object-key.md) records the
+  decision.
 - **Deterministic output.** Same inputs and `verse.lock` give the same bytes
   (spec §16.3): no timestamps, no hash-map iteration order leaking into output,
   stable instance ordering.
