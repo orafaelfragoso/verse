@@ -1,0 +1,29 @@
+name: Design proposal
+description: Change the language, the standard library or the architecture.
+labels: [design, "status:needs-design"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What a user cannot do today, or does badly. Show it with Verse code.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The change, with Verse code that uses it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other designs you considered, and why this one wins.
+  - type: textarea
+    id: docs
+    attributes:
+      label: Affected docs
+      description: The docs and sections that change.
+      placeholder: docs/language/12-modules.md §12.6
