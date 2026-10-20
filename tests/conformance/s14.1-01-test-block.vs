@@ -1,0 +1,2 @@
+test "arithmetic"
+    assert 1 + 1 == 2

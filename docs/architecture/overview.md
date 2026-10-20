@@ -3,8 +3,9 @@
 This page explains, in plain language, how Verse will be built. The
 specification ([../language/README.md](../language/README.md)) says what Verse programs
 mean. The documents in this folder say how the toolchain turns those programs
-into something that runs. **Nothing here is implemented yet.** Every number in
-this folder is a *target*, not a measurement ([README](README.md#conventions)).
+into something that runs. The M0 implementation covers syntax and foundational
+tooling; execution belongs to later milestones. Performance budgets are
+*targets*, not measurements ([README](README.md#conventions)).
 
 ## What the implementation is
 
@@ -79,9 +80,9 @@ The full pipeline, with each stage's contract, is in
 2. **The specification wins.** When this folder and the specification
    disagree, the specification is right. Architecture documents may
    *propose* spec changes; they never assume them.
-3. **Nothing is implemented yet, so numbers are targets.** No document in this
-   folder reports a measurement. Sizes, times and speedups are budgets to be
-   verified by the milestones in [11](../roadmap.md).
+3. **Budgets need measurements.** Sizes, times and speedups are targets until
+   the milestones in [11](../roadmap.md) measure them. The compiler benchmark
+   harness records measurements separately from these budgets.
 4. **Pay only for what you use.** A feature that a program does not reach
    costs it nothing: no code, no runtime slice, no start-up work.
 5. **Explanations are part of the product.** Every error, every included item

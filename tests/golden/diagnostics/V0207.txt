@@ -1,0 +1,8 @@
+error: an import must be at the top of the file
+  --> example.vs:2:1
+  |
+2 | import fs
+  | ^^^^^^ imports come right after the doc comment
+rule: §12.2
+help: move this line up
+explain: V0207 (run `verse explain V0207`)

@@ -1,0 +1,374 @@
+use crate::{SourceFile, Span};
+use serde::Serialize;
+use std::{collections::BTreeMap, fmt::Write};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Severity {
+    Error,
+    Warning,
+    Note,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum Fact {
+    Text(String),
+    Number(u64),
+    Position(Span),
+}
+impl From<&str> for Fact {
+    fn from(v: &str) -> Self {
+        Self::Text(v.into())
+    }
+}
+impl From<String> for Fact {
+    fn from(v: String) -> Self {
+        Self::Text(v)
+    }
+}
+impl From<usize> for Fact {
+    fn from(v: usize) -> Self {
+        Self::Number(v as u64)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Label {
+    pub span: Span,
+    pub label: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Edit {
+    pub span: Span,
+    pub replacement: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Suggestion {
+    pub message: String,
+    pub edits: Vec<Edit>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Diagnostic {
+    pub code: String,
+    pub severity: Severity,
+    pub message: String,
+    pub primary: Label,
+    pub secondary: Vec<Label>,
+    pub rule: String,
+    pub help: Vec<Suggestion>,
+    pub facts: BTreeMap<String, Fact>,
+}
+
+pub struct Definition {
+    pub code: &'static str,
+    pub message: &'static str,
+    pub label: &'static str,
+    pub help: &'static str,
+    pub rule: &'static str,
+    pub example: &'static str,
+    pub reason: &'static str,
+}
+
+macro_rules! definitions {
+    ($(($code:literal, $message:literal, $label:literal, $help:literal, $rule:literal, $example:literal, $reason:literal)),* $(,)?) => {
+        pub static DEFINITIONS: &[Definition] = &[$(Definition { code: $code, message: $message, label: $label, help: $help, rule: $rule, example: $example, reason: $reason }),*];
+    }
+}
+definitions![
+    (
+        "V0101",
+        "a tab is not allowed in indentation",
+        "this line starts with a tab",
+        "indent with four spaces (applied by `verse fmt`)",
+        "§3.3",
+        "if true\n    pass",
+        "Spaces make block boundaries unambiguous."
+    ),
+    (
+        "V0102",
+        "this line is indented by {n} spaces, not a multiple of 4",
+        "expected {m} or {k} spaces",
+        "indent with {m} spaces",
+        "§3.3",
+        "if true\n    pass",
+        "Block lines share an indentation; canonical indentation is four spaces."
+    ),
+    (
+        "V0103",
+        "this text is never closed",
+        "the text starts here",
+        "add the closing `\"`",
+        "§3.7",
+        "text = \"hello\"",
+        "A literal needs a closing quote to delimit its contents."
+    ),
+    (
+        "V0104",
+        "`\\{c}` is not an escape",
+        "not one of `\\n \\t \\\\ \\\" \\{ \\}`",
+        "write `\\\\` for a backslash",
+        "§3.7",
+        "path = r\"C:\\files\"",
+        "Escapes have explicit spellings; raw text needs no escapes."
+    ),
+    (
+        "V0105",
+        "a raw text must start on its own line",
+        "the opening `\"\"\"` ends its line, but this one is followed by text",
+        "move the text to the next line",
+        "§3.7",
+        "text = r\"hello\"",
+        "Triple-quoted text uses the closing indentation to strip indentation."
+    ),
+    (
+        "V0106",
+        "this interpolation is nested too deeply",
+        "text inside `{…}` inside `{…}`",
+        "bind the inner text to a name first",
+        "§3.7",
+        "inner = \"hello\"\ntext = \"{inner}\"",
+        "One nested text level keeps interpolation readable."
+    ),
+    (
+        "V0107",
+        "`{text}` is not a number",
+        "cannot read this as {kind}",
+        "write digits, with `_` between groups",
+        "§3.7",
+        "number = 1_000",
+        "Numeric literals must follow their base and exponent grammar."
+    ),
+    (
+        "V0108",
+        "the number {text} does not fit in `Int`",
+        "the largest `Int` is 9,223,372,036,854,775,807",
+        "use a `Float`, or a sized type from `math`",
+        "§4.1",
+        "number = 9223372036854775807",
+        "Int is a signed 64-bit integer on every target."
+    ),
+    (
+        "V0109",
+        "this file is not valid UTF-8",
+        "the first bad byte is here",
+        "save the file as UTF-8",
+        "§3.1",
+        "text = \"é\"",
+        "Every Verse source file is UTF-8."
+    ),
+    (
+        "V0201",
+        "expected {what} here",
+        "found {found}",
+        "",
+        "§3",
+        "fn example()\n    pass",
+        "Declarations and expressions have explicit grammatical boundaries."
+    ),
+    (
+        "V0202",
+        "this block is empty",
+        "a block needs at least one line",
+        "write `pass`, or remove the line",
+        "§6.6",
+        "if true\n    pass",
+        "An intentionally empty block is written pass."
+    ),
+    (
+        "V0203",
+        "`{kw}` is a keyword and cannot be a name",
+        "rename it",
+        "try `{kw}_` or a more specific name",
+        "§3.6",
+        "fn example()\n    pass",
+        "Keywords identify language constructs, not user bindings."
+    ),
+    (
+        "V0206",
+        "`from` must come last in an import",
+        "the item list goes first",
+        "write `import {names} from {module}`",
+        "§12.2",
+        "import read_text from fs",
+        "Imports always start with import; from distinguishes item imports."
+    ),
+    (
+        "V0207",
+        "an import must be at the top of the file",
+        "imports come right after the doc comment",
+        "move this line up",
+        "§12.2",
+        "import fs\ntext = \"hello\"",
+        "A module's dependencies are visible at the start of the file."
+    ),
+    (
+        "V0208",
+        "a long import needs parentheses",
+        "the list continues on the next line",
+        "wrap the names in `( … )`",
+        "§12.2",
+        "import (\n    read_text,\n    write_text,\n) from fs",
+        "Only parenthesized import lists may span physical lines."
+    ),
+    (
+        "V0209",
+        "`{op}` cannot be in the right operand of `otherwise` without parentheses",
+        "`otherwise` binds more loosely than `{op}`",
+        "write `({left} otherwise {right}) {op} {rest}` or `{left} otherwise ({right} {op} {rest})`",
+        "§3.8.2",
+        "value = count otherwise (0 + 1)",
+        "Restricted fallback operands prevent surprising precedence."
+    ),
+    (
+        "V0210",
+        "`{}` does not say whether it is a map or a set",
+        "this could be an empty map or an empty set",
+        "write `{:}` for an empty map, or `set{}` for an empty set",
+        "§3.7",
+        "settings = {:}",
+        "Maps and sets have distinct empty literal spellings."
+    ),
+    (
+        "V1101",
+        "no command `{word}`; to run a file, write `{word}.vs`",
+        "",
+        "run `verse` with no arguments to see the commands",
+        "19 §19.2.1",
+        "print(\"hello\")",
+        "A command name and a source path are distinguished by their spelling."
+    ),
+    (
+        "V9901",
+        "the compiler failed in {stage}; this is a bug in Verse, not in your program",
+        "",
+        "run `verse check --report` and send the file",
+        "02 §2.2",
+        "print(\"hello\")",
+        "A stage must establish its output invariants. This failure is an implementation bug."
+    ),
+];
+
+impl Diagnostic {
+    pub fn new(
+        code: &str,
+        span: Span,
+        facts: impl IntoIterator<Item = (&'static str, Fact)>,
+    ) -> Self {
+        let definition = DEFINITIONS
+            .iter()
+            .find(|d| d.code == code)
+            .expect("undefined diagnostic");
+        let facts: BTreeMap<String, Fact> = facts.into_iter().map(|(k, v)| (k.into(), v)).collect();
+        let expand = |template: &str| {
+            let mut s = String::new();
+            let mut remaining = template;
+            while let Some(start) = remaining.find('{') {
+                s.push_str(&remaining[..start]);
+                remaining = &remaining[start..];
+                let Some(end) = remaining.find('}') else {
+                    break;
+                };
+                match facts.get(&remaining[1..end]) {
+                    Some(Fact::Text(value)) => s.push_str(value),
+                    Some(Fact::Number(value)) => s.push_str(&value.to_string()),
+                    Some(Fact::Position(value)) => {
+                        let _ = write!(s, "{}:{}", value.start, value.end);
+                    }
+                    None => s.push_str(&remaining[..=end]),
+                }
+                remaining = &remaining[end + 1..];
+            }
+            s.push_str(remaining);
+            s
+        };
+        Self {
+            code: code.into(),
+            severity: Severity::Error,
+            message: expand(definition.message),
+            primary: Label {
+                span,
+                label: expand(definition.label),
+            },
+            secondary: vec![],
+            rule: definition.rule.into(),
+            help: if definition.help.is_empty() {
+                vec![]
+            } else {
+                vec![Suggestion {
+                    message: expand(definition.help),
+                    edits: vec![],
+                }]
+            },
+            facts,
+        }
+    }
+
+    pub fn simple(code: &str, span: Span) -> Self {
+        Self::new(code, span, [])
+    }
+
+    pub fn with_edit(mut self, span: Span, replacement: impl Into<String>) -> Self {
+        if let Some(help) = self.help.first_mut() {
+            help.edits.push(Edit {
+                span,
+                replacement: replacement.into(),
+            });
+        }
+        self
+    }
+
+    pub fn render(&self, source: &SourceFile) -> String {
+        let (line, col) = source.position(self.primary.span.start);
+        let (_, end_col) = source.position(self.primary.span.end);
+        let width = line.to_string().len();
+        let severity = match self.severity {
+            Severity::Error => "error",
+            Severity::Warning => "warning",
+            Severity::Note => "note",
+        };
+        let mut out = format!(
+            "{severity}: {}\n  --> {}:{line}:{col}\n{:width$} |\n{line:width$} | {}\n{:width$} | {}{} {}\n",
+            self.message,
+            source.name,
+            "",
+            source.line(line),
+            "",
+            " ".repeat(col - 1),
+            "^".repeat(end_col.saturating_sub(col).max(1)),
+            self.primary.label
+        );
+        for label in &self.secondary {
+            let (l, c) = source.position(label.span.start);
+            let _ = writeln!(out, "  --> {}:{l}:{c}: {}", source.name, label.label);
+        }
+        let _ = writeln!(out, "rule: {}", self.rule);
+        for help in &self.help {
+            let _ = writeln!(out, "help: {}", help.message);
+        }
+        let _ = writeln!(
+            out,
+            "explain: {} (run `verse explain {}`)",
+            self.code, self.code
+        );
+        out
+    }
+}
+
+pub fn explain(code: &str) -> Option<String> {
+    let d = DEFINITIONS.iter().find(|d| d.code == code)?;
+    Some(format!(
+        "{}  {}\n\nWhat happened\n{}\n\nWhy Verse works this way\n{} ({})\n\nWays to fix it\n{}\nReview the indicated source and the rule above.\n\nExample\n{}\n",
+        d.code,
+        d.message,
+        d.message,
+        d.reason,
+        d.rule,
+        if d.help.is_empty() {
+            "Use the syntax shown in the example."
+        } else {
+            d.help
+        },
+        d.example
+    ))
+}

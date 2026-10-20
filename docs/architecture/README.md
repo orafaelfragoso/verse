@@ -5,8 +5,9 @@ This folder is the engineering counterpart of the language specification
 means**. These documents say **how we build it**. When the two disagree, the
 specification wins.
 
-Written against spec 0.1. Nothing here has been implemented yet, so every
-number is a *target*, not a measurement.
+Written against spec 0.1. The M0 syntax front end, formatter and harnesses live
+under `crates/`, `tests/` and `bench/`. Later pipeline stages are planned.
+Performance budgets are *targets*, not measurements.
 
 | No. | Document | What it answers |
 |-----|----------|-----------------|

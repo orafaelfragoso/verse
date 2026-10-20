@@ -1,0 +1,49 @@
+[package]
+name = "verse-syntax-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[workspace.dependencies]
+libfuzzer-sys = "0.4"
+verse-syntax = { path = "../../crates/verse-syntax" }
+verse-fmt = { path = "../../crates/verse-fmt" }
+
+[dependencies]
+libfuzzer-sys.workspace = true
+verse-syntax.workspace = true
+verse-fmt.workspace = true
+
+[[bin]]
+name = "lexer"
+path = "fuzz_targets/lexer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parser"
+path = "fuzz_targets/parser.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "formatter"
+path = "fuzz_targets/formatter.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "grammar"
+path = "fuzz_targets/grammar.rs"
+test = false
+doc = false
+bench = false

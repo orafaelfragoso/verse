@@ -110,9 +110,11 @@ gives every rule an identifier.
 | V0104 | error | `\{c}` is not an escape | not one of `\n \t \\ \" \{ \}` | write `\\` for a backslash | §3.7 |
 | V0105 | error | a raw text must start on its own line | the opening `"""` ends its line, but this one is followed by text | move the text to the next line | §3.7 |
 | V0106 | error | this interpolation is nested too deeply | text inside `{…}` inside `{…}` | bind the inner text to a name first | §3.7 |
-| V0107 | error | `{text}` is not a number | cannot read this as {Int or Float} | write digits, with `_` between groups | §3.7 |
+| V0107 | error | `{text}` is not a number | cannot read this as {kind} | write digits, with `_` between groups | §3.7 |
 | V0108 | error | the number {text} does not fit in `Int` | the largest `Int` is 9,223,372,036,854,775,807 | use a `Float`, or a sized type from `math` | §4.1 |
 | V0109 | error | this file is not valid UTF-8 | the first bad byte is here | save the file as UTF-8 | §3.1 |
+
+The `kind` fact of V0107 is `Int` or `Float`.
 
 ### V02xx Syntax
 

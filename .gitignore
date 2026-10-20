@@ -2,3 +2,7 @@ dist/
 target/
 .claude/*
 !.claude/skills/
+__pycache__/
+/tests/fuzz/artifacts/
+/tests/fuzz/corpus/*/*
+!/tests/fuzz/corpus/*/*.vs

@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Extract the specification corpus with checked, source-bound exceptions (§10.2)."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+
+ROOT = Path(__file__).resolve().parent.parent
+ANNOTATIONS = ROOT / "tests/conformance/examples.json"
+
+
+def extract():
+    examples = []
+    for path in sorted((ROOT / "docs/language").glob("*.md")):
+        section = ""
+        lines = path.read_text().splitlines(keepends=True)
+        index = 0
+        ordinal = 0
+        while index < len(lines):
+            line = lines[index]
+            heading = re.match(r"^#{1,6}\s+(\d+(?:\.\d+)*)\.?\s", line)
+            if heading:
+                section = "§" + heading[1]
+            fence = re.match(r"^( {0,3})(`{3,}|~{3,})verse\s*$", line)
+            if not fence:
+                index += 1
+                continue
+            start = index + 2
+            index += 1
+            code = []
+            indentation = len(fence[1])
+            delimiter = fence[2]
+            while index < len(lines) and not re.match(rf"^ {{0,3}}{re.escape(delimiter[0])}{{{len(delimiter)},}}\s*$", lines[index]):
+                content = lines[index]
+                leading = len(content) - len(content.lstrip(" "))
+                code.append(content[min(indentation, leading):])
+                index += 1
+            if index == len(lines):
+                raise ValueError(f"{path}:{start}: unterminated example")
+            ordinal += 1
+            source = "".join(code)
+            examples.append({"id": f"{path.stem}/{ordinal:03}", "path": str(path.relative_to(ROOT)), "line": start, "column": indentation + 1, "section": section, "source": source, "sha256": hashlib.sha256(source.encode()).hexdigest()})
+            index += 1
+    return examples
+
+
+def corpus():
+    examples = extract()
+    annotations = json.loads(ANNOTATIONS.read_text())
+    seen = set()
+    for example in examples:
+        key = example["id"]
+        annotation = annotations.get(key)
+        if annotation:
+            seen.add(key)
+            if annotation.get("sha256") != example["sha256"]:
+                raise ValueError(f"{key}: annotation is stale; review the changed example")
+            if not annotation.get("reason", "").strip():
+                raise ValueError(f"{key}: an exception needs a reason")
+            if annotation.get("kind") not in ("fragment", "reject"):
+                raise ValueError(f"{key}: unknown exception kind")
+            if annotation["kind"] == "reject" and not annotation.get("codes"):
+                raise ValueError(f"{key}: a rejection needs expected diagnostic codes")
+            example.update(annotation)
+        else:
+            example["kind"] = "parse"
+    stale = annotations.keys() - seen
+    if stale:
+        raise ValueError(f"annotations refer to missing examples: {sorted(stale)}")
+    return examples
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--inventory", action="store_true", help="list examples before applying classifications")
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+    examples = extract() if args.inventory else corpus()
+    output = json.dumps(examples, ensure_ascii=False, indent=2) + "\n"
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(output)
+    else:
+        print(output, end="")
+
+
+if __name__ == "__main__":
+    main()

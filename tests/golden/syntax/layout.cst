@@ -1,0 +1,63 @@
+File@0..111
+  Function@0..111
+    DocComment@0..25 "## Document the funct ..."
+    Newline@25..26 "\n"
+    Keyword@26..28 "fn"
+    Whitespace@28..29 " "
+    Ident@29..36 "example"
+    Parameters@36..43
+      Symbol@36..37 "("
+      Parameter@37..42
+        Ident@37..42 "items"
+      Symbol@42..43 ")"
+    Block@43..111
+      Newline@43..44 "\n"
+      Whitespace@44..48 "    "
+      Indent@48..48 ""
+      Binding@48..97
+        Pattern@48..54
+          Ident@48..54 "labels"
+        Whitespace@54..55 " "
+        Symbol@55..56 "="
+        Call@56..97
+          FieldAccess@56..66
+            Name@56..62
+              Whitespace@56..57 " "
+              Ident@57..62 "items"
+            Symbol@62..63 "."
+            Ident@63..66 "map"
+          Arguments@66..97
+            Symbol@66..67 "("
+            Argument@67..97
+              Lambda@67..97
+                Ident@67..71 "item"
+                Whitespace@71..72 " "
+                Symbol@72..74 "->"
+                Block@74..97
+                  Newline@74..75 "\n"
+                  Whitespace@75..83 "        "
+                  Indent@83..83 ""
+                  ExpressionStatement@83..93
+                    FieldAccess@83..92
+                      Name@83..87
+                        Ident@83..87 "item"
+                      Symbol@87..88 "."
+                      Ident@88..92 "name"
+                    Newline@92..93 "\n"
+                  Whitespace@93..97 "    "
+                  Dedent@97..97 ""
+            ImplicitClose@97..97 ""
+      ExpressionStatement@97..111
+        Call@97..110
+          Name@97..102
+            Ident@97..102 "print"
+          Arguments@102..110
+            Symbol@102..103 "("
+            Argument@103..109
+              Name@103..109
+                Ident@103..109 "labels"
+            Symbol@109..110 ")"
+        Newline@110..111 "\n"
+      Dedent@111..111 ""
+  Eof@111..111 ""
+

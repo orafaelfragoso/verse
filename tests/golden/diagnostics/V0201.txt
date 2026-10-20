@@ -1,0 +1,7 @@
+error: expected an expression here
+  --> example.vs:1:5
+  |
+1 | x = )
+  |     ^ found )
+rule: §3
+explain: V0201 (run `verse explain V0201`)

@@ -1,0 +1,8 @@
+error: `while` is a keyword and cannot be a name
+  --> example.vs:1:4
+  |
+1 | fn while()
+  |    ^^^^^ rename it
+rule: §3.6
+help: try `while_` or a more specific name
+explain: V0203 (run `verse explain V0203`)

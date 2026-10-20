@@ -1,0 +1,8 @@
+error: the number 9223372036854775808 does not fit in `Int`
+  --> example.vs:1:10
+  |
+1 | number = 9223372036854775808
+  |          ^^^^^^^^^^^^^^^^^^^ the largest `Int` is 9,223,372,036,854,775,807
+rule: §4.1
+help: use a `Float`, or a sized type from `math`
+explain: V0108 (run `verse explain V0108`)

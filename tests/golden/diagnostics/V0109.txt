@@ -1,0 +1,8 @@
+error: this file is not valid UTF-8
+  --> example.vs:1:1
+  |
+1 | �
+  | ^ the first bad byte is here
+rule: §3.1
+help: save the file as UTF-8
+explain: V0109 (run `verse explain V0109`)

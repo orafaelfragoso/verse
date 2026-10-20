@@ -1,0 +1,28 @@
+File@0..34
+  Binding@0..10
+    Pattern@0..5
+      Ident@0..5 "value"
+    Whitespace@5..6 " "
+    Symbol@6..7 "="
+    Error@7..7
+    Error@7..10
+      Whitespace@7..8 " "
+      Symbol@8..9 ")"
+      Newline@9..10 "\n"
+  Function@10..34
+    Keyword@10..12 "fn"
+    Whitespace@12..13 " "
+    Ident@13..22 "following"
+    Parameters@22..24
+      Symbol@22..23 "("
+      Symbol@23..24 ")"
+    Block@24..34
+      Newline@24..25 "\n"
+      Whitespace@25..29 "    "
+      Indent@29..29 ""
+      Pass@29..34
+        Keyword@29..33 "pass"
+        Newline@33..34 "\n"
+      Dedent@34..34 ""
+  Eof@34..34 ""
+

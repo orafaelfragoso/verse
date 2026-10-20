@@ -1,0 +1,8 @@
+error: no command `unknown`; to run a file, write `unknown.vs`
+  --> example.vs:1:1
+  |
+1 | unknown
+  | ^^^^^^^ 
+rule: 19 §19.2.1
+help: run `verse` with no arguments to see the commands
+explain: V1101 (run `verse explain V1101`)

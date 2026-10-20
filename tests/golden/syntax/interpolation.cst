@@ -1,0 +1,12 @@
+File@0..48
+  Binding@0..48
+    Pattern@0..4
+      Ident@0..4 "text"
+    Whitespace@4..5 " "
+    Symbol@5..6 "="
+    Literal@6..47
+      Whitespace@6..7 " "
+      Text@7..47 "\"{f(x: 1)} { {\"a\": 1} ..."
+    Newline@47..48 "\n"
+  Eof@48..48 ""
+

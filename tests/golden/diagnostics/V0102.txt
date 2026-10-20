@@ -1,0 +1,8 @@
+error: this line is indented by 3 spaces, not a multiple of 4
+  --> example.vs:2:4
+  |
+2 |    pass
+  |    ^^^^ expected 0 or 4 spaces
+rule: §3.3
+help: indent with 0 spaces
+explain: V0102 (run `verse explain V0102`)

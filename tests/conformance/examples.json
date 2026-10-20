@@ -1,0 +1,39 @@
+{
+  "03-lexical/010": {
+    "sha256": "c0927bfa990ed096d36768eff7e90f4f025561f6d00fd7056433b3b476e1a9fb",
+    "kind": "reject",
+    "reason": "§3.8.2 deliberately shows an unparenthesized binary fallback.",
+    "codes": ["V0209"]
+  },
+  "03-lexical/011": {
+    "sha256": "5ede24ea1798fe8dc1573de4e82f3837d4e56db29a589742c8438adac4151aa6",
+    "kind": "reject",
+    "reason": "§3.8.2 deliberately nests an exit inside a larger fallback expression.",
+    "codes": ["V0209"]
+  },
+  "05-functions/009": {
+    "sha256": "2172ee03825fe2050ab5e390bce9865ab6f0667e407e1da83c6256c64e4bff22",
+    "kind": "fragment",
+    "reason": "The connect body is omitted using the §1.7 ellipsis notation."
+  },
+  "08-errors/003": {
+    "sha256": "4c80d730a91f08ce8dc3165dca0be530833dce5f1b7d27543c5fa63b12d3ab74",
+    "kind": "fragment",
+    "reason": "Explicitly labelled signatures only; these are not function definitions."
+  },
+  "08-errors/009": {
+    "sha256": "148c6d2eb8996737795f9fddf9cd1d4e56c5e95f8010cd87e9e3382d9a8dcbd4",
+    "kind": "fragment",
+    "reason": "The nickname body is omitted using the §1.7 ellipsis notation."
+  },
+  "14-testing-docs/003": {
+    "sha256": "30acec9829ad352761b2646f51b51e2d2d5e2c66ffb0c3809014616dbf9c800b",
+    "kind": "fragment",
+    "reason": "The documented distance function has an omitted body."
+  },
+  "14-testing-docs/004": {
+    "sha256": "ea7ff901156c29f9de51246fef3d4c120fb173d1aeb493421b2c03a53beeca75",
+    "kind": "fragment",
+    "reason": "The documented area function has an omitted body."
+  }
+}

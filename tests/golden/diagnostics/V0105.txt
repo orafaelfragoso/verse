@@ -1,0 +1,8 @@
+error: a raw text must start on its own line
+  --> example.vs:1:9
+  |
+1 | text = r"""hello
+  |         ^^^ the opening `"""` ends its line, but this one is followed by text
+rule: §3.7
+help: move the text to the next line
+explain: V0105 (run `verse explain V0105`)

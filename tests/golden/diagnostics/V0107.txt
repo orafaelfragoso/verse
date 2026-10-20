@@ -1,0 +1,8 @@
+error: `0xZZ` is not a number
+  --> example.vs:1:10
+  |
+1 | number = 0xZZ
+  |          ^^^^ cannot read this as Int
+rule: §3.7
+help: write digits, with `_` between groups
+explain: V0107 (run `verse explain V0107`)

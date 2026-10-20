@@ -36,6 +36,43 @@ The compiler is only useful if it is right. This document defines how we know.
 - Ambiguities discovered while writing tests are raised against the spec,
   not settled in the code as silent choices.
 
+### 10.2.1 M0 harness
+
+`python3 tools/extract-examples` emits JSON records with the example ID, spec
+section, source path, starting line, source text and SHA-256. The default
+expectation is successful parsing. `tests/conformance/examples.json` records
+exceptions by example ID. Each exception has a source hash and a reason.
+`fragment` means omitted code or signatures without bodies. `reject` requires
+the exact set of expected diagnostic codes. Semantic-error examples remain
+syntax-positive in M0. An edited or deleted exception fails until reviewed.
+
+Rule fixture names use `s<section>-<rule>-<description>.vs`, for example
+`s3.4-01-continuation.vs`. The Rust integration suite runs these files and
+the extracted examples. Golden diagnostic inputs live in
+`tests/golden/diagnostics/cases.json`; each code has a matching `.txt` snapshot.
+Tests never update snapshots. The explicit update command is
+`cargo run -p verse-syntax --example update-goldens -- --bless`.
+
+`python3 tools/spec-coverage.py` writes `dist/conformance-coverage.json`. It
+distinguishes example parsing from semantic conformance and lists spec sections
+without direct tests. Passing the syntax corpus is not a claim of semantic
+coverage for M1 or later milestones.
+
+The fuzz package is a separate workspace at `tests/fuzz`, with its own lock.
+It uses nightly only for sanitizer instrumentation. Readable `.vs` seeds are
+committed; generated corpus entries and crash artifacts are ignored. Run a
+target from the repository root with:
+
+```sh
+cargo +nightly fuzz run --fuzz-dir tests/fuzz parser -- -max_total_time=300
+```
+
+`python3 tools/seed-fuzz.py` adds every extracted example and conformance
+fixture to the lexer, parser and formatter corpora. The `grammar` target
+generates bounded expressions from arbitrary bytes and checks parsing,
+formatting, idempotence and preserved structure. `tools/check.sh` runs the fast
+gates; scheduled workflows run fuzz budgets and benchmarks separately.
+
 ## 10.3 Differential testing
 
 Required by the rule that script and compiled modes behave

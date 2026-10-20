@@ -1,0 +1,8 @@
+error: `from` must come last in an import
+  --> example.vs:1:1
+  |
+1 | from fs import read_text
+  | ^^^^ the item list goes first
+rule: §12.2
+help: write `import read_text from fs`
+explain: V0206 (run `verse explain V0206`)

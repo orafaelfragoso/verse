@@ -1,0 +1,14 @@
+[package]
+name = "verse-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "verse"
+path = "src/main.rs"
+
+[dependencies]
+verse-syntax.workspace = true
+verse-fmt.workspace = true
+serde_json.workspace = true

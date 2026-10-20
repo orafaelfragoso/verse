@@ -1,0 +1,8 @@
+error: a tab is not allowed in indentation
+  --> example.vs:2:1
+  |
+2 | 	pass
+  | ^ this line starts with a tab
+rule: §3.3
+help: indent with four spaces (applied by `verse fmt`)
+explain: V0101 (run `verse explain V0101`)

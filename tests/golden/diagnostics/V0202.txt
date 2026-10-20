@@ -1,0 +1,8 @@
+error: this block is empty
+  --> example.vs:2:1
+  |
+2 | 
+  | ^ a block needs at least one line
+rule: §6.6
+help: write `pass`, or remove the line
+explain: V0202 (run `verse explain V0202`)

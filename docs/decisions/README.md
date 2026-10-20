@@ -19,3 +19,4 @@ accepted on 2026-10-18.
 | [0010](0010-constant-initialization-cycles.md) | A cycle among constant initializers is an error | accepted (2026-10-19) |
 | [0011](0011-task-panicked-without-heap.md) | `TaskPanicked` without a heap | accepted (2026-10-19) |
 | [0012](0012-drop-stack.md) | Drop glue frees data of any depth in bounded stack | accepted (2026-10-19) |
+| [0013](0013-syntax-front-end.md) | Lossless syntax with Rowan and a handwritten parser | proposed |

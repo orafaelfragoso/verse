@@ -1,0 +1,8 @@
+error: this interpolation is nested too deeply
+  --> example.vs:1:27
+  |
+1 | text = "{value otherwise "{nested}"}"
+  |                           ^ text inside `{…}` inside `{…}`
+rule: §3.7
+help: bind the inner text to a name first
+explain: V0106 (run `verse explain V0106`)

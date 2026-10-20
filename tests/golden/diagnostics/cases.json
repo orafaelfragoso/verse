@@ -1,0 +1,21 @@
+[
+  {"code": "V0101", "source": "if true\n\tpass\n"},
+  {"code": "V0102", "source": "if true\n   pass\n"},
+  {"code": "V0103", "source": "text = \"hello\n"},
+  {"code": "V0104", "source": "text = \"\\q\"\n"},
+  {"code": "V0105", "source": "text = r\"\"\"hello\n\"\"\"\n"},
+  {"code": "V0106", "source": "text = \"{value otherwise \"{nested}\"}\"\n"},
+  {"code": "V0107", "source": "number = 0xZZ\n"},
+  {"code": "V0108", "source": "number = 9223372036854775808\n"},
+  {"code": "V0109", "bytes": [255]},
+  {"code": "V0201", "source": "x = )\n"},
+  {"code": "V0202", "source": "if true\n"},
+  {"code": "V0203", "source": "fn while()\n    pass\n"},
+  {"code": "V0206", "source": "from fs import read_text\n"},
+  {"code": "V0207", "source": "x = 1\nimport fs\n"},
+  {"code": "V0208", "source": "import read_text,\n    write_text from fs\n"},
+  {"code": "V0209", "source": "x = counts[\"a\"] otherwise 0 + 1\n"},
+  {"code": "V0210", "source": "settings = {}\n"},
+  {"code": "V1101", "source": "unknown", "command": "unknown"},
+  {"code": "V9901", "source": "", "internal": "formatting"}
+]

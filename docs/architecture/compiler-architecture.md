@@ -254,6 +254,11 @@ adapter all consume the same record. `verse explain V0412` prints the long
 form. Machine-applicable suggestions (`otherwise ""`, `.copy()`) carry an edit
 so editors and other tools can apply them without parsing prose.
 
+The source types and line tables live in `verse-syntax::source`. The shared
+record and terminal renderer live in `verse-syntax::diagnostic`. Later stages
+use these types without depending on the CLI. The syntax implementation is
+described in [ADR-0013](../decisions/0013-syntax-front-end.md).
+
 ## 2.9 Crate layout
 
 ```

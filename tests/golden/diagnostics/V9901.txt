@@ -1,0 +1,8 @@
+error: the compiler failed in formatting; this is a bug in Verse, not in your program
+  --> example.vs:1:1
+  |
+1 | 
+  | ^ 
+rule: 02 §2.2
+help: run `verse check --report` and send the file
+explain: V9901 (run `verse explain V9901`)

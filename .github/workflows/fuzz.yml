@@ -1,0 +1,30 @@
+name: fuzz
+
+on:
+  schedule:
+    - cron: '23 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [lexer, parser, formatter, grammar]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly --profile minimal
+      - run: cargo install cargo-fuzz --locked
+      - run: python3 tools/seed-fuzz.py
+      - name: Fuzz with the conformance seeds
+        working-directory: tests/fuzz
+        run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=300 -timeout=10 -dict=verse.dict -verbosity=0 -print_final_stats=1
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: tests/fuzz/artifacts

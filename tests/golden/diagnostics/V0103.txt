@@ -1,0 +1,8 @@
+error: this text is never closed
+  --> example.vs:1:8
+  |
+1 | text = "hello
+  |        ^^^^^^ the text starts here
+rule: §3.7
+help: add the closing `"`
+explain: V0103 (run `verse explain V0103`)

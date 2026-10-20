@@ -4,8 +4,9 @@ Requirement R4: really fast and efficient. This document turns that into
 budgets, a benchmark suite, and a list of places where the **language
 specification itself** creates performance risk.
 
-Everything numeric below is a **target**. No measurement exists yet. M0 builds
-the harness, and each target becomes a regression gate once it has a baseline.
+Everything numeric below is a **target**. M0's compiler harness records
+measurements separately. Each target becomes a regression gate once it has a
+baseline.
 
 ## 9.1 What we measure
 
@@ -55,6 +56,16 @@ Rules:
    variance.
 4. **CI gate**: a 5% regression on any gated benchmark fails the build unless
    the author records an accepted trade-off.
+
+The M0 harness is `bench/compiler/run.py`, also invoked by `verse bench`.
+It measures lexing, parsing, AST lowering and formatting on generated projects,
+a 50k-statement function and pathological fixtures. Builds and source loading
+are outside the timed region. Peak RSS includes source loading and process
+overhead. Results contain the input hash, toolchain, platform, samples, median
+and spread. The initial baseline is `bench/compiler/baseline.json`. A comparison
+uses matching inputs, toolchain and host metadata, and gates only measurements
+whose spread is at most 3% in both runs. Host frequency is not changed by the
+harness.
 
 ## 9.3 Where speed comes from (design levers)
 

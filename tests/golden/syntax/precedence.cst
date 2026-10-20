@@ -1,0 +1,82 @@
+File@0..101
+  Binding@0..21
+    Pattern@0..5
+      Ident@0..5 "value"
+    Whitespace@5..6 " "
+    Symbol@6..7 "="
+    Unary@7..20
+      Whitespace@7..8 " "
+      Symbol@8..9 "-"
+      Binary@9..20
+        Literal@9..10
+          Int@9..10 "2"
+        Whitespace@10..11 " "
+        Symbol@11..13 "**"
+        Binary@13..20
+          Literal@13..15
+            Whitespace@13..14 " "
+            Int@14..15 "3"
+          Whitespace@15..16 " "
+          Symbol@16..18 "**"
+          Literal@18..20
+            Whitespace@18..19 " "
+            Int@19..20 "2"
+    Newline@20..21 "\n"
+  Binding@21..74
+    Pattern@21..27
+      Ident@21..27 "result"
+    Whitespace@27..28 " "
+    Symbol@28..29 "="
+    Binary@29..73
+      Unary@29..53
+        Whitespace@29..30 " "
+        Keyword@30..33 "try"
+        FieldAccess@33..53
+          Call@33..47
+            Name@33..43
+              Whitespace@33..34 " "
+              Ident@34..43 "find_user"
+            Arguments@43..47
+              Symbol@43..44 "("
+              Argument@44..46
+                Name@44..46
+                  Ident@44..46 "id"
+              Symbol@46..47 ")"
+          Symbol@47..48 "."
+          Ident@48..53 "email"
+      Whitespace@53..54 " "
+      Keyword@54..63 "otherwise"
+      Literal@63..73
+        Whitespace@63..64 " "
+        Text@64..73 "\"unknown\""
+    Newline@73..74 "\n"
+  Binding@74..101
+    Pattern@74..84
+      Ident@74..84 "comparison"
+    Whitespace@84..85 " "
+    Symbol@85..86 "="
+    Comparison@86..100
+      Comparison@86..94
+        FieldAccess@86..90
+          Name@86..88
+            Whitespace@86..87 " "
+            Ident@87..88 "a"
+          Symbol@88..89 "."
+          Ident@89..90 "b"
+        Whitespace@90..91 " "
+        Symbol@91..92 "<"
+        Name@92..94
+          Whitespace@92..93 " "
+          Ident@93..94 "c"
+      Whitespace@94..95 " "
+      Symbol@95..96 ">"
+      Group@96..100
+        Whitespace@96..97 " "
+        Symbol@97..98 "("
+        Argument@98..99
+          Name@98..99
+            Ident@98..99 "d"
+        Symbol@99..100 ")"
+    Newline@100..101 "\n"
+  Eof@101..101 ""
+

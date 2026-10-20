@@ -26,9 +26,11 @@ document.
 | 09 | [Performance](architecture/performance.md) | | |
 | 10 | [Testing and verification](architecture/testing-and-verification.md) | | |
 
-Nothing is implemented yet. Every number in these documents is a target, not a
-measurement. A sentence that starts with **Open:** is a design question that
-is not decided yet.
+The M0 implementation is in `crates/verse-syntax`, `crates/verse-fmt` and
+`crates/verse-cli`. Execution, semantic checking and backends belong to later
+milestones. Performance budgets are targets unless explicitly accompanied by
+measurements. A sentence that starts with **Open:** is an undecided design
+question.
 
 Build the single-file specification with `tools/docs/build.sh`. It writes
 `dist/verse-spec.md`, and also HTML and PDF unless `NO_RENDER=1` is set.

@@ -1,0 +1,8 @@
+error: `+` cannot be in the right operand of `otherwise` without parentheses
+  --> example.vs:1:29
+  |
+1 | x = counts["a"] otherwise 0 + 1
+  |                             ^ `otherwise` binds more loosely than `+`
+rule: §3.8.2
+help: write `(counts["a"] otherwise 0) + 1` or `counts["a"] otherwise (0 + 1)`
+explain: V0209 (run `verse explain V0209`)
