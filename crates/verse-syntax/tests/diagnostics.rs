@@ -1,7 +1,7 @@
 use std::{collections::BTreeSet, fs, path::PathBuf};
 use verse_syntax::{
     Diagnostic, FileId, SourceFile, Span,
-    diagnostic::{DEFINITIONS, Fact},
+    diagnostic::{DEFINITIONS, Fact, naming_diagnostics},
     explain,
     lexer::decode,
     parse,
@@ -30,6 +30,8 @@ fn every_syntax_code_has_an_exact_golden_and_explanation() {
                 Span::new(FileId(0), 0, command.len()),
                 [("word", command.into())],
             )]
+        } else if code == "V0110" {
+            naming_diagnostics(source, FileId(0))
         } else if let Some(bytes) = case["bytes"].as_array() {
             vec![
                 *decode(
@@ -60,6 +62,9 @@ fn every_syntax_code_has_an_exact_golden_and_explanation() {
             definition.message, definition.label, definition.help
         );
         for (key, fact) in &diagnostic.facts {
+            if key == "fixable" {
+                continue;
+            }
             assert!(
                 templates.contains(&format!("{{{key}}}")),
                 "unused fact {code}.{key}"
@@ -130,4 +135,16 @@ fn fact_values_are_not_reinterpreted_as_templates() {
         [("found", "{what}".into()), ("what", "an expression".into())],
     );
     assert_eq!(diagnostic.primary.label, "found {what}");
+}
+
+#[test]
+fn naming_checks_skip_a_foreign_c_name_and_flag_verse_names() {
+    let source = "extern sdl\n    fn SDL_Init as sdl_init(flags: UInt32): Int32\n\nbadName = 1\ntype Bad_type = Int\n";
+    let codes: Vec<_> = naming_diagnostics(source, FileId(0))
+        .into_iter()
+        .map(|diagnostic| diagnostic.primary.span.start)
+        .collect();
+    assert_eq!(codes.len(), 2);
+    assert!(source[codes[0] as usize..].starts_with("badName"));
+    assert!(source[codes[1] as usize..].starts_with("Bad_type"));
 }

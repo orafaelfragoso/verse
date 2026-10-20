@@ -13,33 +13,77 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def generated(lines):
-    chunks = [f"fn function_{i}(x: Int): Int\n    x + {i}\n\n" for i in range(lines // 3)]
-    chunks.extend("# padding\n" for _ in range(lines % 3))
-    return "".join(chunks)
+    parts = []
+    index = 0
+    while len(parts) < lines:
+        pattern = index % 4
+        if pattern == 0:
+            parts.append(f"fn function_{index}(x: Int): Int\n    x + {index}\n\n")
+        elif pattern == 1:
+            parts.append(
+                f"fn sum_{index}(x: Int): Int\n"
+                f"    values = [x, x + 1, x + 2]\n"
+                f"    total = 0\n"
+                f"    for value in values\n"
+                f"        total = total + value\n"
+                f"    total\n\n"
+            )
+        elif pattern == 2:
+            parts.append(
+                f"fn choose_{index}(x: Int): Int\n"
+                f"    if x > {index} then x else {index}\n\n"
+            )
+        else:
+            parts.append(
+                f"## Function {index} maps its input.\n"
+                f"fn map_{index}(values: List<Int>): List<Int>\n"
+                f"    values.map(value -> value + {index})\n\n"
+            )
+        index += 1
+    return "".join(parts)
 
 
-def measure(binary, path, stage, runs):
+def measure(binary, path, stage, runs, iterations):
     timings = []
+    run_medians = []
     memory = []
-    record = {}
     with tempfile.TemporaryDirectory(prefix="verse-bench-") as directory:
         peak_file = Path(directory) / "peak"
         for _ in range(runs):
-            command = [str(binary), stage, str(path)]
+            command = [str(binary), stage, str(path), str(iterations)]
             if Path("/usr/bin/time").exists():
                 command = ["/usr/bin/time", "-f", "%M", "-o", str(peak_file), *command]
             record = json.loads(subprocess.check_output(command, text=True))
-            timings.append(record["elapsed_ns"])
+            samples = record["samples_ns"]
+            timings.extend(samples)
+            run_medians.append(statistics.median(samples))
             if peak_file.exists():
                 memory.append(int(peak_file.read_text().strip()))
-    median = statistics.median(timings)
-    spread = (max(timings) - min(timings)) / median * 100
-    return {**record, "input": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "runs": runs, "samples_ns": timings, "median_ns": median, "spread_percent": spread, "peak_rss_kib": max(memory) if memory else None, "gate_eligible": spread <= 3}
+    median = statistics.median(run_medians)
+    quartiles = statistics.quantiles(run_medians, n=4)
+    # Spread is the interquartile range of the per-run medians. Averaging the
+    # inner iterations first keeps a scheduler hiccup inside one run from
+    # disabling the gate, while the ten runs still expose real host noise.
+    spread = (quartiles[2] - quartiles[0]) / median * 100
+    return {
+        "input": path.name,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "stage": stage,
+        "runs": runs,
+        "iterations": iterations,
+        "samples_ns": timings,
+        "run_medians_ns": run_medians,
+        "median_ns": median,
+        "spread_percent": spread,
+        "peak_rss_kib": max(memory) if memory else None,
+        "gate_eligible": len(run_medians) >= 10 and spread <= 3,
+    }
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runs", type=int, default=10)
+    parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--sizes", type=int, nargs="+", default=[1000, 10000, 100000])
     parser.add_argument("--output", type=Path, default=ROOT / "dist/bench/compiler.json")
     parser.add_argument("--baseline", type=Path)
@@ -47,6 +91,8 @@ def main():
     args = parser.parse_args()
     if args.runs < 10:
         parser.error("performance §9.2 requires at least ten runs")
+    if args.iterations < 1:
+        parser.error("iterations must be at least one")
     subprocess.run(["cargo", "build", "--locked", "--release", "-p", "verse-cli", "--example", "compiler-bench"], cwd=ROOT, check=True)
     metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--no-deps", "--format-version=1"], cwd=ROOT))
     binary = Path(metadata["target_directory"]) / "release/examples/compiler-bench"
@@ -59,22 +105,34 @@ def main():
         path = inputs / f"project-{size}.vs"
         path.write_text(generated(size))
         for stage in ["lex", "parse", "ast", "format"]:
-            records.append(measure(binary, path, stage, args.runs))
+            records.append(measure(binary, path, stage, args.runs, args.iterations))
     pathological = inputs / "single-function-50000.vs"
     pathological.write_text("fn pathological()\n" + "".join(f"    value_{i} = {i}\n" for i in range(50000)))
     for stage in ["lex", "parse", "ast", "format"]:
-        records.append(measure(binary, pathological, stage, args.runs))
+        records.append(measure(binary, pathological, stage, args.runs, args.iterations))
     for path in sorted((ROOT / "bench/compiler/pathological").glob("*.vs")):
         for stage in ["lex", "parse", "ast", "format"]:
-            records.append(measure(binary, path, stage, args.runs))
-    result = {"rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(), "platform": platform.platform(), "cpu": platform.processor(), "frequency_pinned": False, "limiter": "CPU and allocation; lex, parse, arena lowering and formatting run without I/O in their timed region. Peak RSS includes source loading and process overhead.", "results": records}
+            records.append(measure(binary, path, stage, args.runs, args.iterations))
+    result = {
+        "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
+        "platform": platform.platform(),
+        "cpu": platform.processor() or platform.machine(),
+        "frequency_pinned": False,
+        "limiter": "CPU and allocation; lex, parse, arena lowering and formatting run without I/O in their timed region. AST lowering is timed separately from parsing. Peak RSS includes source loading and process overhead.",
+        "results": records,
+    }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     regressions = []
     baseline_path = args.baseline or ROOT / "bench/compiler/baseline.json"
     if baseline_path.exists():
         baseline = json.loads(baseline_path.read_text())
-        comparable = all(result[key] == baseline.get(key) for key in ("platform", "cpu", "rustc"))
+        # A baseline is comparable only on the same toolchain, CPU and
+        # platform. A new kernel or libc invalidates its absolute timings even
+        # when the source and compiler are unchanged.
+        comparable = all(
+            result[key] == baseline.get(key) for key in ("cpu", "rustc", "platform")
+        )
         before = {(r["sha256"], r["stage"]): r for r in baseline["results"]} if comparable else {}
         for after in records:
             old = before.get((after["sha256"], after["stage"]))

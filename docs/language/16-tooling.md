@@ -41,7 +41,7 @@ word that is no command is an error that says how to run a file. Flags for
 `verse fmt` has **no configuration options**. It normalizes indentation to four
 spaces, spacing around operators, blank lines between declarations and
 trailing commas in multi-line lists; wraps long method chains one call per
-line; sorts imports; enforces the blank line after a module doc (§14.3); and
+line; sorts imports within blank-line-separated groups; enforces the blank line after a module doc (§14.3); and
 drops the redundant `)` that the lambda closing rule makes unnecessary (§5.4). It
 never removes semantically significant parentheses — those that end a lifted
 chain, and those in `(try a).b`, which propagates before the field is read (§8.3). It

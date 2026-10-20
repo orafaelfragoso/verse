@@ -192,26 +192,40 @@ pub(crate) fn raw(kind: Kind) -> rowan::SyntaxKind {
 /// Structural fingerprint for formatter tests: ignore trivia and layout text,
 /// but retain grouping, token spelling, declarations, and expression structure.
 pub fn fingerprint(node: &SyntaxNode) -> String {
-    fn visit(node: &SyntaxNode, out: &mut String) {
-        use std::fmt::Write;
-        let _ = write!(out, "({:?}", node.kind());
-        for child in node.children_with_tokens() {
-            match child {
-                rowan::NodeOrToken::Node(n) => visit(&n, out),
-                rowan::NodeOrToken::Token(t)
-                    if !t.kind().is_trivia()
-                        && !t.kind().is_layout()
-                        && t.kind() != Kind::DocComment
-                        && t.text() != "," =>
-                {
-                    let _ = write!(out, " {:?}", t.text());
-                }
-                _ => {}
-            }
-        }
-        out.push(')');
+    enum Event {
+        Enter(SyntaxNode),
+        Token(String),
+        Exit,
     }
+    use std::fmt::Write;
     let mut out = String::new();
-    visit(node, &mut out);
+    let mut stack = vec![Event::Enter(node.clone())];
+    while let Some(event) = stack.pop() {
+        match event {
+            Event::Enter(node) => {
+                let _ = write!(out, "({:?}", node.kind());
+                stack.push(Event::Exit);
+                let children: Vec<_> = node.children_with_tokens().collect();
+                for child in children.into_iter().rev() {
+                    match child {
+                        rowan::NodeOrToken::Node(n) => stack.push(Event::Enter(n)),
+                        rowan::NodeOrToken::Token(t)
+                            if !t.kind().is_trivia()
+                                && !t.kind().is_layout()
+                                && t.kind() != Kind::DocComment
+                                && t.text() != "," =>
+                        {
+                            stack.push(Event::Token(t.text().to_owned()));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Event::Token(text) => {
+                let _ = write!(out, " {:?}", text);
+            }
+            Event::Exit => out.push(')'),
+        }
+    }
     out
 }

@@ -65,8 +65,8 @@ the M0 benchmarks run ([11](../roadmap.md)).
   per-module arenas (`Vec<Node>` addressed by `NodeId(u32)`). No `Rc`, no
   per-node heap allocation. Freed all at once.
 - **Lossless syntax tree for tools only.** The formatter and language server
-  use a CST (green tree, structurally shared, cheap to re-parse after an
-  edit). The compiler proper uses the AST, so the hot path never touches
+  use a CST (immutable green tree, lossless, cheap to clone and re-parse
+  after an edit). The compiler proper uses the AST, so the hot path never touches
   trivia.
 - **Struct of arrays for MIR.** Statements and terminators are stored in
   flat arrays per function. Basic blocks hold index ranges. Passes iterate

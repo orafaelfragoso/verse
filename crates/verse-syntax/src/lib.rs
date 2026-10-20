@@ -10,4 +10,4 @@ pub use diagnostic::{Diagnostic, explain};
 pub use lexer::{Lexed, Token, lex};
 pub use parser::{Parse, parse};
 pub use source::{FileId, SourceFile, Span};
-pub use tree::{Kind, SyntaxNode};
+pub use tree::{Kind, SyntaxNode, SyntaxToken};

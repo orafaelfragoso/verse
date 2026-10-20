@@ -61,11 +61,14 @@ The M0 harness is `bench/compiler/run.py`, also invoked by `verse bench`.
 It measures lexing, parsing, AST lowering and formatting on generated projects,
 a 50k-statement function and pathological fixtures. Builds and source loading
 are outside the timed region. Peak RSS includes source loading and process
-overhead. Results contain the input hash, toolchain, platform, samples, median
-and spread. The initial baseline is `bench/compiler/baseline.json`. A comparison
-uses matching inputs, toolchain and host metadata, and gates only measurements
-whose spread is at most 3% in both runs. Host frequency is not changed by the
-harness.
+overhead. Each process performs several in-process iterations, so process
+startup is amortized while the ten-run requirement still applies. Results
+contain the input hash, toolchain, platform, samples, per-run medians, median,
+peak RSS and spread; spread is the interquartile range of the per-run
+medians, each taken over that run's in-process iterations. The initial baseline
+is `bench/compiler/baseline.json`. A comparison uses matching inputs, toolchain
+and host metadata, and gates only measurements whose spread is at most 3% in
+both runs. Host frequency is not changed by the harness.
 
 ## 9.3 Where speed comes from (design levers)
 

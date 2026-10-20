@@ -1,0 +1,8 @@
+error: `userName` does not follow snake_case naming
+  --> example.vs:1:1
+  |
+1 | userName = 1
+  | ^^^^^^^^ rename this name
+rule: §3.5
+help: use snake_case for names
+explain: V0110 (run `verse explain V0110`)

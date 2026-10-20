@@ -179,7 +179,7 @@ fn interpolation_expressions_reach_the_arena_with_absolute_spans() {
         module
             .tokens
             .iter()
-            .any(|(_, symbol)| module.symbols.resolve(*symbol) == "first")
+            .any(|token| module.symbols.resolve(token.symbol) == "first")
     );
 }
 
@@ -202,11 +202,9 @@ fn arena_ids_and_interning_are_stable_for_the_same_module() {
     assert_eq!(a.nodes.len(), b.nodes.len());
     assert_eq!(a.edges, b.edges);
     assert_eq!(a.tokens, b.tokens);
-    assert!(
-        a.tokens
-            .iter()
-            .all(|(kind, _)| !kind.is_trivia() && !kind.is_layout() && *kind != Kind::DocComment)
-    );
+    assert!(a.tokens.iter().all(|token| !token.kind.is_trivia()
+        && !token.kind.is_layout()
+        && token.kind != Kind::DocComment));
     for (a, b) in a.nodes.iter().zip(&b.nodes) {
         assert_eq!(a.span, b.span);
         assert_eq!(a.children, b.children);
@@ -220,22 +218,62 @@ fn arena_ids_and_interning_are_stable_for_the_same_module() {
 
 #[test]
 fn deeply_nested_valid_syntax_is_not_rejected_by_an_arbitrary_limit() {
-    let nested = format!("value = {}1{}\n", "(".repeat(512), ")".repeat(512));
+    let depth = 20_000;
+    let nested = format!("value = {}1{}\n", "(".repeat(depth), ")".repeat(depth));
     let parsed = valid(&nested);
     let arena = Module::lower(&parsed.syntax(), FileId(0));
-    assert!(arena.nodes.len() > 512);
+    assert!(arena.nodes.len() > depth);
+    assert!(
+        !verse_syntax::tree::fingerprint(&parsed.syntax()).is_empty(),
+        "iterative fingerprint must handle the same depth"
+    );
+    drop(arena);
+    drop(parsed);
+    let unary = format!("value = {}1\n", "-".repeat(depth));
+    let parsed = valid(&unary);
+    let arena = Module::lower(&parsed.syntax(), FileId(0));
+    assert!(arena.nodes.len() > depth);
+    drop(arena);
+    drop(parsed);
     let ty = format!(
         "alias Nested = {}Int{}\n",
-        "List<".repeat(512),
-        ">".repeat(512)
+        "List<".repeat(1_000),
+        ">".repeat(1_000)
     );
     valid(&ty);
+}
+
+#[test]
+fn unclosed_brackets_recover_at_the_next_declaration() {
+    let text = "x = (3,\nfn good()\n    pass\n";
+    let parsed = parse(text, FileId(0));
+    assert!(!parsed.is_valid());
+    assert_eq!(parsed.syntax().text().to_string(), text);
+    assert!(
+        parsed
+            .syntax()
+            .children()
+            .any(|node| node.kind() == Kind::Function)
+    );
+}
+
+#[test]
+fn ast_tokens_keep_absolute_spans() {
+    let parsed = valid("text = \"{first + 1}\"\n");
+    let module = Module::lower_parse(&parsed, FileId(3));
+    let token = module
+        .tokens
+        .iter()
+        .find(|token| module.symbols.resolve(token.symbol) == "first")
+        .unwrap();
+    assert_eq!(token.span.file_id, FileId(3));
+    assert!(token.span.start >= 9 && token.span.end <= 20);
 }
 
 proptest::proptest! {
     #![proptest_config(proptest::test_runner::Config::with_cases(256))]
     #[test]
-    fn arbitrary_utf8_never_panics_and_round_trips(source in ".{0,512}") {
+    fn arbitrary_utf8_never_panics_and_round_trips(source in "(?s).{0,512}") {
         let p = parse(&source, FileId(0));
         proptest::prop_assert_eq!(p.syntax().text().to_string(), source.clone());
         let l = lex(&source, FileId(0));
@@ -248,4 +286,44 @@ proptest::proptest! {
         }
         proptest::prop_assert_eq!(balance, 0);
     }
+}
+
+#[test]
+fn numeric_separators_follow_the_base() {
+    valid("value = 0xDEAD_BEEF\n");
+    valid("value = 1_000_000\n");
+    assert!(!parse("value = 0x_DEAD\n", FileId(0)).is_valid());
+    assert!(!parse("value = 1e_9\n", FileId(0)).is_valid());
+}
+
+#[test]
+fn character_escapes_and_width_are_checked() {
+    valid("letter = '\\n'\nzero = '\\0'\nsmile = '\\u{1F600}'\n");
+    let parsed = parse("letter = 'ab'\n", FileId(0));
+    assert!(parsed.diagnostics.iter().any(|d| d.code == "V0114"));
+    assert!(
+        !parse("letter = '\\q'\n", FileId(0))
+            .diagnostics
+            .iter()
+            .all(|d| d.code != "V0104")
+    );
+}
+
+#[test]
+fn one_unterminated_interpolation_does_not_duplicate_the_same_error() {
+    let parsed = parse("text = \"{value\n}\"\n", FileId(0));
+    let at_close = parsed
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == "V0201" && d.primary.span.start == 15)
+        .count();
+    assert_eq!(at_close, 1);
+}
+
+#[test]
+fn only_a_leading_bom_is_reported_as_a_byte_order_mark() {
+    let leading = parse("\u{feff}x = 1\n", FileId(0));
+    assert!(leading.diagnostics.iter().any(|d| d.code == "V0113"));
+    let middle = parse("x = 1\n\u{feff}\n", FileId(0));
+    assert!(middle.diagnostics.iter().all(|d| d.code != "V0113"));
 }

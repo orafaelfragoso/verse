@@ -1,0 +1,8 @@
+error: a character literal must contain exactly one character
+  --> example.vs:1:10
+  |
+1 | letter = 'ab'
+  |          ^^^^ this literal has 2 characters
+rule: §3.7
+help: write one character, or use a text literal
+explain: V0114 (run `verse explain V0114`)

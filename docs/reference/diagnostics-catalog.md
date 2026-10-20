@@ -105,16 +105,24 @@ gives every rule an identifier.
 | Code | Sev | Message | Label | Help | Rule |
 |------|-----|---------|-------|------|------|
 | V0101 | error | a tab is not allowed in indentation | this line starts with a tab | indent with four spaces (applied by `verse fmt`) | §3.3 |
-| V0102 | error | this line is indented by {n} spaces, not a multiple of 4 | expected {m} or {k} spaces | indent with {m} spaces | §3.3 |
+| V0102 | error | this line is indented by {n} spaces, not a multiple of 4 | expected {m} or {k} spaces | indent with {h} spaces | §3.3 |
 | V0103 | error | this text is never closed | the text starts here | add the closing `"` | §3.7 |
-| V0104 | error | `\{c}` is not an escape | not one of `\n \t \\ \" \{ \}` | write `\\` for a backslash | §3.7 |
+| V0104 | error | `\{c}` is not an escape | not one of `\n \t \r \\ \" \{ \} \0 \u{…}` | write `\\` for a backslash | §3.7 |
 | V0105 | error | a raw text must start on its own line | the opening `"""` ends its line, but this one is followed by text | move the text to the next line | §3.7 |
 | V0106 | error | this interpolation is nested too deeply | text inside `{…}` inside `{…}` | bind the inner text to a name first | §3.7 |
 | V0107 | error | `{text}` is not a number | cannot read this as {kind} | write digits, with `_` between groups | §3.7 |
 | V0108 | error | the number {text} does not fit in `Int` | the largest `Int` is 9,223,372,036,854,775,807 | use a `Float`, or a sized type from `math` | §4.1 |
 | V0109 | error | this file is not valid UTF-8 | the first bad byte is here | save the file as UTF-8 | §3.1 |
+| V0110 | error | `{name}` does not follow {style} naming | rename this {kind} | use {style} for {kind}s | §3.5 |
+| V0111 | error | a bare carriage return is not a line ending | write `\n` or `\r\n` here | replace this byte with a newline | §3.1 |
+| V0112 | error | NUL is not allowed in source | remove this byte | delete the NUL byte | §3.1 |
+| V0113 | error | the file starts with a byte-order mark | remove the BOM | save the file as UTF-8 without a BOM | §3.1 |
+| V0114 | error | a character literal must contain exactly one character | this literal has {n} characters | write one character, or use a text literal | §3.7 |
 
-The `kind` fact of V0107 is `Int` or `Float`.
+The `kind` fact of V0107 is `Int` or `Float`. V0110 is reported by
+`verse fmt --check`, because naming is a formatting convention rather than a
+parse error. `fixable` is an internal fact used by the formatter and is not
+part of the rendered message.
 
 ### V02xx Syntax
 

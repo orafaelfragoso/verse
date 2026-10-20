@@ -1,4 +1,4 @@
-use crate::{SourceFile, Span};
+use crate::{FileId, Kind, SourceFile, Span, lexer::lex};
 use serde::Serialize;
 use std::{collections::BTreeMap, fmt::Write};
 
@@ -89,7 +89,7 @@ definitions![
         "V0102",
         "this line is indented by {n} spaces, not a multiple of 4",
         "expected {m} or {k} spaces",
-        "indent with {m} spaces",
+        "indent with {h} spaces",
         "§3.3",
         "if true\n    pass",
         "Block lines share an indentation; canonical indentation is four spaces."
@@ -106,7 +106,7 @@ definitions![
     (
         "V0104",
         "`\\{c}` is not an escape",
-        "not one of `\\n \\t \\\\ \\\" \\{ \\}`",
+        "not one of `\\n \\t \\r \\\\ \\\" \\{ \\} \\0 \\u{…}`",
         "write `\\\\` for a backslash",
         "§3.7",
         "path = r\"C:\\files\"",
@@ -156,6 +156,51 @@ definitions![
         "§3.1",
         "text = \"é\"",
         "Every Verse source file is UTF-8."
+    ),
+    (
+        "V0110",
+        "`{name}` does not follow {style} naming",
+        "rename this {kind}",
+        "use {style} for {kind}s",
+        "§3.5",
+        "user_name = 1",
+        "Names are lowercase or PascalCase according to what they name."
+    ),
+    (
+        "V0111",
+        "a bare carriage return is not a line ending",
+        "write `\\n` or `\\r\\n` here",
+        "replace this byte with a newline",
+        "§3.1",
+        "first = 1\nsecond = 2",
+        "Every line ends with a newline or a carriage-return-newline pair."
+    ),
+    (
+        "V0112",
+        "NUL is not allowed in source",
+        "remove this byte",
+        "delete the NUL byte",
+        "§3.1",
+        "text = \"hello\"",
+        "Source files contain text, not binary control characters."
+    ),
+    (
+        "V0113",
+        "the file starts with a byte-order mark",
+        "remove the BOM",
+        "save the file as UTF-8 without a BOM",
+        "§3.1",
+        "text = \"hello\"",
+        "A BOM is metadata, not part of the program."
+    ),
+    (
+        "V0114",
+        "a character literal must contain exactly one character",
+        "this literal has {n} characters",
+        "write one character, or use a text literal",
+        "§3.7",
+        "letter = 'a'",
+        "A Char is one Unicode scalar value."
     ),
     (
         "V0201",
@@ -353,6 +398,56 @@ impl Diagnostic {
         );
         out
     }
+}
+
+/// Naming conventions are checked without rewriting the author's identifiers.
+/// A foreign function's C name is not Verse code, so only its `as` alias is
+/// checked.
+pub fn naming_diagnostics(source: &str, file: FileId) -> Vec<Diagnostic> {
+    let tokens = lex(source, file).tokens;
+    let code: Vec<_> = tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, token)| !token.kind.is_trivia() && !token.kind.is_layout())
+        .map(|(index, _)| index)
+        .collect();
+    let mut out = Vec::new();
+    for (position, index) in code.iter().copied().enumerate() {
+        let token = &tokens[index];
+        let text = token.text(source);
+        let style = match token.kind {
+            Kind::Ident if text.chars().any(|c| c.is_uppercase()) => "snake_case",
+            Kind::TypeIdent if text.contains('_') => "PascalCase",
+            _ => continue,
+        };
+        let previous = position
+            .checked_sub(1)
+            .map(|position| tokens[code[position]].text(source));
+        let next = code
+            .get(position + 1)
+            .map(|index| tokens[*index].text(source));
+        if previous == Some("fn") && next == Some("as") {
+            continue;
+        }
+        out.push(Diagnostic::new(
+            "V0110",
+            token.span,
+            [
+                ("name", text.to_owned().into()),
+                ("style", style.into()),
+                (
+                    "kind",
+                    if token.kind == Kind::TypeIdent {
+                        "type"
+                    } else {
+                        "name"
+                    }
+                    .into(),
+                ),
+            ],
+        ));
+    }
+    out
 }
 
 pub fn explain(code: &str) -> Option<String> {

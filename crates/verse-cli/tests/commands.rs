@@ -115,3 +115,51 @@ fn metadata_and_usage_errors_honor_json() {
         );
     }
 }
+
+#[test]
+fn check_reports_fixable_indentation_and_naming() {
+    let temp = Scratch::new();
+    let indented = temp.0.join("indent.vs");
+    fs::write(&indented, "if true\n   pass\n").unwrap();
+    let output = run(&["fmt", indented.to_str().unwrap(), "--check"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8(output.stderr).unwrap().contains("V0102"));
+    assert_eq!(
+        fs::read_to_string(&indented).unwrap(),
+        "if true\n   pass\n",
+        "check must not rewrite"
+    );
+    let named = temp.0.join("named.vs");
+    fs::write(&named, "userName = 1\n").unwrap();
+    let output = run(&["fmt", named.to_str().unwrap(), "--check"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8(output.stderr).unwrap().contains("V0110"));
+}
+
+#[test]
+fn fmt_rejects_a_file_that_is_not_verse_source() {
+    let temp = Scratch::new();
+    let path = temp.0.join("notes.txt");
+    fs::write(&path, "x = 1\n").unwrap();
+    assert_eq!(run(&["fmt", path.to_str().unwrap()]).status.code(), Some(2));
+    assert_eq!(fs::read_to_string(&path).unwrap(), "x = 1\n");
+}
+
+#[test]
+fn formatting_a_directory_skips_files_that_are_not_verse_source() {
+    let temp = Scratch::new();
+    let source = temp.0.join("example.vs");
+    let notes = temp.0.join("notes.txt");
+    fs::write(&source, "x=1+2\n").unwrap();
+    fs::write(&notes, "not verse\n").unwrap();
+    assert!(run(&["fmt", temp.0.to_str().unwrap()]).status.success());
+    assert_eq!(fs::read_to_string(&source).unwrap(), "x = 1 + 2\n");
+    assert_eq!(fs::read_to_string(&notes).unwrap(), "not verse\n");
+    assert!(fs::read_dir(&temp.0).unwrap().all(|entry| {
+        !entry
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .contains(".tmp")
+    }));
+}

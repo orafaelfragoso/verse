@@ -2,7 +2,7 @@ error: `\q` is not an escape
   --> example.vs:1:9
   |
 1 | text = "\q"
-  |         ^^ not one of `\n \t \\ \" \{ \}`
+  |         ^^ not one of `\n \t \r \\ \" \{ \} \0 \u{…}`
 rule: §3.7
 help: write `\\` for a backslash
 explain: V0104 (run `verse explain V0104`)

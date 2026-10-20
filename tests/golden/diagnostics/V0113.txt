@@ -1,0 +1,8 @@
+error: the file starts with a byte-order mark
+  --> example.vs:1:1
+  |
+1 | ﻿x = 1
+  | ^ remove the BOM
+rule: §3.1
+help: save the file as UTF-8 without a BOM
+explain: V0113 (run `verse explain V0113`)

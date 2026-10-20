@@ -164,6 +164,8 @@ impl Scanner<'_> {
                     if c == '\r' && self.peek() == '\n' {
                         self.advance();
                     } else if c == '\r' {
+                        self.diagnostics
+                            .push(Diagnostic::simple("V0111", self.span(start)));
                         self.tokens.push(Token {
                             kind: Kind::ErrorToken,
                             span: self.span(start),
@@ -171,6 +173,20 @@ impl Scanner<'_> {
                         continue;
                     }
                     Kind::Newline
+                }
+                '\0' => {
+                    self.advance();
+                    self.diagnostics
+                        .push(Diagnostic::simple("V0112", self.span(start)));
+                    Kind::ErrorToken
+                }
+                '\u{feff}' => {
+                    self.advance();
+                    if start == 0 {
+                        self.diagnostics
+                            .push(Diagnostic::simple("V0113", self.span(start)));
+                    }
+                    Kind::ErrorToken
                 }
                 '#' => {
                     while self.pos < self.source.len() && !matches!(self.peek(), '\r' | '\n') {
@@ -321,9 +337,12 @@ impl Scanner<'_> {
         };
         let bad_separator = text.ends_with('_')
             || text.contains("__")
-            || text.contains("._")
-            || text.contains("_e")
-            || text.contains("_E")
+            || (base == 10
+                && (text.contains("._")
+                    || text.contains("_e")
+                    || text.contains("_E")
+                    || text.contains("e_")
+                    || text.contains("E_")))
             || (base != 10 && text.as_bytes().get(2) == Some(&b'_'));
         let trailing_dot = !after_dot
             && self.peek() == '.'
@@ -380,7 +399,7 @@ impl Scanner<'_> {
                 self.advance();
                 return;
             }
-        } else if "ntr\\\"'{}0".contains(c) && c != '\0' {
+        } else if "ntr\\\"{}0".contains(c) && c != '\0' {
             return;
         }
         self.diagnostics.push(
@@ -403,7 +422,16 @@ impl Scanner<'_> {
         }
         if self.peek() == '\'' {
             self.advance();
-            count == 1
+            if count == 1 {
+                true
+            } else {
+                self.diagnostics.push(Diagnostic::new(
+                    "V0114",
+                    self.span(start),
+                    [("n", count.into())],
+                ));
+                false
+            }
         } else {
             self.error("V0103", start);
             false
@@ -445,8 +473,11 @@ impl Scanner<'_> {
                     if self.peek() == '}' {
                         self.advance();
                     }
-                } else {
-                    self.interpolation();
+                } else if !self.interpolation(triple) {
+                    if self.pos < self.source.len() {
+                        continue;
+                    }
+                    return;
                 }
             } else {
                 self.advance();
@@ -458,10 +489,15 @@ impl Scanner<'_> {
         );
     }
 
-    fn interpolation(&mut self) {
+    fn interpolation(&mut self, triple: bool) -> bool {
         let start = self.pos;
         let mut brackets = Vec::new();
         while self.pos < self.source.len() {
+            if !triple && matches!(self.peek(), '\r' | '\n') {
+                // The enclosing text owns the diagnostic for an unterminated
+                // interpolation. Do not report it once per line.
+                return false;
+            }
             match self.peek() {
                 'r' | 'b' if self.source[self.pos + 1..].starts_with('"') => {
                     let prefix = self.advance();
@@ -491,25 +527,25 @@ impl Scanner<'_> {
                     self.interpolations.push(Interpolation {
                         expression: Span::new(self.file, start, self.pos),
                     });
-                    while self.pos < self.source.len()
-                        && self.peek() != '}'
-                        && !matches!(self.peek(), '\r' | '\n')
-                    {
+                    while self.pos < self.source.len() && self.peek() != '}' {
+                        if !triple && matches!(self.peek(), '\r' | '\n') {
+                            return false;
+                        }
                         self.advance();
                     }
                     if self.peek() == '}' {
                         self.advance();
-                    } else {
-                        self.error("V0103", start);
+                        return true;
                     }
-                    return;
+                    self.error("V0103", start);
+                    return false;
                 }
                 '}' => {
                     self.interpolations.push(Interpolation {
                         expression: Span::new(self.file, start, self.pos),
                     });
                     self.advance();
-                    return;
+                    return true;
                 }
                 _ => {
                     self.advance();
@@ -517,7 +553,15 @@ impl Scanner<'_> {
             }
         }
         self.error("V0103", start);
+        false
     }
+}
+
+fn is_declaration(text: &str) -> bool {
+    matches!(
+        text,
+        "fn" | "type" | "alias" | "trait" | "impl" | "extern" | "test" | "import" | "export"
+    ) || text.starts_with("##")
 }
 
 fn binary(text: &str) -> bool {
@@ -573,6 +617,7 @@ fn layout(
     let mut line_number = 0;
     let mut line_has_code = false;
     let mut skip_explicit = 0;
+    let mut closed_explicit_line = false;
     let mut angle_depth = 0usize;
     let mut previous_type = false;
     let mut generic_close = false;
@@ -609,7 +654,26 @@ fn layout(
                     .chars()
                     .last()
                     .is_some_and(|c| c.is_alphanumeric() || "_'\"?".contains(c));
-            continuation = !arrow_block
+            let next_indent = raw
+                .get(index + 1)
+                .filter(|token| token.kind == Kind::Whitespace)
+                .map_or(0, |token| {
+                    token
+                        .text(source)
+                        .chars()
+                        .map(|c| if c == '\t' { 4 } else { 1 })
+                        .sum()
+                });
+            // An unclosed bracket must not turn every later line into the same
+            // logical line. A top-level declaration is a reliable recovery
+            // point, so end the continuation and let the parser report the
+            // missing close at the declaration boundary.
+            let recover = next_indent == 0 && !brackets.is_empty() && is_declaration(next_text);
+            if recover {
+                brackets.clear();
+            }
+            continuation = !recover
+                && !arrow_block
                 && (brackets.len() > floor
                     || (binary(previous) && !generic_close)
                     || (can_end && next_text == ".")
@@ -628,6 +692,7 @@ fn layout(
             line_start = true;
             indentation = 0;
             line_has_code = false;
+            closed_explicit_line = false;
             line_number += 1;
             continue;
         }
@@ -657,10 +722,40 @@ fn layout(
                     });
                     if text == ")" {
                         skip_explicit += 1;
+                        closed_explicit_line = true;
                     }
                 }
             }
             if !continuation {
+                let current = *indents.last().unwrap();
+                let levels = indents.clone();
+                // A line deeper than the current block opens exactly one new
+                // level, regardless of how many extra spaces it has. A dedent
+                // pops to the greatest open level at or below its column.
+                let target_index = if indentation > current {
+                    levels.len()
+                } else {
+                    levels
+                        .iter()
+                        .rposition(|level| *level <= indentation)
+                        .unwrap_or(0)
+                };
+                let canonical_target = target_index * 4;
+                let max_lower = levels
+                    .iter()
+                    .copied()
+                    .filter(|level| *level < indentation)
+                    .max();
+                let distance = |level: usize| level.abs_diff(indentation);
+                let nearest_distance = levels.iter().map(|level| distance(*level)).min();
+                let nearest: Vec<_> = levels
+                    .iter()
+                    .copied()
+                    .filter(|level| Some(distance(*level)) == nearest_distance)
+                    .collect();
+                let fixable = indentation > current
+                    || levels.contains(&indentation)
+                    || (nearest.len() == 1 && Some(nearest[0]) == max_lower);
                 if indentation % 4 != 0 {
                     diagnostics.push(Diagnostic::new(
                         "V0102",
@@ -669,10 +764,12 @@ fn layout(
                             ("n", indentation.into()),
                             ("m", (indentation / 4 * 4).into()),
                             ("k", (indentation / 4 * 4 + 4).into()),
+                            ("h", canonical_target.into()),
+                            ("fixable", if fixable { "yes" } else { "no" }.into()),
                         ],
                     ));
                 }
-                if indentation > *indents.last().unwrap() {
+                if indentation > current {
                     indents.push(indentation);
                     out.push(Token {
                         kind: Kind::Indent,
@@ -690,14 +787,27 @@ fn layout(
                             ),
                         });
                     }
-                    if indentation != *indents.last().unwrap() {
+                    if indentation % 4 == 0 && indentation != *indents.last().unwrap() {
+                        let lower = levels
+                            .iter()
+                            .copied()
+                            .rev()
+                            .find(|level| *level < indentation)
+                            .unwrap_or(0);
+                        let upper = levels
+                            .iter()
+                            .copied()
+                            .find(|level| *level > indentation)
+                            .unwrap_or(indentation + 4);
                         diagnostics.push(Diagnostic::new(
                             "V0102",
                             token.span,
                             [
                                 ("n", indentation.into()),
-                                ("m", (*indents.last().unwrap()).into()),
-                                ("k", (indents.last().unwrap() + 4).into()),
+                                ("m", lower.into()),
+                                ("k", upper.into()),
+                                ("h", canonical_target.into()),
+                                ("fixable", "no".into()),
                             ],
                         ));
                     }
@@ -714,6 +824,17 @@ fn layout(
                     ..token
                 });
                 continue;
+            }
+            if closed_explicit_line {
+                closed_explicit_line = false;
+                diagnostics.push(Diagnostic::new(
+                    "V0201",
+                    token.span,
+                    [
+                        ("what", "end of line".into()),
+                        ("found", text.to_owned().into()),
+                    ],
+                ));
             }
             match text {
                 "(" | "[" | "{" => brackets.push((text, line_number)),

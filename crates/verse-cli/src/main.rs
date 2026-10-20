@@ -1,5 +1,7 @@
 use std::{
     env, fs,
+    io::Write,
+    panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -8,9 +10,16 @@ use verse_syntax::{Diagnostic, FileId, SourceFile, Span, lexer::decode};
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().skip(1).collect();
     let json = args.iter().any(|a| a == "--json");
-    match run(args) {
-        Ok(code) => ExitCode::from(code),
-        Err(message) => {
+    // A panic is a compiler bug, not a source error. Report it as V9901 and
+    // leave the reserved status 3. Stack overflows are prevented by the parser
+    // and formatter rather than caught here.
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = catch_unwind(AssertUnwindSafe(|| run(args)));
+    std::panic::set_hook(hook);
+    match result {
+        Ok(Ok(code)) => ExitCode::from(code),
+        Ok(Err(message)) => {
             if json {
                 println!(
                     "{}",
@@ -20,6 +29,17 @@ fn main() -> ExitCode {
                 eprintln!("{message}");
             }
             ExitCode::from(2)
+        }
+        Err(_) => {
+            let source = SourceFile::new(FileId(0), "command line", "");
+            let diagnostic =
+                Diagnostic::new("V9901", Span::default(), [("stage", "command".into())]);
+            if json {
+                println!("{}", diagnostic_json(&diagnostic, &source));
+            } else {
+                eprint!("{}", diagnostic.render(&source));
+            }
+            ExitCode::from(3)
         }
     }
 }
@@ -109,16 +129,24 @@ fn run(mut args: Vec<String>) -> Result<u8, String> {
                     Ok(formatted) => {
                         if check {
                             let source = SourceFile::new(id, path.display().to_string(), text);
-                            for (span, message) in verse_fmt::naming_violations(text, id) {
-                                failed = true;
-                                let (line, column) = source.position(span.start);
+                            let parsed = verse_syntax::parse(text, id);
+                            for d in parsed
+                                .diagnostics
+                                .iter()
+                                .filter(|d| matches!(d.code.as_str(), "V0101" | "V0102"))
+                            {
                                 if json {
-                                    println!(
-                                        "{}",
-                                        serde_json::json!({"kind": "format-check", "message": message, "position": {"file": path, "line": line, "column": column}})
-                                    );
+                                    println!("{}", diagnostic_json(d, &source));
                                 } else {
-                                    eprintln!("{}:{line}:{column}: {message}", path.display());
+                                    eprint!("{}", d.render(&source));
+                                }
+                            }
+                            for d in verse_syntax::diagnostic::naming_diagnostics(text, id) {
+                                failed = true;
+                                if json {
+                                    println!("{}", diagnostic_json(&d, &source));
+                                } else {
+                                    eprint!("{}", d.render(&source));
                                 }
                             }
                         }
@@ -145,7 +173,8 @@ fn run(mut args: Vec<String>) -> Result<u8, String> {
             }
             for (path, formatted) in &changes {
                 if !check {
-                    fs::write(path, formatted).map_err(|e| format!("{}: {e}", path.display()))?;
+                    write_atomic(path, formatted)
+                        .map_err(|e| format!("{}: {e}", path.display()))?;
                 }
                 if json {
                     println!(
@@ -159,13 +188,11 @@ fn run(mut args: Vec<String>) -> Result<u8, String> {
             Ok(u8::from(check && !changes.is_empty()))
         }
         "bench" => {
+            let script = bench_script().ok_or_else(|| {
+                "bench/compiler/run.py was not found; run from the Verse repository".to_owned()
+            })?;
             let mut command = std::process::Command::new("python3");
-            command
-                .arg(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../../bench/compiler/run.py"
-                ))
-                .args(&args[1..]);
+            command.arg(script).args(&args[1..]);
             if json {
                 command.arg("--json");
             }
@@ -205,27 +232,89 @@ fn diagnostic_json(diagnostic: &Diagnostic, source: &SourceFile) -> serde_json::
 
 fn collect_sources(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
     if path.is_dir() {
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            if entry.file_type()?.is_symlink() {
-                continue;
-            }
-            if entry
-                .file_name()
-                .to_str()
-                .is_some_and(|s| s.starts_with('.') || matches!(s, "target" | "vendor" | "dist"))
-            {
-                continue;
-            }
-            collect_sources(&entry.path(), files)?;
-        }
+        collect_directory(path, files)
     } else if path.extension().is_some_and(|s| s == "vs") {
         files.push(path.to_owned());
+        Ok(())
     } else if !path.exists() {
-        return Err(std::io::Error::new(
+        Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             "path does not exist",
-        ));
+        ))
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "not a Verse source file (expected a .vs path or a directory)",
+        ))
+    }
+}
+
+fn collect_directory(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        if entry.file_type()?.is_symlink() {
+            continue;
+        }
+        if entry
+            .file_name()
+            .to_str()
+            .is_some_and(|s| s.starts_with('.') || matches!(s, "target" | "vendor" | "dist"))
+        {
+            continue;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            collect_directory(&path, files)?;
+        } else if path.extension().is_some_and(|s| s == "vs") {
+            files.push(path);
+        }
     }
     Ok(())
+}
+
+/// Write beside the target and rename, so an interrupted format can never
+/// leave a half-written source file.
+fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let name = path
+        .file_name()
+        .map_or_else(|| "source.vs".into(), |name| name.to_string_lossy());
+    let temporary = parent.join(format!(".{name}.{}.tmp", std::process::id()));
+    let result = (|| {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
+        file.write_all(text.as_bytes())?;
+        file.sync_all()?;
+        if let Ok(metadata) = fs::metadata(path) {
+            fs::set_permissions(&temporary, metadata.permissions())?;
+        }
+        fs::rename(&temporary, path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+fn bench_script() -> Option<PathBuf> {
+    if let Ok(root) = env::var("VERSE_ROOT") {
+        let candidate = PathBuf::from(root).join("bench/compiler/run.py");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    let mut directory = env::current_dir().ok()?;
+    loop {
+        let candidate = directory.join("bench/compiler/run.py");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if !directory.pop() {
+            break;
+        }
+    }
+    let candidate = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../bench/compiler/run.py");
+    candidate.is_file().then_some(candidate)
 }

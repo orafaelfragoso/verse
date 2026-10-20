@@ -1,13 +1,17 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use verse_syntax::{FileId, Kind, lex};
-fuzz_target!(|source: &str| {
-    let lexed = lex(source, FileId(0));
+use verse_syntax::{FileId, Kind, lex, lexer::decode};
+
+fuzz_target!(|data: &[u8]| {
+    let source = decode(data, FileId(0))
+        .map(str::to_owned)
+        .unwrap_or_else(|_| String::from_utf8_lossy(data).into_owned());
+    let lexed = lex(&source, FileId(0));
     assert_eq!(
         lexed
             .tokens
             .iter()
-            .map(|t| t.text(source))
+            .map(|t| t.text(&source))
             .collect::<String>(),
         source
     );

@@ -41,11 +41,39 @@ fn verify(source: &str) -> String {
         "not idempotent: {source}"
     );
     assert_eq!(
-        fingerprint(&parse(source, FileId(0)).syntax()),
-        fingerprint(&parsed.syntax()),
+        canonical_structure(source),
+        canonical_structure(&formatted),
         "structure changed:\n{source}\n=>\n{formatted}"
     );
     formatted
+}
+
+fn canonical_structure(source: &str) -> (Vec<String>, Vec<String>, Vec<String>) {
+    let parsed = parse(source, FileId(0));
+    let root = parsed.syntax();
+    let mut items = Vec::new();
+    let mut imports = Vec::new();
+    for child in root.children() {
+        if child.kind() == verse_syntax::Kind::Import {
+            imports.push(fingerprint(&child));
+        } else {
+            items.push(fingerprint(&child));
+        }
+    }
+    imports.sort();
+    let mut comments: Vec<_> = root
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| {
+            matches!(
+                token.kind(),
+                verse_syntax::Kind::Comment | verse_syntax::Kind::DocComment
+            )
+        })
+        .map(|token| token.text().trim_end().to_owned())
+        .collect();
+    comments.sort();
+    (items, imports, comments)
 }
 
 #[test]
@@ -65,6 +93,97 @@ fn formatter_repairs_noncanonical_indentation() {
     assert_eq!(
         verse_fmt::format("if true\n   pass\n", FileId(0)).unwrap(),
         "if true\n    pass\n"
+    );
+    assert_eq!(
+        verse_fmt::format("if true\n   a = 1\n   b = 2\n", FileId(0)).unwrap(),
+        "if true\n    a = 1\n    b = 2\n"
+    );
+    assert_eq!(
+        verse_fmt::format("if true\n    if false\n         pass\n", FileId(0)).unwrap(),
+        "if true\n    if false\n        pass\n"
+    );
+    assert_eq!(
+        verse_fmt::format(
+            "if true\n    if false\n        a = 1\n     b = 2\n",
+            FileId(0)
+        )
+        .unwrap(),
+        "if true\n    if false\n        a = 1\n    b = 2\n"
+    );
+    // Two spaces could mean the block at four or a dedent to zero.
+    assert!(verse_fmt::format("if true\n    pass\n  other = 1\n", FileId(0)).is_err());
+    // Three spaces from an eight-space block is closer to four, but the lexer
+    // would pop both levels; that is not an unambiguous repair.
+    assert!(
+        verse_fmt::format(
+            "if true\n    if false\n        a = 1\n   b = 2\n",
+            FileId(0)
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn canonical_spacing_is_structural() {
+    let cases = [
+        ("a=xs [0]\n", "a = xs[0]\n"),
+        ("a=settings [\"timeout\"]\n", "a = settings[\"timeout\"]\n"),
+        ("a=1 ..= 10\n", "a = 1..=10\n"),
+        ("a=[0, .. rest]\n", "a = [0, ..rest]\n"),
+        ("a=xs [2 ..]\n", "a = xs[2..]\n"),
+        ("a=foo(1,(2, 3))\n", "a = foo(1, (2, 3))\n"),
+        ("a=if c then(1) else(2)\n", "a = if c then (1) else (2)\n"),
+        ("a=p is(1, 2)\n", "a = p is (1, 2)\n"),
+        ("a=b **(c)\n", "a = b ** (c)\n"),
+        (
+            "a=match x\n    (1, 2) -> 3\n",
+            "a = match x\n    (1, 2) -> 3\n",
+        ),
+        (
+            "fn f(x:(Int, Int))\n    pass\n",
+            "fn f(x: (Int, Int))\n    pass\n",
+        ),
+        ("Circle(r) = shape\n", "Circle(r) = shape\n"),
+    ];
+    for (source, expected) in cases {
+        assert_eq!(verify(source), expected, "source: {source}");
+    }
+}
+
+#[test]
+fn multiline_text_is_never_sorted_like_imports() {
+    assert_eq!(
+        verify("import z\nimport a\ntext = \"\"\"\nimport zebra\nimport alpaca\n\"\"\"\n"),
+        "import a\nimport z\ntext = \"\"\"\nimport zebra\nimport alpaca\n\"\"\"\n"
+    );
+}
+
+#[test]
+fn single_line_lists_do_not_gain_trailing_commas() {
+    assert_eq!(verify("x = foo(1, 2) # keep\n"), "x = foo(1, 2)  # keep\n");
+    // A text token's own newline does not make its list multiline.
+    assert_eq!(verify("x = [\"a\\nb\"]\n"), "x = [\"a\\nb\"]\n");
+}
+
+#[test]
+fn a_block_lambda_argument_does_not_gain_a_trailing_comma() {
+    let source =
+        "fn generated(values)\n    result = values.map(value ->\n        value + 1\n    result\n";
+    assert_eq!(verify(source), source);
+}
+
+#[test]
+fn a_chain_cannot_follow_a_dedent_closed_lambda() {
+    assert!(
+        verse_fmt::format("r = xs.map(x ->\n    x + 1\n).filter(y -> y)\n", FileId(0)).is_err()
+    );
+}
+
+#[test]
+fn comments_before_a_declaration_stay_with_it() {
+    assert_eq!(
+        verify("fn a()\n    pass\n# Describes b.\nfn b()\n    pass\n"),
+        "fn a()\n    pass\n\n# Describes b.\nfn b()\n    pass\n"
     );
 }
 
@@ -101,6 +220,15 @@ fn wrapping_a_chain_also_formats_its_enclosing_list() {
     );
     verify(
         "values = [(((((none otherwise (value)) otherwise (value)) otherwise (value)) + value)).first().name, value]\n",
+    );
+}
+
+#[test]
+fn import_groups_stay_separated_and_sort_within_each_group() {
+    let source = "import z\nimport a\n\nimport y\nimport b\nx = 1\n";
+    assert_eq!(
+        verify(source),
+        "import a\nimport z\n\nimport b\nimport y\nx = 1\n"
     );
 }
 
@@ -190,18 +318,9 @@ fn specification_examples_are_idempotent_and_preserve_structure() {
             "{} not idempotent",
             example["id"]
         );
-        // Import order is canonicalized, so compare each non-import item.
-        let structures = |text: &str| {
-            parse(text, FileId(0))
-                .syntax()
-                .children()
-                .filter(|n| n.kind() != verse_syntax::Kind::Import)
-                .map(|n| fingerprint(&n))
-                .collect::<Vec<_>>()
-        };
         assert_eq!(
-            structures(source),
-            structures(&formatted),
+            canonical_structure(source),
+            canonical_structure(&formatted),
             "{} changed structure:\n{formatted}",
             example["id"]
         );
@@ -218,6 +337,17 @@ proptest::proptest! {
     #[test]
     fn generated_grammar_preserves_structure(expression in expression_strategy()) {
         verify(&format!("answer = {expression}\n"));
+    }
+
+    #[test]
+    fn generated_programs_with_imports_comments_and_text_preserve_structure(
+        comment in "[a-z ]{0,16}",
+        value in 0u16..1000
+    ) {
+        let source = format!(
+            "# {comment}\nimport z\nimport a\n\nfn f(name: Text): Text\n    # inner {value}\n    value =\n        \"\"\"\n        import zebra\n        import alpaca\n        \"\"\"\n    value\n"
+        );
+        verify(&source);
     }
 }
 

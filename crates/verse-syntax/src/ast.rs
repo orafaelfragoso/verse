@@ -34,11 +34,19 @@ pub struct Node {
     pub children: Range<usize>,
     pub tokens: Range<usize>,
 }
+/// A trivia-free token with its original source span. Later stages can point
+/// at the exact token that produced a node without re-reading the CST.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AstToken {
+    pub kind: Kind,
+    pub symbol: Symbol,
+    pub span: Span,
+}
 #[derive(Debug, Default)]
 pub struct Module {
     pub nodes: Vec<Node>,
     pub edges: Vec<NodeId>,
-    pub tokens: Vec<(Kind, Symbol)>,
+    pub tokens: Vec<AstToken>,
     pub symbols: Interner,
     pub root: Option<NodeId>,
 }
@@ -68,7 +76,7 @@ impl Module {
                 && span.end >= interpolation.expression.end
             {
                 let child = module.append(
-                    &SyntaxNode::new_root(interpolation.green.clone()),
+                    &SyntaxNode::new_root(interpolation.green.clone_green()),
                     file,
                     interpolation.expression.start,
                 );
@@ -106,6 +114,7 @@ impl Module {
         }
         let module = self;
         let first_node = module.nodes.len();
+        let first_token = module.tokens.len();
         let root = allocate(module, syntax, file);
         let mut pending = vec![(root, syntax.clone())];
         while let Some((id, syntax)) = pending.pop() {
@@ -124,7 +133,16 @@ impl Module {
                             && t.kind() != Kind::DocComment =>
                     {
                         let symbol = module.symbols.intern(t.text());
-                        module.tokens.push((t.kind(), symbol));
+                        let range = t.text_range();
+                        module.tokens.push(AstToken {
+                            kind: t.kind(),
+                            symbol,
+                            span: Span::new(
+                                file,
+                                u32::from(range.start()) as usize,
+                                u32::from(range.end()) as usize,
+                            ),
+                        });
                     }
                     _ => {}
                 }
@@ -135,6 +153,10 @@ impl Module {
         for node in &mut module.nodes[first_node..] {
             node.span.start += offset;
             node.span.end += offset;
+        }
+        for token in &mut module.tokens[first_token..] {
+            token.span.start += offset;
+            token.span.end += offset;
         }
         root
     }

@@ -1,9 +1,121 @@
 use crate::{Diagnostic, FileId, Kind, SyntaxNode, Token, lex, tree::raw};
-use rowan::{Checkpoint, GreenNode, GreenNodeBuilder};
+use rowan::{GreenNode, GreenToken, NodeOrToken};
+use std::collections::HashSet;
+
+/// A checkpoint for wrapping already-emitted siblings.
+#[derive(Clone, Copy)]
+struct Checkpoint(usize);
+
+/// A green-tree builder that never hash-conses.
+///
+/// Rowan's `GreenNodeBuilder` hashes each subtree to share identical nodes.
+/// That hash walks the subtree recursively, so a deeply nested but valid
+/// expression overflows the stack inside `finish_node`. Building `GreenNode`
+/// values directly keeps parsing linear and independent of nesting depth.
+struct GreenBuilder {
+    parents: Vec<(Kind, usize)>,
+    children: Vec<NodeOrToken<GreenNode, GreenToken>>,
+}
+
+impl GreenBuilder {
+    fn new() -> Self {
+        Self {
+            parents: Vec::new(),
+            children: Vec::new(),
+        }
+    }
+    fn token(&mut self, kind: Kind, text: &str) {
+        self.children
+            .push(NodeOrToken::Token(GreenToken::new(raw(kind), text)));
+    }
+    fn start_node(&mut self, kind: Kind) {
+        let first_child = self.children.len();
+        self.parents.push((kind, first_child));
+    }
+    fn finish_node(&mut self) {
+        let (kind, first_child) = self.parents.pop().expect("unbalanced green tree");
+        let children: Vec<_> = self.children.drain(first_child..).collect();
+        self.children
+            .push(NodeOrToken::Node(GreenNode::new(raw(kind), children)));
+    }
+    fn checkpoint(&self) -> Checkpoint {
+        Checkpoint(self.children.len())
+    }
+    fn start_node_at(&mut self, checkpoint: Checkpoint, kind: Kind) {
+        assert!(
+            checkpoint.0 <= self.children.len(),
+            "checkpoint no longer valid"
+        );
+        if let Some(&(_, first_child)) = self.parents.last() {
+            assert!(
+                checkpoint.0 >= first_child,
+                "checkpoint outside the current node"
+            );
+        }
+        self.parents.push((kind, checkpoint.0));
+    }
+    fn finish(mut self) -> GreenNode {
+        assert!(
+            self.parents.is_empty(),
+            "unclosed green tree nodes: {}",
+            self.parents.len()
+        );
+        assert_eq!(
+            self.children.len(),
+            1,
+            "the green tree must have exactly one root"
+        );
+        match self.children.pop().unwrap() {
+            NodeOrToken::Node(node) => node,
+            NodeOrToken::Token(_) => panic!("the green tree root must be a node"),
+        }
+    }
+}
+
+/// A green tree whose drop is iterative for pathological nesting. Rowan drops
+/// nested `GreenNode`s recursively; walking the tree first keeps shallow parses
+/// allocation-free while deep valid input cannot overflow the caller's stack.
+#[derive(Debug, Clone)]
+pub struct GreenTree(GreenNode);
+
+impl GreenTree {
+    pub fn clone_green(&self) -> GreenNode {
+        self.0.clone()
+    }
+}
+
+impl Drop for GreenTree {
+    fn drop(&mut self) {
+        fn depth(root: &GreenNode) -> usize {
+            let mut maximum = 1;
+            let mut stack = vec![(&**root, 1usize)];
+            while let Some((node, current)) = stack.pop() {
+                maximum = maximum.max(current);
+                for child in node.children() {
+                    if let NodeOrToken::Node(child) = child {
+                        stack.push((child, current + 1));
+                    }
+                }
+            }
+            maximum
+        }
+        if depth(&self.0) <= 1_024 {
+            return;
+        }
+        let green = std::mem::replace(
+            &mut self.0,
+            GreenNode::new(
+                raw(Kind::File),
+                std::iter::empty::<NodeOrToken<GreenNode, GreenToken>>(),
+            ),
+        );
+        stacker::grow(128 * 1024 * 1024, move || drop(green));
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Parse {
-    pub green: GreenNode,
+    pub green: GreenTree,
     pub diagnostics: Vec<Diagnostic>,
     pub interpolations: Vec<ParsedInterpolation>,
 }
@@ -13,11 +125,11 @@ pub struct Parse {
 #[derive(Debug, Clone)]
 pub struct ParsedInterpolation {
     pub expression: crate::Span,
-    pub green: GreenNode,
+    pub green: GreenTree,
 }
 impl Parse {
     pub fn syntax(&self) -> SyntaxNode {
-        SyntaxNode::new_root(self.green.clone())
+        SyntaxNode::new_root(self.green.clone_green())
     }
     pub fn is_valid(&self) -> bool {
         self.diagnostics.is_empty()
@@ -31,10 +143,11 @@ pub fn parse(source: &str, file: FileId) -> Parse {
         source,
         tokens: &lexed.tokens,
         pos: 0,
-        builder: GreenNodeBuilder::new(),
+        builder: GreenBuilder::new(),
         diagnostics: lexed.diagnostics,
         pairs: &pairs,
         imports_done: false,
+        implicit_closed: false,
     };
     p.start(Kind::File);
     p.module_doc();
@@ -63,10 +176,11 @@ pub fn parse(source: &str, file: FileId) -> Parse {
             source: text,
             tokens: &nested.tokens,
             pos: 0,
-            builder: GreenNodeBuilder::new(),
+            builder: GreenBuilder::new(),
             diagnostics: nested.diagnostics,
             pairs: &pairs,
             imports_done: false,
+            implicit_closed: false,
         };
         q.start(Kind::File);
         q.expr(0, true);
@@ -98,11 +212,17 @@ pub fn parse(source: &str, file: FileId) -> Parse {
         }
         interpolations.push(ParsedInterpolation {
             expression: crate::Span::new(file, start, start + text.len()),
-            green: q.builder.finish(),
+            green: GreenTree(q.builder.finish()),
         });
     }
+    // Re-lexing a text interpolation can report the same malformed token as
+    // the enclosing module. A diagnostic is identified by its code and span;
+    // keep the first copy so one source mistake is one error.
+    let mut seen = HashSet::new();
+    p.diagnostics
+        .retain(|diagnostic| seen.insert((diagnostic.code.clone(), diagnostic.primary.span)));
     Parse {
-        green: p.builder.finish(),
+        green: GreenTree(p.builder.finish()),
         diagnostics: p.diagnostics,
         interpolations,
     }
@@ -122,10 +242,11 @@ struct Parser<'a> {
     source: &'a str,
     tokens: &'a [Token],
     pos: usize,
-    builder: GreenNodeBuilder<'static>,
+    builder: GreenBuilder,
     diagnostics: Vec<Diagnostic>,
     pairs: &'a [Option<usize>],
     imports_done: bool,
+    implicit_closed: bool,
 }
 
 fn delimiter_pairs(source: &str, tokens: &[Token]) -> Vec<Option<usize>> {
@@ -170,7 +291,7 @@ impl Parser<'_> {
                     // the following declaration through significant lookahead.
                     while self.pos <= i {
                         let token = self.tokens[self.pos];
-                        self.builder.token(raw(token.kind), token.text(self.source));
+                        self.builder.token(token.kind, token.text(self.source));
                         self.pos += 1;
                     }
                     return;
@@ -213,7 +334,7 @@ impl Parser<'_> {
         self.nth(n).text(self.source)
     }
     fn start(&mut self, kind: Kind) {
-        self.builder.start_node(raw(kind));
+        self.builder.start_node(kind);
     }
     fn finish(&mut self) {
         self.builder.finish_node();
@@ -222,12 +343,12 @@ impl Parser<'_> {
         self.builder.checkpoint()
     }
     fn wrap(&mut self, checkpoint: Checkpoint, kind: Kind) {
-        self.builder.start_node_at(checkpoint, raw(kind));
+        self.builder.start_node_at(checkpoint, kind);
     }
     fn bump(&mut self) {
         let index = self.index();
         for token in &self.tokens[self.pos..=index] {
-            self.builder.token(raw(token.kind), token.text(self.source));
+            self.builder.token(token.kind, token.text(self.source));
         }
         self.pos = index + 1;
     }
@@ -327,6 +448,7 @@ impl Parser<'_> {
     }
 
     fn statement(&mut self, context: Context) {
+        self.implicit_closed = false;
         let cp = self.checkpoint();
         while self.eat_kind(Kind::DocComment) {
             self.eat_kind(Kind::Newline);
@@ -1112,6 +1234,47 @@ impl Parser<'_> {
         }
 
         loop {
+            if self.implicit_closed {
+                let continuation = matches!(
+                    self.text(),
+                    "(" | "["
+                        | "."
+                        | "otherwise"
+                        | "or"
+                        | "and"
+                        | "=="
+                        | "!="
+                        | "<"
+                        | "<="
+                        | ">"
+                        | ">="
+                        | "in"
+                        | "is"
+                        | ".."
+                        | "..="
+                        | "+"
+                        | "-"
+                        | "*"
+                        | "/"
+                        | "%"
+                        | "**"
+                ) || (self.at("not") && self.nth_text(1) == "in");
+                if continuation {
+                    // A block lambda's dedent closes its call. Chaining or
+                    // applying an operator to it on that dedent line would
+                    // silently attach the text to the lambda body instead.
+                    let span = self.token().span;
+                    if !self
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "V0201" && d.primary.span == span)
+                    {
+                        self.expected("end of line");
+                    }
+                    self.implicit_closed = false;
+                    break;
+                }
+            }
             if min <= 12 && self.at("(") {
                 associated_receiver = false;
                 self.wrap(cp, Kind::Call);
@@ -1244,6 +1407,11 @@ impl Parser<'_> {
                         | ">"
                         | "<="
                         | ">="
+                        | "in"
+                        | "is"
+                        | "not"
+                        | ".."
+                        | "..="
                 ) {
                     let span = self.token().span;
                     let rest_end = self.tokens[self.index() + 1..]
@@ -1432,7 +1600,9 @@ impl Parser<'_> {
                 break;
             }
         }
-        if !self.eat_kind(Kind::ImplicitClose) {
+        if self.eat_kind(Kind::ImplicitClose) {
+            self.implicit_closed = true;
+        } else {
             self.expect(")");
         }
         self.finish();
