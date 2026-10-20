@@ -15,12 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 def generated(lines):
     parts = []
     index = 0
-    while len(parts) < lines:
+    newlines = 0
+    while newlines < lines:
         pattern = index % 4
         if pattern == 0:
-            parts.append(f"fn function_{index}(x: Int): Int\n    x + {index}\n\n")
+            block = f"fn function_{index}(x: Int): Int\n    x + {index}\n\n"
         elif pattern == 1:
-            parts.append(
+            block = (
                 f"fn sum_{index}(x: Int): Int\n"
                 f"    values = [x, x + 1, x + 2]\n"
                 f"    total = 0\n"
@@ -29,18 +30,27 @@ def generated(lines):
                 f"    total\n\n"
             )
         elif pattern == 2:
-            parts.append(
-                f"fn choose_{index}(x: Int): Int\n"
-                f"    if x > {index} then x else {index}\n\n"
-            )
+            block = f"fn choose_{index}(x: Int): Int\n    if x > {index} then x else {index}\n\n"
         else:
-            parts.append(
+            block = (
                 f"## Function {index} maps its input.\n"
                 f"fn map_{index}(values: List<Int>): List<Int>\n"
                 f"    values.map(value -> value + {index})\n\n"
             )
+        parts.append(block)
+        newlines += block.count("\n")
         index += 1
     return "".join(parts)
+
+
+def cpu_name():
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return platform.processor() or platform.machine()
 
 
 def measure(binary, path, stage, runs, iterations):
@@ -116,7 +126,7 @@ def main():
     result = {
         "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
         "platform": platform.platform(),
-        "cpu": platform.processor() or platform.machine(),
+        "cpu": cpu_name(),
         "frequency_pinned": False,
         "limiter": "CPU and allocation; lex, parse, arena lowering and formatting run without I/O in their timed region. AST lowering is timed separately from parsing. Peak RSS includes source loading and process overhead.",
         "results": records,
@@ -127,11 +137,12 @@ def main():
     baseline_path = args.baseline or ROOT / "bench/compiler/baseline.json"
     if baseline_path.exists():
         baseline = json.loads(baseline_path.read_text())
-        # A baseline is comparable only on the same toolchain, CPU and
-        # platform. A new kernel or libc invalidates its absolute timings even
-        # when the source and compiler are unchanged.
+        # A baseline is comparable only on the same toolchain and CPU model.
+        # A different kernel or libc changes absolute timings even when the
+        # source and compiler are unchanged, so the kernel is not part of the
+        # key and the CPU model is read from /proc/cpuinfo.
         comparable = all(
-            result[key] == baseline.get(key) for key in ("cpu", "rustc", "platform")
+            result[key] == baseline.get(key) for key in ("cpu", "rustc")
         )
         before = {(r["sha256"], r["stage"]): r for r in baseline["results"]} if comparable else {}
         for after in records:

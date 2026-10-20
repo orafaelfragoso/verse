@@ -30,18 +30,37 @@ fn specification_examples() {
     let mut failures = Vec::new();
     let mut count = 0;
     for example in examples.as_array().unwrap() {
-        if example["kind"] == "fragment" {
-            continue;
-        }
-        count += 1;
         let source = example["source"].as_str().unwrap();
-        let parsed = parse(source, FileId(0));
+        let fragment = example["kind"] == "fragment";
+        // A fragment's §1.7 ellipsis stands for an elided body; `pass` keeps
+        // the surrounding, non-elided code parseable. Signature-only fragments
+        // have no ellipsis and no parseable form, so they are skipped.
+        let text = if fragment {
+            if source.contains("...") {
+                source.replace("...", "pass")
+            } else {
+                continue;
+            }
+        } else {
+            count += 1;
+            source.to_owned()
+        };
+        let parsed = parse(&text, FileId(0));
         assert_eq!(
             parsed.syntax().text().to_string(),
-            source,
+            text,
             "{} lost source text",
             example["id"]
         );
+        if fragment {
+            assert!(
+                parsed.is_valid(),
+                "{} fragment did not parse: {:?}",
+                example["id"],
+                parsed.diagnostics
+            );
+            continue;
+        }
         let mut codes: Vec<_> = parsed.diagnostics.iter().map(|d| d.code.as_str()).collect();
         codes.sort();
         codes.dedup();
@@ -326,4 +345,61 @@ fn only_a_leading_bom_is_reported_as_a_byte_order_mark() {
     assert!(leading.diagnostics.iter().any(|d| d.code == "V0113"));
     let middle = parse("x = 1\n\u{feff}\n", FileId(0));
     assert!(middle.diagnostics.iter().all(|d| d.code != "V0113"));
+}
+
+#[test]
+fn explicit_type_arguments_do_not_pair_across_logical_lines() {
+    valid("ok = Int.max < a\nother = b > c\n");
+    valid("ok = Color.Red < a and b > c\n");
+    valid("x = List<Int>()\n");
+    valid("x = xs.map(List<Int>.new)\n");
+}
+
+#[test]
+fn export_precedes_only_a_declaration_or_a_binding() {
+    valid("export fn f()\n    pass\n");
+    valid("export x = 1\n");
+    assert!(!parse("export if true\n    pass\n", FileId(0)).is_valid());
+    assert!(!parse("export impl Unique for File\n", FileId(0)).is_valid());
+    assert!(!parse("export import fs\n", FileId(0)).is_valid());
+    assert!(!parse("export test \"a\"\n    pass\n", FileId(0)).is_valid());
+}
+
+#[test]
+fn only_names_and_indexing_are_assignment_places() {
+    valid("x[0] = 1\ntotal += 1\n");
+    assert!(!parse("a.f(x).y = 1\n", FileId(0)).is_valid());
+    assert!(!parse("x.0 = 1\n", FileId(0)).is_valid());
+}
+
+#[test]
+fn int_range_accounts_for_a_binary_minus() {
+    valid("x = -9223372036854775808\n");
+    assert!(!parse("x = 9223372036854775808\n", FileId(0)).is_valid());
+    assert!(!parse("x = 1 - 9223372036854775808\n", FileId(0)).is_valid());
+}
+
+#[test]
+fn a_backslash_before_a_newline_is_not_an_escape() {
+    let parsed = parse("x = \"a\\\nb\"\n", FileId(0));
+    assert!(parsed.diagnostics.iter().any(|d| d.code == "V0104"));
+    assert!(parsed.diagnostics.iter().any(|d| d.code == "V0103"));
+}
+
+#[test]
+fn a_function_type_inside_parentheses_continues_across_lines() {
+    valid("alias H = (\nfn(Int): Int,\nText)\n");
+}
+
+#[test]
+fn interpolations_reach_the_arena_in_patterns_and_test_names() {
+    let parsed = parse("match x\n    \"a{b}\" -> 1\n", FileId(0));
+    let base = Module::lower(&parsed.syntax(), FileId(0));
+    let lowered = Module::lower_parse(&parsed, FileId(0));
+    assert!(lowered.nodes.len() > base.nodes.len());
+
+    let parsed = parse("test \"name {x}\"\n    pass\n", FileId(0));
+    let base = Module::lower(&parsed.syntax(), FileId(0));
+    let lowered = Module::lower_parse(&parsed, FileId(0));
+    assert!(lowered.nodes.len() > base.nodes.len());
 }

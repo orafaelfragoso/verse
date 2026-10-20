@@ -26,6 +26,47 @@ fn formatter_goldens() {
     }
 }
 
+#[test]
+fn formatter_formats_every_conformance_fixture() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance");
+    let mut count = 0;
+    for entry in std::fs::read_dir(root).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|e| e != "vs") {
+            continue;
+        }
+        count += 1;
+        let source = std::fs::read_to_string(&path).unwrap();
+        let formatted = verse_fmt::format(&source, FileId(0))
+            .unwrap_or_else(|d| panic!("{}: {d:?}", path.display()));
+        assert_eq!(
+            verse_fmt::format(&formatted, FileId(0)).unwrap(),
+            formatted,
+            "{} not idempotent",
+            path.display()
+        );
+        assert_eq!(
+            canonical_structure(&source),
+            canonical_structure(&formatted),
+            "{} changed structure",
+            path.display()
+        );
+    }
+    assert!(count > 0, "no conformance fixtures found");
+}
+
+#[test]
+fn block_lambda_continuation_headers_indent_from_their_column() {
+    assert_eq!(
+        verify("r = items\n    .map(x ->\n        x + 1\nprint(r)\n"),
+        "r = items\n    .map(x ->\n        x + 1\nprint(r)\n"
+    );
+    assert_eq!(
+        verify("outer = xs.map(\n    x ->\n        x + 1\n)\n"),
+        "outer = xs.map(\n    x ->\n        x + 1\n)\n"
+    );
+}
+
 fn verify(source: &str) -> String {
     let formatted =
         verse_fmt::format(source, FileId(0)).unwrap_or_else(|d| panic!("input: {source}\n{d:#?}"));

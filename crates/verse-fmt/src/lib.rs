@@ -177,29 +177,92 @@ fn format_syntax(root: &SyntaxNode) -> String {
             }
         }
     }
+    // A trailing comma on a single-line collection is redundant; the canonical
+    // form drops it. Multi-line collections keep, or gain, their trailing
+    // comma through `comma_after` above.
+    let mut drop_comma = BTreeSet::new();
+    for node in root.descendants() {
+        if !matches!(
+            node.kind(),
+            Kind::Arguments
+                | Kind::Parameters
+                | Kind::List
+                | Kind::Map
+                | Kind::Set
+                | Kind::Tuple
+                | Kind::Group
+        ) {
+            continue;
+        }
+        if node.text().contains_char('\n') || node.text().contains_char('\r') {
+            continue;
+        }
+        let elements: Vec<_> = node.children_with_tokens().collect();
+        let Some(close) = elements.iter().rposition(|element| {
+            element
+                .as_token()
+                .is_some_and(|token| matches!(token.text(), ")" | "]" | "}"))
+        }) else {
+            continue;
+        };
+        let previous = elements[..close]
+            .iter()
+            .rev()
+            .find(|element| !element.kind().is_trivia() && !element.kind().is_layout());
+        if previous
+            .and_then(|element| element.as_token())
+            .is_some_and(|token| token.text() == ",")
+        {
+            drop_comma.insert(u32::from(
+                previous.unwrap().as_token().unwrap().text_range().start(),
+            ));
+        }
+    }
     // A comment directly above a declaration belongs to that declaration. The
     // blank line goes before the comment, not between the comment and the item.
     let all_tokens: Vec<_> = root
         .descendants_with_tokens()
         .filter_map(|element| element.into_token())
         .collect();
+    // The next non-trivia, non-layout token after each index, precomputed in
+    // one reverse sweep so a run of comments stays linear.
+    let mut next_code = vec![None; all_tokens.len() + 1];
+    for i in (0..all_tokens.len()).rev() {
+        next_code[i] = if all_tokens[i].kind().is_trivia() || all_tokens[i].kind().is_layout() {
+            next_code[i + 1]
+        } else {
+            Some(i)
+        };
+    }
     let mut comment_before_declaration = BTreeSet::new();
     for (index, token) in all_tokens.iter().enumerate() {
         if !matches!(token.kind(), Kind::Comment | Kind::DocComment) {
             continue;
         }
-        if let Some(next) = all_tokens[index + 1..]
-            .iter()
-            .find(|token| !token.kind().is_trivia() && !token.kind().is_layout())
-            && declaration_starts.contains(&u32::from(next.text_range().start()))
+        if let Some(next) = next_code[index + 1]
+            && declaration_starts.contains(&u32::from(all_tokens[next].text_range().start()))
         {
             comment_before_declaration.insert(u32::from(token.text_range().start()));
         }
     }
+    fn flush(out: &mut String, line: &mut String) -> usize {
+        let width = line.chars().take_while(|c| *c == ' ').count();
+        if !line.trim().is_empty() {
+            out.push_str(line.trim_end());
+            out.push('\n');
+        }
+        line.clear();
+        width
+    }
     let mut out = String::new();
     let mut line = String::new();
-    let mut indent = 0usize;
+    // Each indent level has the printed column of the line that opened it, so a
+    // block lambda whose header is a continuation line indents its body from
+    // the header's real column rather than from a naive nesting count.
+    let mut bases: Vec<usize> = vec![0];
+    let mut last_line_indent = 0usize;
     let mut physical_indent = 0usize;
+    let mut line_has_code = false;
     let mut previous = String::new();
     let mut at_line_start = true;
     let mut pending_blank = false;
@@ -208,23 +271,21 @@ fn format_syntax(root: &SyntaxNode) -> String {
     let mut previous_tight = false;
     let mut last_kind = None;
     let mut last_was_comment = false;
-    let flush = |out: &mut String, line: &mut String| {
-        if !line.trim().is_empty() {
-            out.push_str(line.trim_end());
-            out.push('\n');
-        }
-        line.clear();
-    };
     for token in ordered_tokens(root) {
         let text = token.text();
         let kind = token.kind();
+        if text == "," && drop_comma.contains(&u32::from(token.text_range().start())) {
+            continue;
+        }
         match kind {
             Kind::Indent => {
-                indent += 1;
+                bases.push(last_line_indent + 4);
                 continue;
             }
             Kind::Dedent => {
-                indent = indent.saturating_sub(1);
+                if bases.len() > 1 {
+                    bases.pop();
+                }
                 continue;
             }
             Kind::ImplicitClose => {
@@ -235,7 +296,11 @@ fn format_syntax(root: &SyntaxNode) -> String {
             Kind::Whitespace | Kind::Blank | Kind::Newline => {
                 if text.contains(['\r', '\n']) || kind == Kind::Newline {
                     if !at_line_start {
-                        flush(&mut out, &mut line);
+                        let width = flush(&mut out, &mut line);
+                        if line_has_code {
+                            last_line_indent = width;
+                        }
+                        line_has_code = false;
                     } else if kind == Kind::Blank {
                         pending_blank = true;
                     }
@@ -263,10 +328,13 @@ fn format_syntax(root: &SyntaxNode) -> String {
             explicit_close = false;
         }
         if chain_breaks.contains(&u32::from(token.text_range().start())) && !at_line_start {
-            flush(&mut out, &mut line);
+            let width = flush(&mut out, &mut line);
+            if line_has_code {
+                last_line_indent = width;
+            }
+            line_has_code = false;
             at_line_start = true;
             continuation = true;
-            physical_indent = (indent + 1) * 4;
         }
         let line_comment = at_line_start && matches!(kind, Kind::Comment | Kind::DocComment);
         if at_line_start {
@@ -282,15 +350,17 @@ fn format_syntax(root: &SyntaxNode) -> String {
                 out.push('\n');
             }
             pending_blank = false;
+            let base = *bases.last().unwrap();
             let width = if kind == Kind::Comment {
-                // A comment is layout trivia, not part of the block it happens
-                // to be stored in. Keep the column the author chose so a
-                // comment after a block does not get absorbed into it.
-                physical_indent
+                // A line-leading comment is re-indented to the nearest 4-space
+                // column at or past the author's, so a comment inside a block
+                // aligns with the block, a comment after a block stays at the
+                // outer indent, and one inside a list aligns with its elements.
+                physical_indent.div_ceil(4) * 4
             } else if continuation && !matches!(text, ")" | "]" | "}") {
-                (indent + 1) * 4
+                base + 4
             } else {
-                indent * 4
+                base
             };
             line.push_str(&" ".repeat(width));
             previous.clear();
@@ -335,7 +405,14 @@ fn format_syntax(root: &SyntaxNode) -> String {
         {
             line.push_str(if comment { "  " } else { " " });
         }
-        line.push_str(text);
+        if text.contains('\r') {
+            line.push_str(&text.replace("\r\n", "\n").replace('\r', "\n"));
+        } else {
+            line.push_str(text);
+        }
+        if !matches!(kind, Kind::Comment | Kind::DocComment) {
+            line_has_code = true;
+        }
         if comma_after.contains(&u32::from(token.text_range().end())) {
             line.push(',');
         }
@@ -353,6 +430,33 @@ fn format_syntax(root: &SyntaxNode) -> String {
     out
 }
 
+/// The module an import line brings in, used as its sort key. A multiline
+/// parenthesised import sorts by the module after `from`, never by the `(` that
+/// happens to begin its text.
+fn import_module(node: &SyntaxNode) -> String {
+    let tokens: Vec<_> = node
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia() && !token.kind().is_layout())
+        .collect();
+    if let Some(from) = tokens.iter().position(|token| token.text() == "from") {
+        tokens[from + 1..]
+            .iter()
+            .map(|token| token.text())
+            .collect()
+    } else {
+        let start = tokens
+            .iter()
+            .position(|token| token.text() == "import")
+            .map_or(0, |position| position + 1);
+        tokens[start..]
+            .iter()
+            .take_while(|token| token.text() != "as")
+            .map(|token| token.text())
+            .collect()
+    }
+}
+
 /// The token order to format. Consecutive top-level imports are sorted as whole
 /// CST nodes, so comments and multiline literals can never be mistaken for
 /// import lines.
@@ -368,7 +472,7 @@ fn ordered_tokens(root: &SyntaxNode) -> Vec<SyntaxToken> {
         }) {
             out.push(blank);
         }
-        imports.sort_by_cached_key(|node| format_syntax(node).trim().to_owned());
+        imports.sort_by_cached_key(import_module);
         for node in imports.drain(..) {
             let mut tokens = node
                 .descendants_with_tokens()

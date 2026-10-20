@@ -63,12 +63,14 @@ a 50k-statement function and pathological fixtures. Builds and source loading
 are outside the timed region. Peak RSS includes source loading and process
 overhead. Each process performs several in-process iterations, so process
 startup is amortized while the ten-run requirement still applies. Results
-contain the input hash, toolchain, platform, samples, per-run medians, median,
+contain the input hash, toolchain, CPU model, samples, per-run medians, median,
 peak RSS and spread; spread is the interquartile range of the per-run
 medians, each taken over that run's in-process iterations. The initial baseline
 is `bench/compiler/baseline.json`. A comparison uses matching inputs, toolchain
-and host metadata, and gates only measurements whose spread is at most 3% in
-both runs. Host frequency is not changed by the harness.
+and CPU model, and gates only measurements whose spread is at most 3% in
+both runs. Host frequency is not changed by the harness. Formatting re-parses
+the source to a fixed point, so it costs several times a parse; that is
+acceptable for M0 and is not a gate.
 
 ## 9.3 Where speed comes from (design levers)
 

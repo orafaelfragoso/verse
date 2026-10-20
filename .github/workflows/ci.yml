@@ -40,8 +40,11 @@ jobs:
   benchmark-regression:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Compare against the committed baseline
-        run: python3 bench/compiler/run.py --baseline bench/compiler/baseline.json
+        # A small slice so a pull request stays cheap. The comparison gates only
+        # when this runner's CPU model and toolchain match the committed
+        # baseline; otherwise the run is a measurement, not a gate.
+        run: python3 bench/compiler/run.py --sizes 1000 --baseline bench/compiler/baseline.json

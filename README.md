@@ -20,7 +20,6 @@ This repository holds the language specification (v0.1), the implementation arch
 `tools/check.sh` runs the fast M0 verification gates:
 
 ```sh
-cargo build --workspace --locked
 cargo test --workspace --locked
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings

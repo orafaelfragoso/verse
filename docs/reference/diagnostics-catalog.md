@@ -108,7 +108,7 @@ gives every rule an identifier.
 | V0102 | error | this line is indented by {n} spaces, not a multiple of 4 | expected {m} or {k} spaces | indent with {h} spaces | §3.3 |
 | V0103 | error | this text is never closed | the text starts here | add the closing `"` | §3.7 |
 | V0104 | error | `\{c}` is not an escape | not one of `\n \t \r \\ \" \{ \} \0 \u{…}` | write `\\` for a backslash | §3.7 |
-| V0105 | error | a raw text must start on its own line | the opening `"""` ends its line, but this one is followed by text | move the text to the next line | §3.7 |
+| V0105 | error | a multi-line text must start on its own line | the opening `"""` ends its line, but this one is followed by text | move the text to the next line | §3.7 |
 | V0106 | error | this interpolation is nested too deeply | text inside `{…}` inside `{…}` | bind the inner text to a name first | §3.7 |
 | V0107 | error | `{text}` is not a number | cannot read this as {kind} | write digits, with `_` between groups | §3.7 |
 | V0108 | error | the number {text} does not fit in `Int` | the largest `Int` is 9,223,372,036,854,775,807 | use a `Float`, or a sized type from `math` | §4.1 |

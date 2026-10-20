@@ -1,4 +1,4 @@
-error: a raw text must start on its own line
+error: a multi-line text must start on its own line
   --> example.vs:1:9
   |
 1 | text = r"""hello

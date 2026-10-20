@@ -1,6 +1,7 @@
 use crate::{Diagnostic, FileId, Kind, SyntaxNode, Token, lex, tree::raw};
 use rowan::{GreenNode, GreenToken, NodeOrToken};
 use std::collections::HashSet;
+use std::ops::Deref;
 
 /// A checkpoint for wrapping already-emitted siblings.
 #[derive(Clone, Copy)]
@@ -127,9 +128,41 @@ pub struct ParsedInterpolation {
     pub expression: crate::Span,
     pub green: GreenTree,
 }
+
+/// A guarded view of a parse's concrete syntax tree. Holding this keeps the
+/// iterative drop of [`GreenTree`] alive for as long as any `SyntaxNode` cloned
+/// from it, so dropping a deep valid tree cannot overflow the caller's stack.
+#[derive(Clone)]
+pub struct Cst {
+    node: SyntaxNode,
+    /// Held only so the iterative drop of the green tree outlives `node`.
+    #[allow(dead_code)]
+    tree: GreenTree,
+}
+
+impl Cst {
+    fn new(green: GreenTree) -> Self {
+        let node = SyntaxNode::new_root(green.clone_green());
+        Self { node, tree: green }
+    }
+}
+
+impl Deref for Cst {
+    type Target = SyntaxNode;
+    fn deref(&self) -> &SyntaxNode {
+        &self.node
+    }
+}
+
+impl std::fmt::Debug for Cst {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.node.fmt(f)
+    }
+}
+
 impl Parse {
-    pub fn syntax(&self) -> SyntaxNode {
-        SyntaxNode::new_root(self.green.clone_green())
+    pub fn syntax(&self) -> Cst {
+        Cst::new(self.green.clone())
     }
     pub fn is_valid(&self) -> bool {
         self.diagnostics.is_empty()
@@ -139,6 +172,7 @@ impl Parse {
 pub fn parse(source: &str, file: FileId) -> Parse {
     let lexed = lex(source, file);
     let pairs = delimiter_pairs(source, &lexed.tokens);
+    let range_inside = top_level_ranges(source, &lexed.tokens);
     let mut p = Parser {
         source,
         tokens: &lexed.tokens,
@@ -146,6 +180,7 @@ pub fn parse(source: &str, file: FileId) -> Parse {
         builder: GreenBuilder::new(),
         diagnostics: lexed.diagnostics,
         pairs: &pairs,
+        range_inside: &range_inside,
         imports_done: false,
         implicit_closed: false,
     };
@@ -172,6 +207,7 @@ pub fn parse(source: &str, file: FileId) -> Parse {
         let text = source[start..end].trim_end();
         let nested = lex(text, file);
         let pairs = delimiter_pairs(text, &nested.tokens);
+        let range_inside = top_level_ranges(text, &nested.tokens);
         let mut q = Parser {
             source: text,
             tokens: &nested.tokens,
@@ -179,6 +215,7 @@ pub fn parse(source: &str, file: FileId) -> Parse {
             builder: GreenBuilder::new(),
             diagnostics: nested.diagnostics,
             pairs: &pairs,
+            range_inside: &range_inside,
             imports_done: false,
             implicit_closed: false,
         };
@@ -245,6 +282,7 @@ struct Parser<'a> {
     builder: GreenBuilder,
     diagnostics: Vec<Diagnostic>,
     pairs: &'a [Option<usize>],
+    range_inside: &'a [bool],
     imports_done: bool,
     implicit_closed: bool,
 }
@@ -274,6 +312,32 @@ fn delimiter_pairs(source: &str, tokens: &[Token]) -> Vec<Option<usize>> {
         }
     }
     pairs
+}
+
+/// For every `[` token, whether a top-level `..` or `..=` appears directly
+/// inside it (before its matching `]`). A slice's bounds are `additive`
+/// expressions, while an index's expression is any expression, so the parser
+/// must choose the precedence before it sees the range.
+fn top_level_ranges(source: &str, tokens: &[Token]) -> Vec<bool> {
+    let mut out = vec![false; tokens.len()];
+    let mut brackets: Vec<usize> = vec![];
+    for (index, token) in tokens.iter().enumerate() {
+        match token.text(source) {
+            "(" | "[" | "{" => brackets.push(index),
+            ")" | "]" | "}" => {
+                brackets.pop();
+            }
+            ".." | "..="
+                if brackets
+                    .last()
+                    .is_some_and(|&open| tokens[open].text(source) == "[") =>
+            {
+                out[*brackets.last().unwrap()] = true;
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 impl Parser<'_> {
@@ -454,6 +518,20 @@ impl Parser<'_> {
             self.eat_kind(Kind::Newline);
         }
         let exported = self.eat("export");
+        // `export` precedes only a declaration or a new binding, never an
+        // import, an impl or extern block, a test, a statement, or a
+        // reassignment (grammar §17 `declaration`).
+        if exported
+            && context == Context::Top
+            && !matches!(self.text(), "fn" | "type" | "alias" | "trait")
+            && !(self.binding_ahead() && !self.place_assignment_ahead())
+        {
+            self.wrap(cp, Kind::Error);
+            self.expected("a declaration after `export`");
+            self.recover_line();
+            self.finish();
+            return;
+        }
         let restricted = match context {
             Context::Trait | Context::Impl | Context::Extern => !self.at("fn"),
             Context::Fields => self.kind() != Kind::Ident,
@@ -648,7 +726,7 @@ impl Parser<'_> {
                     );
                     self.eat("mut");
                     if place {
-                        self.expr(12, false);
+                        self.place();
                     } else {
                         self.pattern(false);
                         if self.eat(":") {
@@ -695,6 +773,30 @@ impl Parser<'_> {
                 .iter()
                 .take_while(|t| t.kind != Kind::Newline)
                 .any(|t| matches!(t.text(self.source), "+=" | "-=" | "*=" | "/=" | "%="))
+    }
+    fn place(&mut self) {
+        // Grammar §17 `place = ( IDENT | "self" ) { "." IDENT | "[" expr "]" }`.
+        // Only a name, self, field access and indexing may be assigned; a call
+        // or a numeric field is not a place.
+        if self.eat("self") {
+        } else {
+            self.name(false);
+        }
+        loop {
+            if self.eat(".") {
+                if matches!(self.kind(), Kind::Ident) {
+                    self.bump();
+                } else {
+                    self.expected("a field name");
+                    break;
+                }
+            } else if self.eat("[") {
+                self.expr(0, true);
+                self.expect("]");
+            } else {
+                break;
+            }
+        }
     }
     fn block(&mut self, context: Context) {
         stacker::maybe_grow(64 * 1024, 1024 * 1024, || self.block_inner(context));
@@ -1297,7 +1399,7 @@ impl Parser<'_> {
                 self.finish();
                 // Only an associated function with a capitalised receiver may
                 // have explicit arguments. Lowercase `a.b < c > (d)` compares.
-                if self.at("<") && associated_receiver && self.type_arguments_ahead() {
+                if self.at("<") && associated_receiver && self.associated_type_arguments_ahead() {
                     self.start(Kind::Generics);
                     self.bump();
                     self.ty();
@@ -1453,7 +1555,33 @@ impl Parser<'_> {
     }
 
     fn type_arguments_ahead(&self) -> bool {
-        self.pairs[self.index()].is_some()
+        let Some(close) = self.pairs[self.index()] else {
+            return false;
+        };
+        // Type arguments sit on one logical line. A `<` whose `>` is on a later
+        // line is a comparison, never the type argument list of a call here.
+        !self.tokens[self.index()..close]
+            .iter()
+            .any(|token| token.kind == Kind::Newline)
+    }
+
+    /// Explicit type arguments on an associated call (`TYPE_IDENT . IDENT
+    /// type_args call`) must end in a call, so `<`/`>` that are not followed by
+    /// `(` stay comparisons even on the same logical line.
+    fn associated_type_arguments_ahead(&self) -> bool {
+        let Some(close) = self.pairs[self.index()] else {
+            return false;
+        };
+        if self.tokens[self.index()..close]
+            .iter()
+            .any(|token| token.kind == Kind::Newline)
+        {
+            return false;
+        }
+        self.tokens[close + 1..]
+            .iter()
+            .find(|token| !token.kind.is_trivia() && !token.kind.is_layout())
+            .is_some_and(|token| token.text(self.source) == "(")
     }
 
     fn primary(&mut self) {
@@ -1469,12 +1597,14 @@ impl Parser<'_> {
             self.wrap(cp, Kind::Name);
             self.bump();
             if type_name && self.at("<") && self.type_arguments_ahead() {
+                self.start(Kind::Generics);
                 self.bump();
                 self.ty();
                 while self.eat(",") && !self.at(">") {
                     self.ty();
                 }
                 self.expect(">");
+                self.finish();
             }
             self.finish();
         } else if self.eat("(") {
@@ -1625,32 +1755,19 @@ impl Parser<'_> {
         if !self.at("[") {
             return false;
         }
+        let open = self.index();
         self.wrap(cp, Kind::Index);
         self.bump();
         let slice = self.checkpoint();
-        let mut depth = 0usize;
-        let mut has_range = false;
-        for token in &self.tokens[self.index()..] {
-            match token.text(self.source) {
-                "]" if depth == 0 => break,
-                "(" | "[" | "{" => depth += 1,
-                ")" | "]" | "}" => depth = depth.saturating_sub(1),
-                ".." | "..=" if depth == 0 => {
-                    has_range = true;
-                    break;
-                }
-                _ => {}
-            }
-            if matches!(token.kind, Kind::Newline | Kind::Eof) {
-                break;
-            }
-        }
         if self.eat("..") || self.eat("..=") {
             self.wrap(slice, Kind::Slice);
             self.expr(7, true);
             self.finish();
         } else {
-            self.expr(if has_range { 7 } else { 0 }, true);
+            // A top-level range inside the brackets makes this a slice; its
+            // bounds are `additive` expressions. Precomputed per `[`, so the
+            // lookahead is constant and nested indexing stays linear.
+            self.expr(if self.range_inside[open] { 7 } else { 0 }, true);
             if self.eat("..") || self.eat("..=") {
                 self.wrap(slice, Kind::Slice);
                 if !self.at("]") {

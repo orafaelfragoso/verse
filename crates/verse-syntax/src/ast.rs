@@ -60,27 +60,33 @@ impl Module {
     /// Lower embedded expression trees without reparsing them in a later stage.
     pub fn lower_parse(parsed: &crate::Parse, file: FileId) -> Self {
         let mut module = Self::lower(&parsed.syntax(), file);
-        let mut literals: Vec<_> = module
+        let mut candidates: Vec<_> = module
             .nodes
             .iter()
             .enumerate()
-            .filter(|(_, n)| n.kind == Kind::Literal)
             .map(|(i, n)| (n.span, NodeId(i as u32)))
             .collect();
-        literals.sort_by_key(|(span, _)| span.start);
+        candidates.sort_by_key(|(span, _)| span.start);
         let mut children = Vec::new();
         for interpolation in &parsed.interpolations {
-            let candidate =
-                literals.partition_point(|(span, _)| span.start <= interpolation.expression.start);
-            if let Some((span, literal)) = candidate.checked_sub(1).and_then(|i| literals.get(i))
-                && span.end >= interpolation.expression.end
+            let start = interpolation.expression.start;
+            let end = interpolation.expression.end;
+            // The deepest node spanning the whole expression owns it: a
+            // `Literal` for an ordinary text literal, but a `Pattern` or a
+            // `Test` node when a text token is not a node of its own. Reverse
+            // from the first candidate after `start`, so the deepest node wins.
+            let hi = candidates.partition_point(|(span, _)| span.start <= start);
+            if let Some((_, owner)) = candidates[..hi]
+                .iter()
+                .rev()
+                .find(|(span, _)| span.end >= end)
             {
                 let child = module.append(
                     &SyntaxNode::new_root(interpolation.green.clone_green()),
                     file,
-                    interpolation.expression.start,
+                    start,
                 );
-                children.push((*literal, child));
+                children.push((*owner, child));
             }
         }
         children.sort_by_key(|(parent, _)| parent.0);

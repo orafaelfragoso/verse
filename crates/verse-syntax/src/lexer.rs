@@ -364,12 +364,28 @@ impl Scanner<'_> {
                 ],
             ));
         } else if kind == Kind::Int {
-            let negative = self
-                .tokens
-                .iter()
-                .rev()
-                .find(|t| !t.kind.is_trivia())
-                .is_some_and(|t| t.text(self.source) == "-");
+            // A leading `-` negates only when it is a prefix operator, not a
+            // binary one: `-9223372036854775808` is the minimum Int, while
+            // `1 - 9223372036854775808` overflows.
+            let mut trailing = self.tokens.iter().rev().filter(|t| !t.kind.is_trivia());
+            let minus = trailing.next().is_some_and(|t| t.text(self.source) == "-");
+            let operand = trailing.next().is_some_and(|t| {
+                matches!(
+                    t.kind,
+                    Kind::Ident
+                        | Kind::TypeIdent
+                        | Kind::Int
+                        | Kind::Float
+                        | Kind::Text
+                        | Kind::RawText
+                        | Kind::Char
+                        | Kind::Bytes
+                ) || matches!(
+                    t.text(self.source),
+                    ")" | "]" | "}" | "true" | "false" | "none" | "self" | "Self"
+                )
+            });
+            let negative = minus && !operand;
             let max = i64::MAX as u128 + u128::from(negative);
             if u128::from_str_radix(digits, base).map_or(true, |n| n > max) {
                 self.diagnostics.push(Diagnostic::new(
@@ -385,6 +401,17 @@ impl Scanner<'_> {
     fn escape(&mut self) {
         let start = self.pos;
         self.advance();
+        // A backslash before a newline is not an escape. Leave the newline for
+        // the enclosing single-line text so it reports the text is unterminated
+        // instead of swallowing the next physical line.
+        if matches!(self.peek(), '\r' | '\n') {
+            let c = if self.peek() == '\r' { "\\r" } else { "\\n" };
+            self.diagnostics.push(
+                Diagnostic::new("V0104", self.span(start), [("c", c.into())])
+                    .with_edit(Span::new(self.file, start, start), "\\"),
+            );
+            return;
+        }
         let c = self.advance();
         if c == 'u' && self.peek() == '{' {
             self.advance();
@@ -557,13 +584,6 @@ impl Scanner<'_> {
     }
 }
 
-fn is_declaration(text: &str) -> bool {
-    matches!(
-        text,
-        "fn" | "type" | "alias" | "trait" | "impl" | "extern" | "test" | "import" | "export"
-    ) || text.starts_with("##")
-}
-
 fn binary(text: &str) -> bool {
     matches!(
         text,
@@ -635,8 +655,8 @@ fn layout(
             continue;
         }
         if token.kind == Kind::Newline {
-            let next = next_code[index + 1].map(|i| &raw[i]);
-            let next_text = next.map_or("", |t| t.text(source));
+            let next_index = next_code[index + 1];
+            let next_text = next_index.map_or("", |i| raw[i].text(source));
             let floor = lambdas.last().map_or(0, |(_, i, _)| i + 1);
             let arrow_block = line_has_code && previous == "->";
             if arrow_block && !brackets.is_empty() {
@@ -667,8 +687,29 @@ fn layout(
             // An unclosed bracket must not turn every later line into the same
             // logical line. A top-level declaration is a reliable recovery
             // point, so end the continuation and let the parser report the
-            // missing close at the declaration boundary.
-            let recover = next_indent == 0 && !brackets.is_empty() && is_declaration(next_text);
+            // missing close at the declaration boundary. A `fn` at column zero
+            // can instead be a function type inside a bracketed type, so only a
+            // `fn` that is not followed by `(` is a declaration.
+            let recover = next_indent == 0
+                && !brackets.is_empty()
+                && next_index.is_some_and(|i| {
+                    let text = raw[i].text(source);
+                    if text == "fn" {
+                        !next_code[i + 1].is_some_and(|j| raw[j].text(source) == "(")
+                    } else {
+                        matches!(
+                            text,
+                            "type"
+                                | "alias"
+                                | "trait"
+                                | "impl"
+                                | "extern"
+                                | "test"
+                                | "import"
+                                | "export"
+                        )
+                    }
+                });
             if recover {
                 brackets.clear();
             }
@@ -698,6 +739,15 @@ fn layout(
         }
         if token.kind == Kind::Comment {
             out.push(token);
+            continue;
+        }
+        if token.kind == Kind::DocComment && !brackets.is_empty() {
+            // A doc comment inside an open bracket is an ordinary comment, not
+            // documentation for a following item, so it is trivia there.
+            out.push(Token {
+                kind: Kind::Comment,
+                ..token
+            });
             continue;
         }
         if line_start {

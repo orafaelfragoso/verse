@@ -215,7 +215,16 @@ pub fn fingerprint(node: &SyntaxNode) -> String {
                                 && t.kind() != Kind::DocComment
                                 && t.text() != "," =>
                         {
-                            stack.push(Event::Token(t.text().to_owned()));
+                            // Line endings inside a text literal are spelling,
+                            // not meaning; normalize them so a CRLF source and
+                            // its LF formatting have the same fingerprint.
+                            let text = t.text();
+                            let text = if text.contains('\r') {
+                                text.replace("\r\n", "\n").replace('\r', "\n")
+                            } else {
+                                text.to_owned()
+                            };
+                            stack.push(Event::Token(text));
                         }
                         _ => {}
                     }

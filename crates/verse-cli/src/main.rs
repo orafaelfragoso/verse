@@ -4,17 +4,33 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     path::{Path, PathBuf},
     process::ExitCode,
+    sync::Mutex,
 };
 use verse_syntax::{Diagnostic, FileId, SourceFile, Span, lexer::decode};
+
+/// The last panic's message and location, captured by the hook for `--report`.
+static PANIC_INFO: Mutex<Option<String>> = Mutex::new(None);
 
 fn main() -> ExitCode {
     let args: Vec<_> = env::args().skip(1).collect();
     let json = args.iter().any(|a| a == "--json");
+    let report = args.iter().any(|a| a == "--report") || env::var_os("VERSE_REPORT").is_some();
     // A panic is a compiler bug, not a source error. Report it as V9901 and
     // leave the reserved status 3. Stack overflows are prevented by the parser
     // and formatter rather than caught here.
     let hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(|_| {}));
+    std::panic::set_hook(Box::new(|info| {
+        let message = info
+            .payload()
+            .downcast_ref::<&str>()
+            .map(|text| (*text).to_owned())
+            .or_else(|| info.payload().downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        let location = info
+            .location()
+            .map_or(String::new(), |l| format!(" at {l}"));
+        *PANIC_INFO.lock().unwrap() = Some(format!("{message}{location}"));
+    }));
     let result = catch_unwind(AssertUnwindSafe(|| run(args)));
     std::panic::set_hook(hook);
     match result {
@@ -34,10 +50,18 @@ fn main() -> ExitCode {
             let source = SourceFile::new(FileId(0), "command line", "");
             let diagnostic =
                 Diagnostic::new("V9901", Span::default(), [("stage", "command".into())]);
+            let panic = PANIC_INFO.lock().unwrap().take().unwrap_or_default();
             if json {
-                println!("{}", diagnostic_json(&diagnostic, &source));
+                let mut value = diagnostic_json(&diagnostic, &source);
+                if report && !panic.is_empty() {
+                    value["panic"] = serde_json::json!(panic);
+                }
+                println!("{value}");
             } else {
                 eprint!("{}", diagnostic.render(&source));
+                if report && !panic.is_empty() {
+                    eprintln!("note: {panic}");
+                }
             }
             ExitCode::from(3)
         }
@@ -46,7 +70,7 @@ fn main() -> ExitCode {
 
 fn run(mut args: Vec<String>) -> Result<u8, String> {
     let json = args.iter().any(|a| a == "--json");
-    args.retain(|a| a != "--json");
+    args.retain(|a| a != "--json" && a != "--report");
     if args.is_empty() || args == ["--help"] || args == ["-h"] {
         if json {
             println!(
@@ -103,6 +127,7 @@ fn run(mut args: Vec<String>) -> Result<u8, String> {
             files.sort();
             let mut failed = false;
             let mut internal_failure = false;
+            let mut naming_failed = false;
             // Validate every input before writing any of them.
             let mut changes = vec![];
             for (index, path) in files.iter().enumerate() {
@@ -142,7 +167,7 @@ fn run(mut args: Vec<String>) -> Result<u8, String> {
                                 }
                             }
                             for d in verse_syntax::diagnostic::naming_diagnostics(text, id) {
-                                failed = true;
+                                naming_failed = true;
                                 if json {
                                     println!("{}", diagnostic_json(&d, &source));
                                 } else {
@@ -179,11 +204,14 @@ fn run(mut args: Vec<String>) -> Result<u8, String> {
                 if json {
                     println!(
                         "{}",
-                        serde_json::json!({"path": path, "changed": true, "written": !check})
+                        serde_json::json!({"kind": "change", "path": path, "changed": true, "written": !check})
                     );
                 } else if check {
                     println!("would format {}", path.display());
                 }
+            }
+            if naming_failed {
+                return Ok(2);
             }
             Ok(u8::from(check && !changes.is_empty()))
         }
@@ -234,7 +262,14 @@ fn collect_sources(path: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()>
     if path.is_dir() {
         collect_directory(path, files)
     } else if path.extension().is_some_and(|s| s == "vs") {
-        files.push(path.to_owned());
+        // Follow a symlink so `verse fmt link.vs` formats the target instead of
+        // replacing the link with a regular file.
+        let target = if path.is_symlink() {
+            fs::canonicalize(path)?
+        } else {
+            path.to_owned()
+        };
+        files.push(target);
         Ok(())
     } else if !path.exists() {
         Err(std::io::Error::new(
